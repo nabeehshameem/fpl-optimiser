@@ -138,21 +138,26 @@ class NaivePredictor:
         """
         return pd.read_sql_query(query, conn, params=(target_gw,))
 
-    def predict_all(self, target_gw: int) -> pd.DataFrame:
+    def predict_all(self, target_gw: int, as_of_gameweek: Optional[int] = None) -> pd.DataFrame:
         """
         Predict expected points for every player for the given gameweek.
 
-        Returns a DataFrame with columns:
-            player_id, predicted_points, recent_form, fdr, fixture_modifier,
-            availability, num_fixtures
+        Args:
+            target_gw: The gameweek to predict for.
+            as_of_gameweek: The latest gameweek whose data the predictor may use.
+                            Defaults to target_gw - 1 (i.e. predicting forward).
+                            For backtesting, set this explicitly.
         """
+        if as_of_gameweek is None:
+            as_of_gameweek = target_gw - 1
+
         conn = sqlite3.connect(self.db_path)
         conn.execute("PRAGMA foreign_keys = ON")
 
         try:
-            form_df = self._get_recent_form(conn, target_gw)
+            form_df = self._get_recent_form(conn, as_of_gameweek + 1)
             fdr_df = self._get_fixture_difficulty(conn, target_gw)
-            meta_df = self._get_player_meta(conn, target_gw)
+            meta_df = self._get_player_meta(conn, as_of_gameweek + 1)
         finally:
             conn.close()
 
