@@ -40,20 +40,26 @@ def get_actuals_for_gameweek(conn: sqlite3.Connection, gameweek: int) -> pd.Data
 
 def get_fpl_ep_next_for_gameweek(conn: sqlite3.Connection, gameweek: int) -> pd.DataFrame:
     """
-    Return the most recent FPL ep_next snapshot for each player taken at or before
-    the deadline of `gameweek`. This is FPL's own prediction baseline.
+    Return FPL's ep_next baseline for the given gameweek.
+
+    Returns an empty DataFrame if no snapshots exist for this gameweek -- callers
+    should treat fpl_ep_next as unavailable for that gameweek rather than zero.
     """
     query = """
-        SELECT s.player_id, s.ep_next AS fpl_ep_next
+        SELECT s.player_id, CAST(s.ep_next AS REAL) AS fpl_ep_next
         FROM player_snapshots s
-        WHERE s.snapshot_id IN (
-            SELECT MAX(snapshot_id)
-            FROM player_snapshots
-            WHERE gameweek_id = ?
-            GROUP BY player_id
-        )
+        WHERE s.gameweek_id = ?
+          AND s.snapshot_id IN (
+              SELECT MAX(snapshot_id)
+              FROM player_snapshots
+              WHERE gameweek_id = ?
+              GROUP BY player_id
+          )
     """
-    return pd.read_sql_query(query, conn, params=(gameweek,))
+    df = pd.read_sql_query(query, conn, params=(gameweek, gameweek))
+    if not df.empty:
+        df["fpl_ep_next"] = pd.to_numeric(df["fpl_ep_next"], errors="coerce")
+    return df
 
 
 # ---------- Metrics ----------
@@ -82,12 +88,8 @@ class Evaluator:
     ) -> pd.DataFrame:
         """
         Run predictor for target_gw using only data up to target_gw - 1,
-        then join with actuals and FPL's baseline.
-
-        If restrict_to_appeared is True, only evaluates players who actually
-        appeared in target_gw. This is a deliberate choice (see notes below).
+        then join with actuals and FPL's baseline (where available).
         """
-        # Predictor sees only data strictly before target_gw
         preds = predictor.predict_all(target_gw=target_gw, as_of_gameweek=target_gw - 1)
         preds = preds[["player_id", "predicted_points"]].rename(
             columns={"predicted_points": "model_pred"}
@@ -102,17 +104,19 @@ class Evaluator:
 
         if restrict_to_appeared:
             df = actuals.merge(preds, on="player_id", how="left")
-            df = df.merge(fpl_baseline, on="player_id", how="left")
         else:
             df = preds.merge(actuals, on="player_id", how="left")
-            df = df.merge(fpl_baseline, on="player_id", how="left")
             df["actual_points"] = df["actual_points"].fillna(0)
 
-        # Defensive fills
-        df["model_pred"] = df["model_pred"].fillna(0)
-        df["fpl_ep_next"] = df["fpl_ep_next"].fillna(0)
-        df["gameweek"] = target_gw
+        # FPL baseline only available for gameweeks where a snapshot was captured.
+        # For other gameweeks, leave fpl_ep_next as NaN so callers can detect absence.
+        if not fpl_baseline.empty:
+            df = df.merge(fpl_baseline, on="player_id", how="left")
+        else:
+            df["fpl_ep_next"] = pd.NA
 
+        df["model_pred"] = df["model_pred"].fillna(0)
+        df["gameweek"] = target_gw
         return df
 
     def evaluate_many(

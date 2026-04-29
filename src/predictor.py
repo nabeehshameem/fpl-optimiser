@@ -117,8 +117,10 @@ class NaivePredictor:
 
     def _get_player_meta(self, conn: sqlite3.Connection, target_gw: int) -> pd.DataFrame:
         """
-        For each player, fetch their team and most recent availability snapshot.
-        Uses the latest snapshot at or before the target gameweek.
+        For each player, fetch their team and best-available availability signal.
+
+        Snapshots are only available for gameweeks where ingest_bootstrap was run.
+        For gameweeks before any snapshot was captured, defaults to 100% availability.
         """
         query = """
             SELECT
@@ -136,7 +138,11 @@ class NaivePredictor:
                 WHERE gameweek_id <= ?
             ) s ON p.player_id = s.player_id AND s.rn = 1
         """
-        return pd.read_sql_query(query, conn, params=(target_gw,))
+        df = pd.read_sql_query(query, conn, params=(target_gw,))
+        # Defensive: if no snapshots match (e.g., backtesting an early gameweek),
+        # availability comes back NaN; default to 100.
+        df["availability"] = df["availability"].fillna(100)
+        return df
 
     def predict_all(self, target_gw: int, as_of_gameweek: Optional[int] = None) -> pd.DataFrame:
         """

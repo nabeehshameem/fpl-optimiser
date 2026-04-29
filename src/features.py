@@ -103,36 +103,38 @@ def _compute_rolling_form_features(history: pd.DataFrame) -> pd.DataFrame:
     For every (player, gameweek) in history, compute rolling features over the
     player's last N qualifying (60+ minute) gameweeks STRICTLY before that gameweek.
 
-    Returns a DataFrame keyed by (player_id, gameweek_id).
+    Returns a DataFrame keyed by (player_id, gameweek_id) with one column per
+    (stat, window) combination plus a qualifying_games_{window} count.
     """
-    # Keep only qualifying appearances for form calc
     qualifying = history[history["minutes"] >= MIN_MINUTES_TO_COUNT].copy()
-    qualifying = qualifying.sort_values(["player_id", "gameweek_id"])
+    qualifying = qualifying.sort_values(["player_id", "gameweek_id"]).reset_index(drop=True)
 
-    # We'll compute, for each (player, gameweek), rolling features over the
-    # qualifying rows that came BEFORE that gameweek. This is a per-player
-    # cumulative operation.
+    stats = ["total_points", "expected_goals", "expected_assists",
+             "defensive_contribution", "minutes"]
 
-    # Per-player, shift the qualifying stats by 1 so we never include the current row.
-    grouped = qualifying.groupby("player_id", group_keys=False)
+    grouped = qualifying.groupby("player_id", sort=False)
 
     out = qualifying[["player_id", "gameweek_id"]].copy()
 
     for window in FORM_WINDOWS:
-        # Rolling over previous N rows (excluding current via shift(1))
-        for stat in ["total_points", "expected_goals", "expected_assists",
-                     "defensive_contribution", "minutes"]:
+        for stat in stats:
             col = f"{stat}_mean_{window}"
+            # shift(1) excludes the current row; rolling mean over the prior window.
+            shifted = grouped[stat].shift(1)
             out[col] = (
-                grouped[stat]
-                .apply(lambda s: s.shift(1).rolling(window=window, min_periods=1).mean())
+                shifted.groupby(qualifying["player_id"])
+                .rolling(window=window, min_periods=1)
+                .mean()
                 .reset_index(level=0, drop=True)
             )
 
-        # Number of qualifying games actually found in the window
+        # Count of qualifying games actually present in the window
+        # (not the same as window itself; early-season rows have fewer)
+        shifted = grouped["gameweek_id"].shift(1)
         out[f"qualifying_games_{window}"] = (
-            grouped["gameweek_id"]
-            .apply(lambda s: s.shift(1).rolling(window=window, min_periods=1).count())
+            shifted.groupby(qualifying["player_id"])
+            .rolling(window=window, min_periods=1)
+            .count()
             .reset_index(level=0, drop=True)
         )
 
@@ -265,8 +267,17 @@ def build_prediction_features(target_gw: int) -> pd.DataFrame:
     )
     form_target = form_all[form_all["gameweek_id"] == target_gw].drop(columns=["gameweek_id"])
 
-    # News snapshot at target gameweek (latest snapshot for that gameweek)
+    # News snapshot at target gameweek (latest snapshot for that gameweek).
+    # If no snapshot exists for this gameweek (e.g. backtesting a past gameweek
+    # whose snapshot was never captured), fall back to the most recent available
+    # snapshot per player. If none exists at all, defaults are filled below.
     snapshot_target = snapshots[snapshots["gameweek_id"] == target_gw]
+    if snapshot_target.empty:
+        # Fall back to the most recent snapshot per player, regardless of gameweek
+        snapshot_target = (
+            snapshots.sort_values("gameweek_id", ascending=False)
+            .drop_duplicates(subset=["player_id"], keep="first")
+        )
     news = _build_news_features(snapshot_target)
 
     # Fixtures for target gameweek
@@ -277,7 +288,10 @@ def build_prediction_features(target_gw: int) -> pd.DataFrame:
     df = players.copy()
     df["gameweek_id"] = target_gw
     df = df.merge(form_target, on="player_id", how="left")
-    df = df.merge(news, on=["player_id", "gameweek_id"], how="left")
+    # When using a snapshot fallback, news rows have a different gameweek_id;
+    # merge on player_id only and ignore the snapshot's gameweek for this purpose.
+    news_for_merge = news.drop(columns=["gameweek_id"])
+    df = df.merge(news_for_merge, on="player_id", how="left")
     df = df.merge(fixture_target, on=["team_id", "gameweek_id"], how="left")
 
     # Same defensive fills as training
