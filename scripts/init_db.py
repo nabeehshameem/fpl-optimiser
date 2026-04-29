@@ -102,6 +102,18 @@ SCHEMA = [
         FOREIGN KEY (gameweek_id) REFERENCES gameweeks(gameweek_id)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS predictions (
+        prediction_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_id         INTEGER NOT NULL,
+        gameweek_id       INTEGER NOT NULL,
+        model_name        TEXT NOT NULL,
+        predicted_points  REAL,
+        prediction_time   TEXT NOT NULL,
+        FOREIGN KEY (player_id) REFERENCES players(player_id),
+        FOREIGN KEY (gameweek_id) REFERENCES gameweeks(gameweek_id)
+    )
+    """,
 ]
 
 # Useful indexes for query performance
@@ -110,6 +122,7 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_pgh_player   ON player_gameweek_history(player_id)",
     "CREATE INDEX IF NOT EXISTS idx_snap_pg      ON player_snapshots(player_id, gameweek_id)",
     "CREATE INDEX IF NOT EXISTS idx_fix_gameweek ON fixtures(gameweek_id)",
+    "CREATE INDEX IF NOT EXISTS idx_pred_pgm ON predictions(player_id, gameweek_id, model_name)",
 ]
 
 
