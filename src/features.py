@@ -6,9 +6,8 @@ Builds a (player, gameweek) feature matrix from the database, with strict
 time-awareness: every feature for (player, gameweek=g) is derived only from
 data with gameweek_id < g.
 
-Two main entry points:
-  - build_training_data(min_gw, max_gw): returns features + target for past gameweeks
-  - build_prediction_features(target_gw): returns features for predicting target_gw
+Both training-time and prediction-time pipelines use the same underlying
+rolling-feature computation to avoid training/serving skew.
 """
 
 import re
@@ -22,11 +21,9 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT_ROOT / "data" / "fpl.db"
 
-# Form windows in gameweeks
 FORM_WINDOWS = [3, 5, 10]
 MIN_MINUTES_TO_COUNT = 60
 
-# News keyword sets (lowercase matching)
 INJURY_KEYWORDS = re.compile(
     r"\b(?:knock|ankle|knee|hamstring|calf|hip|thigh|doubt|injur|fitness|fit)\b",
     re.IGNORECASE,
@@ -37,35 +34,29 @@ SUSPENSION_KEYWORDS = re.compile(
 )
 
 
-# ---------- SQL helpers ----------
+# ---------- SQL fetchers ----------
 
 def _fetch_history(conn: sqlite3.Connection) -> pd.DataFrame:
-    """All historical gameweek rows. Used to compute rolling form features."""
-    query = """
-        SELECT
-            player_id,
-            gameweek_id,
-            minutes,
-            total_points,
-            expected_goals,
-            expected_assists,
-            defensive_contribution
+    return pd.read_sql_query(
+        """
+        SELECT player_id, gameweek_id, minutes, total_points,
+               expected_goals, expected_assists, defensive_contribution
         FROM player_gameweek_history
-    """
-    return pd.read_sql_query(query, conn)
+        """,
+        conn,
+    )
 
 
 def _fetch_players(conn: sqlite3.Connection) -> pd.DataFrame:
-    query = """
-        SELECT player_id, team_id, position, current_cost
-        FROM players
-    """
-    return pd.read_sql_query(query, conn)
+    return pd.read_sql_query(
+        "SELECT player_id, team_id, position, current_cost FROM players",
+        conn,
+    )
 
 
 def _fetch_fixtures(conn: sqlite3.Connection) -> pd.DataFrame:
-    """All fixtures in long format: one row per (gameweek, team), home/away aware."""
-    query = """
+    return pd.read_sql_query(
+        """
         SELECT gameweek_id, home_team_id AS team_id, home_team_difficulty AS fdr, 1 AS is_home
         FROM fixtures
         WHERE gameweek_id IS NOT NULL
@@ -73,38 +64,42 @@ def _fetch_fixtures(conn: sqlite3.Connection) -> pd.DataFrame:
         SELECT gameweek_id, away_team_id AS team_id, away_team_difficulty AS fdr, 0 AS is_home
         FROM fixtures
         WHERE gameweek_id IS NOT NULL
-    """
-    return pd.read_sql_query(query, conn)
+        """,
+        conn,
+    )
 
 
 def _fetch_snapshots(conn: sqlite3.Connection) -> pd.DataFrame:
-    """Latest snapshot per (player, gameweek). Used for availability + news features."""
-    query = """
-        SELECT
-            player_id,
-            gameweek_id,
-            chance_of_playing_next,
-            news,
-            now_cost
+    return pd.read_sql_query(
+        """
+        SELECT player_id, gameweek_id, chance_of_playing_next, news, now_cost
         FROM player_snapshots
         WHERE snapshot_id IN (
             SELECT MAX(snapshot_id)
             FROM player_snapshots
             GROUP BY player_id, gameweek_id
         )
+        """,
+        conn,
+    )
+
+
+# ---------- Core form computation ----------
+
+def _compute_form_for_targets(
+    history: pd.DataFrame,
+    targets: pd.DataFrame,
+) -> pd.DataFrame:
     """
-    return pd.read_sql_query(query, conn)
+    For each (player_id, gameweek_id) row in `targets`, compute rolling form
+    features using ONLY rows in `history` that:
+        (a) belong to that player
+        (b) have minutes >= MIN_MINUTES_TO_COUNT
+        (c) have gameweek_id strictly less than the target's gameweek_id
 
-
-# ---------- Feature builders ----------
-
-def _compute_rolling_form_features(history: pd.DataFrame) -> pd.DataFrame:
-    """
-    For every (player, gameweek) in history, compute rolling features over the
-    player's last N qualifying (60+ minute) gameweeks STRICTLY before that gameweek.
-
-    Returns a DataFrame keyed by (player_id, gameweek_id) with one column per
-    (stat, window) combination plus a qualifying_games_{window} count.
+    Returns a DataFrame with the same row count as `targets`, keyed by
+    (player_id, gameweek_id), with one column per (stat, window) plus
+    qualifying_games_{window}.
     """
     qualifying = history[history["minutes"] >= MIN_MINUTES_TO_COUNT].copy()
     qualifying = qualifying.sort_values(["player_id", "gameweek_id"]).reset_index(drop=True)
@@ -112,37 +107,40 @@ def _compute_rolling_form_features(history: pd.DataFrame) -> pd.DataFrame:
     stats = ["total_points", "expected_goals", "expected_assists",
              "defensive_contribution", "minutes"]
 
-    grouped = qualifying.groupby("player_id", sort=False)
+    # Pre-group qualifying history by player for fast lookup.
+    history_by_player: dict[int, pd.DataFrame] = {
+        pid: g for pid, g in qualifying.groupby("player_id", sort=False)
+    }
 
-    out = qualifying[["player_id", "gameweek_id"]].copy()
-
+    # Initialise output columns
+    out = targets[["player_id", "gameweek_id"]].copy().reset_index(drop=True)
     for window in FORM_WINDOWS:
         for stat in stats:
-            col = f"{stat}_mean_{window}"
-            # shift(1) excludes the current row; rolling mean over the prior window.
-            shifted = grouped[stat].shift(1)
-            out[col] = (
-                shifted.groupby(qualifying["player_id"])
-                .rolling(window=window, min_periods=1)
-                .mean()
-                .reset_index(level=0, drop=True)
-            )
+            out[f"{stat}_mean_{window}"] = 0.0
+        out[f"qualifying_games_{window}"] = 0
 
-        # Count of qualifying games actually present in the window
-        # (not the same as window itself; early-season rows have fewer)
-        shifted = grouped["gameweek_id"].shift(1)
-        out[f"qualifying_games_{window}"] = (
-            shifted.groupby(qualifying["player_id"])
-            .rolling(window=window, min_periods=1)
-            .count()
-            .reset_index(level=0, drop=True)
-        )
+    # Compute per row. For ~25k rows this is fast enough; can be vectorised later if needed.
+    for idx, row in out.iterrows():
+        player_id = int(row["player_id"])
+        target_gw = int(row["gameweek_id"])
+        player_history = history_by_player.get(player_id)
+        if player_history is None:
+            continue
+        prior = player_history[player_history["gameweek_id"] < target_gw]
+        if prior.empty:
+            continue
+        for window in FORM_WINDOWS:
+            window_rows = prior.tail(window)
+            for stat in stats:
+                out.at[idx, f"{stat}_mean_{window}"] = float(window_rows[stat].mean())
+            out.at[idx, f"qualifying_games_{window}"] = int(len(window_rows))
 
     return out
 
 
+# ---------- Other feature builders ----------
+
 def _build_news_features(snapshots: pd.DataFrame) -> pd.DataFrame:
-    """Cheap text-based flags from the snapshot's news field."""
     df = snapshots.copy()
     news = df["news"].fillna("").astype(str)
     df["has_news"] = (news.str.strip() != "").astype(int)
@@ -156,18 +154,32 @@ def _build_news_features(snapshots: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_fixture_features(fixtures: pd.DataFrame) -> pd.DataFrame:
-    """
-    For each (team, gameweek), aggregate to one row capturing:
-      - mean fdr across that gameweek's fixtures
-      - num_fixtures
-      - is_home (1.0 if any home fixture, else 0.0; for DGWs averaging is fine)
-    """
-    agg = fixtures.groupby(["team_id", "gameweek_id"]).agg(
-        fdr=("fdr", "mean"),
-        num_fixtures=("fdr", "count"),
-        is_home=("is_home", "max"),
-    ).reset_index()
-    return agg
+    return (
+        fixtures.groupby(["team_id", "gameweek_id"])
+        .agg(fdr=("fdr", "mean"),
+             num_fixtures=("fdr", "count"),
+             is_home=("is_home", "max"))
+        .reset_index()
+    )
+
+
+def _apply_defensive_fills(df: pd.DataFrame) -> pd.DataFrame:
+    form_cols = [c for c in df.columns
+                 if any(c.startswith(f"{s}_mean_") for s in [
+                     "total_points", "expected_goals", "expected_assists",
+                     "defensive_contribution", "minutes"])
+                 or c.startswith("qualifying_games_")]
+    df[form_cols] = df[form_cols].fillna(0.0)
+    df["chance_of_playing_next"] = df["chance_of_playing_next"].fillna(100).astype(float)
+    df["has_news"] = df["has_news"].fillna(0).astype(int)
+    df["news_injury_flag"] = df["news_injury_flag"].fillna(0).astype(int)
+    df["news_suspension_flag"] = df["news_suspension_flag"].fillna(0).astype(int)
+    df["fdr"] = df["fdr"].fillna(3.0)
+    df["num_fixtures"] = df["num_fixtures"].fillna(0).astype(int)
+    df["is_home"] = df["is_home"].fillna(0).astype(int)
+    if "now_cost" in df.columns:
+        df["now_cost"] = df["now_cost"].fillna(df.get("current_cost"))
+    return df
 
 
 # ---------- Public API ----------
@@ -176,14 +188,7 @@ def build_training_data(
     min_gw: int = 8,
     max_gw: Optional[int] = None,
 ) -> pd.DataFrame:
-    """
-    Build a training-ready DataFrame: one row per (player, played-gameweek)
-    with engineered features and the target column 'actual_points'.
-
-    Args:
-        min_gw: skip gameweeks before this (early-season has weak form signal)
-        max_gw: include gameweeks up to and including this; None means all available
-    """
+    """One row per (player, played-gameweek) with features and target."""
     conn = sqlite3.connect(DB_PATH)
     try:
         history = _fetch_history(conn)
@@ -196,59 +201,31 @@ def build_training_data(
     if max_gw is None:
         max_gw = int(history["gameweek_id"].max())
 
-    # Rolling form features (one row per qualifying historical appearance)
-    form_features = _compute_rolling_form_features(history)
-
-    # News + availability features (one row per (player, gameweek) snapshot)
-    news_features = _build_news_features(snapshots)
-
-    # Fixture features (one row per (team, gameweek))
-    fixture_features = _build_fixture_features(fixtures)
-
-    # Target rows: every historical appearance is a training sample
     samples = history[["player_id", "gameweek_id", "total_points"]].rename(
         columns={"total_points": "actual_points"}
     )
     samples = samples[
         (samples["gameweek_id"] >= min_gw) & (samples["gameweek_id"] <= max_gw)
-    ]
+    ].reset_index(drop=True)
 
-    # Join form features (left, since some early-career rows lack them)
-    df = samples.merge(form_features, on=["player_id", "gameweek_id"], how="left")
+    form = _compute_form_for_targets(history, samples[["player_id", "gameweek_id"]])
 
-    # Join news features
-    df = df.merge(news_features, on=["player_id", "gameweek_id"], how="left")
+    df = samples.merge(form, on=["player_id", "gameweek_id"], how="left")
 
-    # Join player metadata
+    news = _build_news_features(snapshots)
+    df = df.merge(news, on=["player_id", "gameweek_id"], how="left")
+
     df = df.merge(players, on="player_id", how="left")
 
-    # Join fixture features by (team, gameweek)
-    df = df.merge(fixture_features, on=["team_id", "gameweek_id"], how="left")
+    fix = _build_fixture_features(fixtures)
+    df = df.merge(fix, on=["team_id", "gameweek_id"], how="left")
 
-    # Defensive fills for missing form (early-season/new player)
-    form_cols = [c for c in df.columns if any(c.startswith(f"{s}_mean_") for s in [
-        "total_points", "expected_goals", "expected_assists",
-        "defensive_contribution", "minutes",
-    ]) or c.startswith("qualifying_games_")]
-    df[form_cols] = df[form_cols].fillna(0.0)
-
-    df["chance_of_playing_next"] = df["chance_of_playing_next"].fillna(100).astype(float)
-    df["has_news"] = df["has_news"].fillna(0).astype(int)
-    df["news_injury_flag"] = df["news_injury_flag"].fillna(0).astype(int)
-    df["news_suspension_flag"] = df["news_suspension_flag"].fillna(0).astype(int)
-    df["fdr"] = df["fdr"].fillna(3.0)
-    df["num_fixtures"] = df["num_fixtures"].fillna(0).astype(int)
-    df["is_home"] = df["is_home"].fillna(0).astype(int)
-    df["now_cost"] = df["now_cost"].fillna(df["current_cost"])
-
+    df = _apply_defensive_fills(df)
     return df
 
 
 def build_prediction_features(target_gw: int) -> pd.DataFrame:
-    """
-    Build features for predicting target_gw. Uses data strictly before target_gw
-    for form features, and the latest snapshot at or before target_gw for news.
-    """
+    """Features for predicting target_gw, using only data with gameweek_id < target_gw for form."""
     conn = sqlite3.connect(DB_PATH)
     try:
         history = _fetch_history(conn)
@@ -258,81 +235,32 @@ def build_prediction_features(target_gw: int) -> pd.DataFrame:
     finally:
         conn.close()
 
-    # Restrict history to strictly before target_gw
-    history_past = history[history["gameweek_id"] < target_gw]
+    targets = players[["player_id"]].copy()
+    targets["gameweek_id"] = target_gw
 
-    # Compute rolling form, then take the most recent row per player (the "as-of" view)
-    form_all = _compute_rolling_form_features(
-        pd.concat([history_past, _make_dummy_target_row(history_past, target_gw)], ignore_index=True)
-    )
-    form_target = form_all[form_all["gameweek_id"] == target_gw].drop(columns=["gameweek_id"])
+    form = _compute_form_for_targets(history, targets)
+    df = targets.merge(form, on=["player_id", "gameweek_id"], how="left")
+    df = df.merge(players, on="player_id", how="left")
 
-    # News snapshot at target gameweek (latest snapshot for that gameweek).
-    # If no snapshot exists for this gameweek (e.g. backtesting a past gameweek
-    # whose snapshot was never captured), fall back to the most recent available
-    # snapshot per player. If none exists at all, defaults are filled below.
+    # News snapshot at target gameweek; fall back to most recent if absent.
     snapshot_target = snapshots[snapshots["gameweek_id"] == target_gw]
     if snapshot_target.empty:
-        # Fall back to the most recent snapshot per player, regardless of gameweek
         snapshot_target = (
             snapshots.sort_values("gameweek_id", ascending=False)
             .drop_duplicates(subset=["player_id"], keep="first")
         )
-    news = _build_news_features(snapshot_target)
+    news = _build_news_features(snapshot_target).drop(columns=["gameweek_id"])
+    df = df.merge(news, on="player_id", how="left")
 
-    # Fixtures for target gameweek
-    fixture_target = _build_fixture_features(
+    fix_target = _build_fixture_features(
         fixtures[fixtures["gameweek_id"] == target_gw]
     )
+    df = df.merge(fix_target, on=["team_id", "gameweek_id"], how="left")
 
-    df = players.copy()
-    df["gameweek_id"] = target_gw
-    df = df.merge(form_target, on="player_id", how="left")
-    # When using a snapshot fallback, news rows have a different gameweek_id;
-    # merge on player_id only and ignore the snapshot's gameweek for this purpose.
-    news_for_merge = news.drop(columns=["gameweek_id"])
-    df = df.merge(news_for_merge, on="player_id", how="left")
-    df = df.merge(fixture_target, on=["team_id", "gameweek_id"], how="left")
-
-    # Same defensive fills as training
-    form_cols = [c for c in df.columns if any(c.startswith(f"{s}_mean_") for s in [
-        "total_points", "expected_goals", "expected_assists",
-        "defensive_contribution", "minutes",
-    ]) or c.startswith("qualifying_games_")]
-    df[form_cols] = df[form_cols].fillna(0.0)
-    df["chance_of_playing_next"] = df["chance_of_playing_next"].fillna(100).astype(float)
-    df["has_news"] = df["has_news"].fillna(0).astype(int)
-    df["news_injury_flag"] = df["news_injury_flag"].fillna(0).astype(int)
-    df["news_suspension_flag"] = df["news_suspension_flag"].fillna(0).astype(int)
-    df["fdr"] = df["fdr"].fillna(3.0)
-    df["num_fixtures"] = df["num_fixtures"].fillna(0).astype(int)
-    df["is_home"] = df["is_home"].fillna(0).astype(int)
-    df["now_cost"] = df["now_cost"].fillna(df["current_cost"])
-
+    df = _apply_defensive_fills(df)
     return df
 
 
-def _make_dummy_target_row(history_past: pd.DataFrame, target_gw: int) -> pd.DataFrame:
-    """
-    Helper for build_prediction_features: appends a dummy 'current row' per player
-    at target_gw so the rolling-shift logic generates a feature row for them.
-    The dummy row's stat values don't matter because shift(1) excludes them.
-    """
-    players_with_history = history_past["player_id"].unique()
-    return pd.DataFrame({
-        "player_id": players_with_history,
-        "gameweek_id": target_gw,
-        "minutes": MIN_MINUTES_TO_COUNT,  # dummy, qualifying so it's included in shift
-        "total_points": 0,
-        "expected_goals": 0.0,
-        "expected_assists": 0.0,
-        "defensive_contribution": 0,
-    })
-
-
 def get_feature_columns(df: pd.DataFrame) -> list:
-    """Return the column names that should be used as model features."""
-    excluded = {
-        "player_id", "gameweek_id", "actual_points", "team_id", "current_cost",
-    }
+    excluded = {"player_id", "gameweek_id", "actual_points", "team_id", "current_cost"}
     return [c for c in df.columns if c not in excluded]
