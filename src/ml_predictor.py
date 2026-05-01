@@ -31,8 +31,9 @@ MODEL_DIR.mkdir(parents=True, exist_ok=True)
 # ---------- Hyperparameters ----------
 # These are sensible LightGBM defaults for ~20k tabular rows. Not tuned.
 LGB_PARAMS = {
-    "objective": "regression",
-    "metric": "mae",
+    "objective": "quantile",
+    "alpha": 0.75,
+    "metric": "quantile",
     "learning_rate": 0.05,
     "num_leaves": 31,
     "max_depth": -1,
