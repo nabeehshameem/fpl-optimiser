@@ -108,7 +108,6 @@ class SquadOptimiser:
 
         prob = pulp.LpProblem("FPL_Squad", pulp.LpMaximize)
 
-        # Decision variables
         select = {
             row.player_id: pulp.LpVariable(f"select_{row.player_id}", cat="Binary")
             for row in df.itertuples()
@@ -117,32 +116,33 @@ class SquadOptimiser:
             row.player_id: pulp.LpVariable(f"start_{row.player_id}", cat="Binary")
             for row in df.itertuples()
         }
+        captain = {
+            row.player_id: pulp.LpVariable(f"cap_{row.player_id}", cat="Binary")
+            for row in df.itertuples()
+        }
 
-        # Objective: starter points + soft bench preference.
-        # 1.0x for starters; 0.1x for bench. Bench still matters, but starting XI dominates.
+        # Objective: starters + captain bonus (extra 1x) + soft bench weight.
+        # Captain doubles their points, so they contribute 2x = 1x (start) + 1x (cap bonus).
         BENCH_WEIGHT = 0.1
         prob += pulp.lpSum(
             row.predicted_points * start[row.player_id]
+            + row.predicted_points * captain[row.player_id]
             + BENCH_WEIGHT * row.predicted_points * (select[row.player_id] - start[row.player_id])
             for row in df.itertuples()
         )
 
-        # Constraint: squad size = 15
         prob += pulp.lpSum(select.values()) == SQUAD_SIZE, "squad_size"
-
-        # Constraint: starting XI size = 11
         prob += pulp.lpSum(start.values()) == STARTING_XI, "xi_size"
+        prob += pulp.lpSum(captain.values()) == 1, "one_captain"
 
-        # Constraint: player can start only if selected
         for pid in select:
             prob += start[pid] <= select[pid], f"start_iff_select_{pid}"
+            prob += captain[pid] <= start[pid], f"cap_iff_start_{pid}"
 
-        # Constraint: budget
         prob += pulp.lpSum(
             row.current_cost * select[row.player_id] for row in df.itertuples()
         ) <= BUDGET, "budget"
 
-        # Constraints: position counts in squad and XI
         for pos_id, squad_count, xi_min, xi_max in POSITION_RULES:
             pos_players = df[df["position"] == pos_id]
             prob += pulp.lpSum(
@@ -155,44 +155,41 @@ class SquadOptimiser:
                 start[row.player_id] for row in pos_players.itertuples()
             ) <= xi_max, f"xi_max_pos_{pos_id}"
 
-        # Constraint: max 3 players per club
         for team_id in df["team_id"].unique():
             team_players = df[df["team_id"] == team_id]
             prob += pulp.lpSum(
                 select[row.player_id] for row in team_players.itertuples()
             ) <= MAX_PER_CLUB, f"club_limit_{team_id}"
 
-        # Solve
         solver = pulp.PULP_CBC_CMD(msg=False)
         status = prob.solve(solver)
 
         if pulp.LpStatus[status] != "Optimal":
             raise RuntimeError(f"Optimiser did not find optimal solution: {pulp.LpStatus[status]}")
 
-        # Extract results
-        df["selected"] = df["player_id"].map(lambda p: int(round(select[p].value())))
-        df["starting"] = df["player_id"].map(lambda p: int(round(start[p].value())))
+        pids = df["player_id"].tolist()
+        df["selected"]   = [int(round(select[p].value()))  for p in pids]
+        df["starting"]   = [int(round(start[p].value()))   for p in pids]
+        df["is_captain"] = [int(round(captain[p].value())) for p in pids]
 
         squad = df[df["selected"] == 1].copy()
         xi = squad[squad["starting"] == 1].sort_values("predicted_points", ascending=False)
         bench = squad[squad["starting"] == 0].sort_values("predicted_points", ascending=False)
 
-        # Captain & vice: highest two predicted in XI
-        captain = xi.iloc[0]
-        vice_captain = xi.iloc[1]
+        captain_row = squad[squad["is_captain"] == 1].iloc[0]
+        vice_captain_row = xi[xi["is_captain"] == 0].iloc[0]
 
         total_cost = int(squad["current_cost"].sum())
-        expected_points = float(xi["predicted_points"].sum() + captain["predicted_points"])
+        expected_points = float(xi["predicted_points"].sum() + captain_row["predicted_points"])
 
         return {
             "squad": squad,
             "starting_xi": xi,
             "bench": bench,
-            "captain": captain,
-            "vice_captain": vice_captain,
+            "captain": captain_row,
+            "vice_captain": vice_captain_row,
             "total_cost": total_cost,
             "expected_points": expected_points,
-
         }
     def optimise_with_transfers(
         self,
@@ -234,12 +231,15 @@ class SquadOptimiser:
                   for row in df.itertuples()}
         start = {row.player_id: pulp.LpVariable(f"start_{row.player_id}", cat="Binary")
                  for row in df.itertuples()}
+        captain = {row.player_id: pulp.LpVariable(f"cap_{row.player_id}", cat="Binary")
+                   for row in df.itertuples()}
         hit = pulp.LpVariable("hit", lowBound=0, cat="Continuous")
 
         BENCH_WEIGHT = 0.1
         prob += (
             pulp.lpSum(
                 row.predicted_points * start[row.player_id]
+                + row.predicted_points * captain[row.player_id]
                 + BENCH_WEIGHT * row.predicted_points * (select[row.player_id] - start[row.player_id])
                 for row in df.itertuples()
             )
@@ -248,8 +248,12 @@ class SquadOptimiser:
 
         prob += pulp.lpSum(select.values()) == SQUAD_SIZE
         prob += pulp.lpSum(start.values()) == STARTING_XI
+        prob += pulp.lpSum(captain.values()) == 1
+
         for pid in select:
-            prob += start[pid] <= select[pid]
+            prob += start[pid] <= select[pid], f"start_iff_select_{pid}"
+            prob += captain[pid] <= start[pid], f"cap_iff_start_{pid}"
+
         prob += pulp.lpSum(
             row.current_cost * select[row.player_id] for row in df.itertuples()
         ) <= BUDGET
@@ -275,8 +279,10 @@ class SquadOptimiser:
         if pulp.LpStatus[status] != "Optimal":
             raise RuntimeError(f"Transfer optimiser failed: {pulp.LpStatus[status]}")
 
-        df["selected"] = df["player_id"].map(lambda p: int(round(select[p].value())))
-        df["starting"] = df["player_id"].map(lambda p: int(round(start[p].value())))
+        pids = df["player_id"].tolist()
+        df["selected"]   = [int(round(select[p].value()))  for p in pids]
+        df["starting"]   = [int(round(start[p].value()))   for p in pids]
+        df["is_captain"] = [int(round(captain[p].value())) for p in pids]
 
         squad = df[df["selected"] == 1].copy()
         new_set = set(squad["player_id"])
@@ -288,8 +294,9 @@ class SquadOptimiser:
 
         xi = squad[squad["starting"] == 1].sort_values("predicted_points", ascending=False)
         bench = squad[squad["starting"] == 0].sort_values("predicted_points", ascending=False)
-        captain = xi.iloc[0]
-        vice_captain = xi.iloc[1]
+        captain_row = squad[squad["is_captain"] == 1].iloc[0]
+        non_cap_xi = xi[xi["is_captain"] == 0]
+        vice_captain_row = non_cap_xi.iloc[0]
 
         all_players = self._load_player_data()
         transfers_in = all_players[all_players["player_id"].isin(transfers_in_ids)].copy()
@@ -302,15 +309,15 @@ class SquadOptimiser:
         )
 
         total_cost = int(squad["current_cost"].sum())
-        gross_xi_points = float(xi["predicted_points"].sum() + captain["predicted_points"])
+        gross_xi_points = float(xi["predicted_points"].sum() + captain_row["predicted_points"])
         net_expected_points = gross_xi_points - hit_points
 
         return {
             "squad": squad,
             "starting_xi": xi,
             "bench": bench,
-            "captain": captain,
-            "vice_captain": vice_captain,
+            "captain": captain_row,
+            "vice_captain": vice_captain_row,
             "total_cost": total_cost,
             "gross_xi_points": gross_xi_points,
             "hit_points": hit_points,
