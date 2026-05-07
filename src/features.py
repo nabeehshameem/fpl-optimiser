@@ -15,7 +15,6 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -92,14 +91,18 @@ def _compute_form_for_targets(
 ) -> pd.DataFrame:
     """
     For each (player_id, gameweek_id) row in `targets`, compute rolling form
-    features using ONLY rows in `history` that:
-        (a) belong to that player
-        (b) have minutes >= MIN_MINUTES_TO_COUNT
-        (c) have gameweek_id strictly less than the target's gameweek_id
+    features using ONLY qualifying history rows (minutes >= MIN_MINUTES_TO_COUNT)
+    with gameweek_id STRICTLY LESS THAN the target gameweek.
 
-    Returns a DataFrame with the same row count as `targets`, keyed by
-    (player_id, gameweek_id), with one column per (stat, window) plus
-    qualifying_games_{window}.
+    Vectorised: O(N log N) via merge_asof rather than O(N*M) row-by-row iteration.
+
+    Strategy:
+      1. Compute rolling(window).mean() on sorted qualifying history — at each
+         qualifying row (player P, GW G), this captures form UP TO AND INCLUDING G.
+      2. Use merge_asof with a fractional key (target_gw - 0.5) to enforce strict
+         "less than" matching: for target GW T, match the latest qualifying row
+         with gw < T (integer arithmetic makes gw - 0.5 never collide with integer gw).
+      3. Fill unmatched rows (no history before target GW) with zeros.
     """
     qualifying = history[history["minutes"] >= MIN_MINUTES_TO_COUNT].copy()
     qualifying = qualifying.sort_values(["player_id", "gameweek_id"]).reset_index(drop=True)
@@ -107,34 +110,45 @@ def _compute_form_for_targets(
     stats = ["total_points", "expected_goals", "expected_assists",
              "defensive_contribution", "minutes"]
 
-    # Pre-group qualifying history by player for fast lookup.
-    history_by_player: dict[int, pd.DataFrame] = {
-        pid: g for pid, g in qualifying.groupby("player_id", sort=False)
-    }
-
-    # Initialise output columns
-    out = targets[["player_id", "gameweek_id"]].copy().reset_index(drop=True)
+    # Rolling form inclusive of the current qualifying game.
+    # merge_asof looks up gw < target, so form_at[G] is used for target > G —
+    # game G's stats are correctly included as prior history.
+    grp = qualifying.groupby("player_id", group_keys=False)
     for window in FORM_WINDOWS:
         for stat in stats:
-            out[f"{stat}_mean_{window}"] = 0.0
-        out[f"qualifying_games_{window}"] = 0
+            qualifying[f"{stat}_mean_{window}"] = grp[stat].transform(
+                lambda x, w=window: x.rolling(w, min_periods=1).mean()
+            )
+        qualifying[f"qualifying_games_{window}"] = grp["gameweek_id"].transform(
+            lambda x, w=window: x.rolling(w, min_periods=1).count().astype(int)
+        )
 
-    # Compute per row. For ~25k rows this is fast enough; can be vectorised later if needed.
-    for idx, row in out.iterrows():
-        player_id = int(row["player_id"])
-        target_gw = int(row["gameweek_id"])
-        player_history = history_by_player.get(player_id)
-        if player_history is None:
-            continue
-        prior = player_history[player_history["gameweek_id"] < target_gw]
-        if prior.empty:
-            continue
-        for window in FORM_WINDOWS:
-            window_rows = prior.tail(window)
-            for stat in stats:
-                out.at[idx, f"{stat}_mean_{window}"] = float(window_rows[stat].mean())
-            out.at[idx, f"qualifying_games_{window}"] = int(len(window_rows))
+    form_cols = (
+        [f"{stat}_mean_{w}" for w in FORM_WINDOWS for stat in stats]
+        + [f"qualifying_games_{w}" for w in FORM_WINDOWS]
+    )
 
+    # Fractional key enforces strict inequality: target_gw - 0.5 never matches an
+    # integer qualifying gw, so "backward" finds the last qualifying row with gw < target_gw.
+    # qualifying's gameweek_id is dropped to avoid column collision with targets'.
+    right = qualifying[["player_id"] + form_cols].copy()
+    right["_key"] = qualifying["gameweek_id"].astype(float)
+    right = right.sort_values("_key")  # merge_asof requires global sort by on-key
+
+    left = targets[["player_id", "gameweek_id"]].copy().reset_index(drop=True)
+    left["_key"] = left["gameweek_id"].astype(float) - 0.5
+    left = left.sort_values("_key")
+
+    merged = pd.merge_asof(left, right, on="_key", by="player_id", direction="backward")
+
+    # Restore targets' original row order, then fill players with no prior history.
+    out = targets[["player_id", "gameweek_id"]].merge(
+        merged[["player_id", "gameweek_id"] + form_cols],
+        on=["player_id", "gameweek_id"], how="left"
+    )
+    out[form_cols] = out[form_cols].fillna(0.0)
+    for w in FORM_WINDOWS:
+        out[f"qualifying_games_{w}"] = out[f"qualifying_games_{w}"].astype(int)
     return out
 
 
@@ -154,11 +168,12 @@ def _build_news_features(snapshots: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_fixture_features(fixtures: pd.DataFrame) -> pd.DataFrame:
+    # is_home uses mean so DGW players with one home + one away get 0.5, not 1.0
     return (
         fixtures.groupby(["team_id", "gameweek_id"])
         .agg(fdr=("fdr", "mean"),
              num_fixtures=("fdr", "count"),
-             is_home=("is_home", "max"))
+             is_home=("is_home", "mean"))
         .reset_index()
     )
 

@@ -44,8 +44,18 @@ def fetch_player_history(player_id):
 
 
 def upsert_history_rows(cursor, player_id, history):
-    """Upsert all gameweek history rows for one player."""
-    sql = """
+    """Re-insert all gameweek history rows for one player.
+
+    Strategy: DELETE all existing rows for this player first, then INSERT fresh.
+    This is idempotent for re-runs AND correctly handles DGW weeks: the API returns
+    two fixture entries for the same gameweek_id, and the second INSERT will hit
+    ON CONFLICT and ADD stats to the first — giving the correct per-GW aggregate.
+    """
+    cursor.execute(
+        "DELETE FROM player_gameweek_history WHERE player_id = ?", (player_id,)
+    )
+
+    insert_sql = """
         INSERT INTO player_gameweek_history (
             player_id, gameweek_id, fixture_id,
             minutes, goals_scored, assists, clean_sheets, total_points,
@@ -54,18 +64,18 @@ def upsert_history_rows(cursor, player_id, history):
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(player_id, gameweek_id) DO UPDATE SET
-            fixture_id = excluded.fixture_id,
-            minutes = excluded.minutes,
-            goals_scored = excluded.goals_scored,
-            assists = excluded.assists,
-            clean_sheets = excluded.clean_sheets,
-            total_points = excluded.total_points,
-            bonus = excluded.bonus,
-            bps = excluded.bps,
-            expected_goals = excluded.expected_goals,
-            expected_assists = excluded.expected_assists,
-            defensive_contribution = excluded.defensive_contribution,
-            value = excluded.value,
+            fixture_id      = excluded.fixture_id,
+            minutes         = minutes         + excluded.minutes,
+            goals_scored    = goals_scored    + excluded.goals_scored,
+            assists         = assists         + excluded.assists,
+            clean_sheets    = clean_sheets    + excluded.clean_sheets,
+            total_points    = total_points    + excluded.total_points,
+            bonus           = bonus           + excluded.bonus,
+            bps             = bps             + excluded.bps,
+            expected_goals  = expected_goals  + excluded.expected_goals,
+            expected_assists= expected_assists+ excluded.expected_assists,
+            defensive_contribution = defensive_contribution + excluded.defensive_contribution,
+            value    = excluded.value,
             selected = excluded.selected
     """
 
@@ -98,7 +108,7 @@ def upsert_history_rows(cursor, player_id, history):
         for h in history
     ]
     if rows:
-        cursor.executemany(sql, rows)
+        cursor.executemany(insert_sql, rows)
     return len(rows)
 
 
