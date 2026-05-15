@@ -4,21 +4,25 @@ One-command gameweek runner. Fetches fresh data, optionally retrains the model,
 and prints the optimal squad (and transfer recommendations if --squad is given).
 
 Usage:
-  python run_gw.py                         # Full pipeline (fetch + retrain + optimise)
-  python run_gw.py --quick                 # Skip backfill + retrain (use existing model)
-  python run_gw.py --squad 123,456,...     # Also recommend transfers for your current squad
-  python run_gw.py --free-transfers 2      # Set available free transfers (default 1)
-  python run_gw.py --bank 1.4             # Cash in the bank in £m (crucial for correct budget)
+  python run_gw.py                              # Full pipeline (fetch + retrain + optimise)
+  python run_gw.py --quick                      # Skip backfill + retrain (use existing model)
+  python run_gw.py --squad 123,456,...          # Add transfer recommendations
+  python run_gw.py --squad 123,... --analyse    # Also print full analysis suite
+  python run_gw.py --squad 123,... --chips TC,BB,WC  # Choose which chips to plan
+  python run_gw.py --bank 1.4                   # Cash in the bank in £m
 
 Flags:
-  --quick           Skip the slow history backfill (~5-10 min) and model retrain.
-                    Use when prices/fixtures changed but you don't need updated training data.
-  --skip-backfill   Skip only backfill (still retrains on existing data).
-  --skip-train      Skip only model retraining (still backfills history).
-  --squad IDS       Comma-separated player_ids of your current 15-player squad.
-                    Triggers transfer recommendation on top of squad optimisation.
-  --free-transfers N  Number of free transfers available (default 1).
-  --max-transfers N   Maximum transfers to consider (default 3).
+  --quick              Skip backfill + retrain (use existing model).
+  --skip-backfill      Skip history backfill only.
+  --skip-train         Skip model retraining only.
+  --squad IDS          Comma-separated player_ids of your current 15-player squad.
+  --free-transfers N   Free transfers available (default 1).
+  --max-transfers N    Max transfers to consider (default 3).
+  --bank X             Cash in bank in £m, e.g. --bank 1.4.
+  --analyse            Print full analysis after optimisation (differentials, fixture
+                       ticker, bonus picks, price signals, chip plan).
+  --chips LIST         Chips to plan: TC,BB,FH,WC (default all four).
+  --chip-horizon N     GWs ahead for chip scoring (default 5).
 """
 
 import argparse
@@ -167,8 +171,13 @@ def main():
     parser.add_argument("--max-transfers", type=int, default=3,
                         help="Max transfers to consider (default 3)")
     parser.add_argument("--bank", type=float, default=0.0,
-                        help="Cash in the bank in £m, e.g. --bank 1.4 (default 0.0). "
-                             "Required for accurate transfer budget. Find it on your FPL squad page.")
+                        help="Cash in the bank in £m, e.g. --bank 1.4 (default 0.0).")
+    parser.add_argument("--analyse", action="store_true",
+                        help="Print full analysis suite after optimisation.")
+    parser.add_argument("--chips", type=str, default="TC,BB,FH,WC",
+                        help="Chips to plan (default TC,BB,FH,WC). Requires --squad for BB/FH/WC.")
+    parser.add_argument("--chip-horizon", type=int, default=5,
+                        help="GWs ahead for chip scoring (default 5).")
     args = parser.parse_args()
 
     squad_ids = []
@@ -210,6 +219,19 @@ def main():
 
     # Optimise (+ optional transfers)
     run_optimise(squad_ids, args.free_transfers, args.max_transfers, bank_tenths)
+
+    # Full analysis suite (opt-in)
+    if args.analyse:
+        analyse_args = ["--top", "10", "--ticker-gws", "5",
+                        "--chips", args.chips,
+                        "--chip-horizon", str(args.chip_horizon)]
+        if squad_ids:
+            analyse_args += ["--squad", args.squad]
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "analyse_gw.py")] + analyse_args
+        )
+        if result.returncode != 0:
+            print("[WARN] Analysis completed with errors — check output above.")
 
     print(f"\n{'='*60}")
     print(f"  All done in {time.time() - wall_start:.0f}s")
