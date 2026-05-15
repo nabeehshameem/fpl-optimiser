@@ -198,8 +198,16 @@ class SquadOptimiser:
         free_transfers: int = 1,
         max_transfers: int = 3,
         transfer_hit_cost: int = 4,
+        bank: int = 0,
     ) -> dict:
-        """Given a current 15-player squad, find the optimal transfer move(s)."""
+        """Given a current 15-player squad, find the optimal transfer move(s).
+
+        Args:
+            bank: cash in the bank in tenths of £1m (e.g. 14 = £1.4m).
+                  The effective budget is derived from your squad's current buying
+                  prices plus this bank value, so the ILP never suggests a squad
+                  you can't afford.
+        """
         if len(current_squad) != SQUAD_SIZE:
             raise ValueError(f"current_squad must have {SQUAD_SIZE} players, got {len(current_squad)}")
 
@@ -224,6 +232,12 @@ class SquadOptimiser:
             & (df["chance_of_playing_next"] >= MIN_CHANCE_OF_PLAYING)
         ) | df["player_id"].isin(current_set)
         df = df[eligible_mask].reset_index(drop=True)
+
+        # Effective budget = current squad's buying prices + cash in bank.
+        # Using BUDGET (£100m) for transfers is wrong: it would allow squads the
+        # user can't afford when their squad+bank < £100m.
+        current_squad_cost = int(df[df["player_id"].isin(current_set)]["current_cost"].sum())
+        effective_budget = current_squad_cost + bank
 
         prob = pulp.LpProblem("FPL_Transfers", pulp.LpMaximize)
 
@@ -256,7 +270,7 @@ class SquadOptimiser:
 
         prob += pulp.lpSum(
             row.current_cost * select[row.player_id] for row in df.itertuples()
-        ) <= BUDGET
+        ) <= effective_budget
 
         for pos_id, squad_count, xi_min, xi_max in POSITION_RULES:
             pos_players = df[df["position"] == pos_id]
@@ -319,6 +333,7 @@ class SquadOptimiser:
             "captain": captain_row,
             "vice_captain": vice_captain_row,
             "total_cost": total_cost,
+            "remaining_budget": effective_budget - total_cost,
             "gross_xi_points": gross_xi_points,
             "hit_points": hit_points,
             "expected_points": net_expected_points,

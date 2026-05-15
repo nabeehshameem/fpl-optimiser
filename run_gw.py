@@ -8,6 +8,7 @@ Usage:
   python run_gw.py --quick                 # Skip backfill + retrain (use existing model)
   python run_gw.py --squad 123,456,...     # Also recommend transfers for your current squad
   python run_gw.py --free-transfers 2      # Set available free transfers (default 1)
+  python run_gw.py --bank 1.4             # Cash in the bank in £m (crucial for correct budget)
 
 Flags:
   --quick           Skip the slow history backfill (~5-10 min) and model retrain.
@@ -45,7 +46,7 @@ def run_step(label: str, script: str) -> bool:
     return True
 
 
-def run_optimise(squad_ids: list[int], free_transfers: int, max_transfers: int):
+def run_optimise(squad_ids: list[int], free_transfers: int, max_transfers: int, bank: int = 0):
     """Run squad optimisation inline (avoids a second subprocess startup + model load)."""
     import sqlite3
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -105,7 +106,7 @@ def run_optimise(squad_ids: list[int], free_transfers: int, max_transfers: int):
 
         print(f"\n{'='*60}")
         print(f"  TRANSFER RECOMMENDATIONS  (GW{target_gw})")
-        print(f"  free_transfers={free_transfers}, max_transfers={max_transfers}")
+        print(f"  free_transfers={free_transfers}, max_transfers={max_transfers}, bank=£{bank/10:.1f}m")
         print(f"{'='*60}")
 
         tr = opt.optimise_with_transfers(
@@ -113,12 +114,15 @@ def run_optimise(squad_ids: list[int], free_transfers: int, max_transfers: int):
             current_squad=squad_ids,
             free_transfers=free_transfers,
             max_transfers=max_transfers,
+            bank=bank,
         )
 
         print(f"Recommended transfers: {tr['num_transfers']}")
         print(f"Hit cost:              {tr['hit_points']} pts")
         print(f"Gross XI expected:     {tr['gross_xi_points']:.2f}")
-        print(f"Net expected (after hit): {tr['expected_points']:.2f}\n")
+        print(f"Net expected (after hit): {tr['expected_points']:.2f}")
+        print(f"Squad cost:            £{tr['total_cost']/10:.1f}m  "
+              f"(remaining £{tr['remaining_budget']/10:.1f}m)\n")
 
         if tr["num_transfers"] == 0:
             print("Recommendation: NO TRANSFERS this gameweek.")
@@ -162,6 +166,9 @@ def main():
                         help="Free transfers available (default 1)")
     parser.add_argument("--max-transfers", type=int, default=3,
                         help="Max transfers to consider (default 3)")
+    parser.add_argument("--bank", type=float, default=0.0,
+                        help="Cash in the bank in £m, e.g. --bank 1.4 (default 0.0). "
+                             "Required for accurate transfer budget. Find it on your FPL squad page.")
     args = parser.parse_args()
 
     squad_ids = []
@@ -171,6 +178,8 @@ def main():
         except ValueError:
             print("[ERROR] --squad must be comma-separated integers, e.g. --squad 123,456,789")
             sys.exit(1)
+
+    bank_tenths = round(args.bank * 10)  # convert £m to tenths for the optimiser
 
     skip_backfill = args.quick or args.skip_backfill
     skip_train    = args.quick or args.skip_train
@@ -200,7 +209,7 @@ def main():
             sys.exit(1)
 
     # Optimise (+ optional transfers)
-    run_optimise(squad_ids, args.free_transfers, args.max_transfers)
+    run_optimise(squad_ids, args.free_transfers, args.max_transfers, bank_tenths)
 
     print(f"\n{'='*60}")
     print(f"  All done in {time.time() - wall_start:.0f}s")
