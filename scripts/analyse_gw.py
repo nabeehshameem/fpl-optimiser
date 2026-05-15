@@ -6,10 +6,12 @@ Sections printed:
   1. Captain picks
   2. Differentials (low-ownership, high-upside)
   3. Fixture ticker (next 5 GWs)
-  4. Bonus point candidates
-  5. Price change signals
-  6. Player comparison        [opt: --compare ID1,ID2,...]
-  7. Chip planner             [opt: --squad ..., --chips ...]
+  4. Setpiece takers
+  5. Bonus point candidates
+  6. Price change signals
+  7. Player comparison        [opt: --compare ID1,ID2,...]
+  8. Chip planner             [opt: --squad ..., --chips ...]
+  9. Mini league              [opt: --league LEAGUE_ID]
 
 Usage:
   python scripts/analyse_gw.py
@@ -18,6 +20,7 @@ Usage:
   python scripts/analyse_gw.py --squad 123,... --chips TC,BB,FH
   python scripts/analyse_gw.py --squad 123,... --chip-horizon 6
   python scripts/analyse_gw.py --top 15              # show top-N differentials / bonus
+  python scripts/analyse_gw.py --league 123456       # show mini-league standings
 """
 
 import argparse
@@ -33,6 +36,7 @@ from src.analytics import (
     captain_picks,
     find_differentials,
     fixture_ticker,
+    setpiece_takers,
     bonus_point_predictions,
     price_change_predictions,
     compare_players,
@@ -84,6 +88,8 @@ def main() -> None:
                         help="Top-N rows for differentials and bonus tables (default 10)")
     parser.add_argument("--ticker-gws", type=int, default=5,
                         help="Number of GWs in fixture ticker (default 5)")
+    parser.add_argument("--league", type=str, default="",
+                        help="Mini-league ID to show standings / rank history / chips")
     args = parser.parse_args()
 
     squad_ids: list[int] = []
@@ -142,7 +148,19 @@ def main() -> None:
     except Exception as e:
         print(f"  [error] {e}")
 
-    # ── 4. Bonus Point Candidates ─────────────────────────────────────────
+    # ── 4. Setpiece Takers ────────────────────────────────────────────────
+    _header("SETPIECE TAKERS")
+    print("  CK=corners, FK=direct freekicks, PK=penalties. 1=primary, 2=secondary.\n")
+    try:
+        sp_df = setpiece_takers(top_n=30)
+        if sp_df.empty:
+            print("  No setpiece data — run ingest_bootstrap.py to refresh.")
+        else:
+            print(_fmt_df(sp_df))
+    except Exception as e:
+        print(f"  [error] {e}")
+
+    # ── 5. Bonus Point Candidates ─────────────────────────────────────────
     _header(f"BONUS POINT CANDIDATES  (top {args.top} by avg BPS)")
     try:
         bonus_df = bonus_point_predictions(predictions_df, top_n=args.top)
@@ -153,7 +171,7 @@ def main() -> None:
     except Exception as e:
         print(f"  [error] {e}")
 
-    # ── 5. Price Change Signals ───────────────────────────────────────────
+    # ── 6. Price Change Signals ───────────────────────────────────────────
     _header("PRICE CHANGE SIGNALS")
     print("  Based on ownership delta between last two snapshots.")
     print("  RISE ^ = buying pressure.  FALL v = selling pressure.\n")
@@ -166,7 +184,7 @@ def main() -> None:
     except Exception as e:
         print(f"  [error] {e}")
 
-    # ── 6. Player Comparison ──────────────────────────────────────────────
+    # ── 7. Player Comparison ──────────────────────────────────────────────
     if compare_ids:
         _header(f"PLAYER COMPARISON  ({', '.join(map(str, compare_ids))})")
         try:
@@ -175,7 +193,7 @@ def main() -> None:
         except Exception as e:
             print(f"  [error] {e}")
 
-    # ── 7. Chip Planner ───────────────────────────────────────────────────
+    # ── 8. Chip Planner ───────────────────────────────────────────────────
     chip_needs_squad = bool(set(chips) & {"bb", "fh", "wc"})
     if chips and (not chip_needs_squad or squad_ids):
         _header(f"CHIP PLANNER  (horizon: {args.chip_horizon} GWs)")
@@ -199,6 +217,32 @@ def main() -> None:
     elif chips and chip_needs_squad and not squad_ids:
         _header("CHIP PLANNER")
         print("  Pass --squad ID1,ID2,... to enable chip planning.")
+
+    # ── 9. Mini League ────────────────────────────────────────────────────
+    if args.league:
+        try:
+            league_id = int(args.league.strip())
+        except ValueError:
+            print("[ERROR] --league must be a numeric league ID")
+        else:
+            from src.mini_league import league_summary, rank_history_table, chips_remaining
+            _header(f"MINI LEAGUE  (ID: {league_id})")
+            try:
+                summary_df = league_summary(league_id)
+                print(summary_df.to_string(index=False))
+
+                _header(f"RANK HISTORY  (last 6 GWs)")
+                hist_df = rank_history_table(league_id, recent_gws=6)
+                print(hist_df.to_string(index=False))
+
+                _header("CHIPS REMAINING")
+                cr_df = chips_remaining(league_id)
+                print(cr_df.to_string(index=False))
+            except ValueError as e:
+                print(f"  {e}")
+                print(f"  Run: python scripts/ingest_mini_league.py --league {league_id}")
+            except Exception as e:
+                print(f"  [error] {e}")
 
     print(f"\n{'='*60}\n")
 

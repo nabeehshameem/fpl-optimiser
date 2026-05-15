@@ -81,9 +81,10 @@ def upsert_players(cursor, elements, now_iso):
     sql = """
         INSERT INTO players (
             player_id, first_name, second_name, web_name,
-            team_id, position, current_cost, last_updated
+            team_id, position, current_cost, last_updated,
+            corners_order, freekicks_order, penalties_order
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(player_id) DO UPDATE SET
             first_name = excluded.first_name,
             second_name = excluded.second_name,
@@ -91,7 +92,10 @@ def upsert_players(cursor, elements, now_iso):
             team_id = excluded.team_id,
             position = excluded.position,
             current_cost = excluded.current_cost,
-            last_updated = excluded.last_updated
+            last_updated = excluded.last_updated,
+            corners_order = excluded.corners_order,
+            freekicks_order = excluded.freekicks_order,
+            penalties_order = excluded.penalties_order
     """
     rows = [
         (
@@ -103,6 +107,9 @@ def upsert_players(cursor, elements, now_iso):
             p.get("element_type"),
             p.get("now_cost"),
             now_iso,
+            p.get("corners_and_indirect_freekicks_order"),
+            p.get("direct_freekicks_order"),
+            p.get("penalties_order"),
         )
         for p in elements
     ]
@@ -164,6 +171,15 @@ def insert_snapshots(cursor, elements, gameweek_id, now_iso):
     print(f"  Inserted {len(rows)} player snapshots for gameweek {gameweek_id}")
 
 
+def _migrate_db(conn: sqlite3.Connection) -> None:
+    """Ensure new player columns exist on legacy databases."""
+    for col in ("corners_order", "freekicks_order", "penalties_order"):
+        try:
+            conn.execute(f"ALTER TABLE players ADD COLUMN {col} INTEGER")
+        except sqlite3.OperationalError:
+            pass
+
+
 def main():
     data = fetch_bootstrap()
 
@@ -174,6 +190,7 @@ def main():
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
+    _migrate_db(conn)
     cursor = conn.cursor()
 
     print("Ingesting:")

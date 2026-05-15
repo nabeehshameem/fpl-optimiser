@@ -178,6 +178,8 @@ def main():
                         help="Chips to plan (default TC,BB,FH,WC). Requires --squad for BB/FH/WC.")
     parser.add_argument("--chip-horizon", type=int, default=5,
                         help="GWs ahead for chip scoring (default 5).")
+    parser.add_argument("--league", type=str, default="",
+                        help="Mini-league ID — fetches fresh standings and shows analysis.")
     args = parser.parse_args()
 
     squad_ids = []
@@ -220,6 +222,15 @@ def main():
     # Optimise (+ optional transfers)
     run_optimise(squad_ids, args.free_transfers, args.max_transfers, bank_tenths)
 
+    # Mini-league ingest (always runs if --league provided, before analysis)
+    if args.league:
+        print(f"\n[League] Refreshing mini-league {args.league}...")
+        result = subprocess.run(
+            [sys.executable, str(SCRIPTS / "ingest_mini_league.py"), "--league", args.league]
+        )
+        if result.returncode != 0:
+            print("[WARN] Mini-league ingest completed with errors.")
+
     # Full analysis suite (opt-in)
     if args.analyse:
         analyse_args = ["--top", "10", "--ticker-gws", "5",
@@ -227,6 +238,8 @@ def main():
                         "--chip-horizon", str(args.chip_horizon)]
         if squad_ids:
             analyse_args += ["--squad", args.squad]
+        if args.league:
+            analyse_args += ["--league", args.league]
         result = subprocess.run(
             [sys.executable, str(SCRIPTS / "analyse_gw.py")] + analyse_args
         )

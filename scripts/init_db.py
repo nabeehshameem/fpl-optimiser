@@ -34,14 +34,17 @@ SCHEMA = [
     """,
     """
     CREATE TABLE IF NOT EXISTS players (
-        player_id       INTEGER PRIMARY KEY,
-        first_name      TEXT,
-        second_name     TEXT,
-        web_name        TEXT,
-        team_id         INTEGER,
-        position        INTEGER,
-        current_cost    INTEGER,
-        last_updated    TEXT,
+        player_id          INTEGER PRIMARY KEY,
+        first_name         TEXT,
+        second_name        TEXT,
+        web_name           TEXT,
+        team_id            INTEGER,
+        position           INTEGER,
+        current_cost       INTEGER,
+        last_updated       TEXT,
+        corners_order      INTEGER,
+        freekicks_order    INTEGER,
+        penalties_order    INTEGER,
         FOREIGN KEY (team_id) REFERENCES teams(team_id)
     )
     """,
@@ -126,6 +129,71 @@ INDEXES = [
 ]
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add new columns / tables to existing databases."""
+    new_player_cols = [
+        ("corners_order",   "INTEGER"),
+        ("freekicks_order",  "INTEGER"),
+        ("penalties_order",  "INTEGER"),
+    ]
+    for col, col_type in new_player_cols:
+        try:
+            conn.execute(f"ALTER TABLE players ADD COLUMN {col} {col_type}")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
+    # Mini-league tables (idempotent — IF NOT EXISTS)
+    mini_league_tables = [
+        """
+        CREATE TABLE IF NOT EXISTS mini_leagues (
+            league_id    INTEGER PRIMARY KEY,
+            name         TEXT,
+            last_updated TEXT
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS league_standings (
+            league_id    INTEGER NOT NULL,
+            entry_id     INTEGER NOT NULL,
+            entry_name   TEXT,
+            player_name  TEXT,
+            rank         INTEGER,
+            last_rank    INTEGER,
+            total_points INTEGER,
+            event_total  INTEGER,
+            fetched_gw   INTEGER,
+            PRIMARY KEY (league_id, entry_id),
+            FOREIGN KEY (league_id) REFERENCES mini_leagues(league_id)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS league_entry_history (
+            entry_id               INTEGER NOT NULL,
+            gameweek_id            INTEGER NOT NULL,
+            points                 INTEGER,
+            total_points           INTEGER,
+            overall_rank           INTEGER,
+            bank                   INTEGER,
+            value                  INTEGER,
+            event_transfers        INTEGER,
+            event_transfers_cost   INTEGER,
+            points_on_bench        INTEGER,
+            PRIMARY KEY (entry_id, gameweek_id)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS league_entry_chips (
+            entry_id     INTEGER NOT NULL,
+            chip_name    TEXT NOT NULL,
+            gameweek_id  INTEGER,
+            PRIMARY KEY (entry_id, chip_name)
+        )
+        """,
+    ]
+    for stmt in mini_league_tables:
+        conn.execute(stmt)
+
+
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
@@ -137,6 +205,8 @@ def init_db():
 
     for statement in INDEXES:
         cursor.execute(statement)
+
+    _migrate(conn)
 
     conn.commit()
     conn.close()

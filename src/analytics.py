@@ -320,7 +320,63 @@ def price_change_predictions(top_n: int = 20) -> pd.DataFrame:
     )
 
 
-# ---------- 6. Bonus Point Predictions ----------
+# ---------- 6. Setpiece Takers ----------
+
+def setpiece_takers(top_n: int = 20) -> pd.DataFrame:
+    """
+    Players who are primary or secondary set-piece takers for their team.
+
+    FPL stores corners_order, freekicks_order, and penalties_order directly on
+    each player element. Order 1 = primary taker, 2 = secondary. NULL / 0 = not listed.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query(
+        """
+        SELECT p.player_id, p.web_name, p.position, p.current_cost,
+               t.short_name AS team,
+               p.corners_order, p.freekicks_order, p.penalties_order
+        FROM players p
+        JOIN teams t ON p.team_id = t.team_id
+        WHERE (p.corners_order   IS NOT NULL AND p.corners_order   > 0)
+           OR (p.freekicks_order IS NOT NULL AND p.freekicks_order > 0)
+           OR (p.penalties_order IS NOT NULL AND p.penalties_order > 0)
+        """,
+        conn,
+    )
+    snaps = pd.read_sql_query(
+        """
+        SELECT player_id, selected_by_percent
+        FROM player_snapshots
+        WHERE snapshot_id IN (
+            SELECT MAX(snapshot_id) FROM player_snapshots GROUP BY player_id
+        )
+        """,
+        conn,
+    )
+    conn.close()
+
+    df = df.merge(snaps, on="player_id", how="left")
+    df["selected_by_percent"] = pd.to_numeric(df["selected_by_percent"], errors="coerce").fillna(0.0)
+
+    df["position"] = df["position"].map(POSITION_NAMES)
+    df["£"] = (df["current_cost"] / 10).round(1)
+    df["own%"] = df["selected_by_percent"].round(1)
+    df["CK"] = df["corners_order"].apply(lambda x: str(int(x)) if pd.notna(x) and x > 0 else "")
+    df["FK"] = df["freekicks_order"].apply(lambda x: str(int(x)) if pd.notna(x) and x > 0 else "")
+    df["PK"] = df["penalties_order"].apply(lambda x: str(int(x)) if pd.notna(x) and x > 0 else "")
+
+    result = (
+        df.sort_values(["team", "corners_order", "freekicks_order", "penalties_order"])
+        .head(top_n)
+        [["web_name", "team", "position", "£", "own%", "CK", "FK", "PK"]]
+        .rename(columns={"web_name": "Player", "team": "Team", "position": "Pos"})
+        .reset_index(drop=True)
+    )
+    result.index += 1
+    return result
+
+
+# ---------- 7. Bonus Point Predictions ----------
 
 def bonus_point_predictions(
     predictions_df: pd.DataFrame,
