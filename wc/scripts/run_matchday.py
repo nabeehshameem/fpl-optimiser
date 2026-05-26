@@ -2,7 +2,7 @@
 run_matchday.py
 One-command World Cup Fantasy matchday runner.
 
-Loads predictions and prints captain picks + differentials.
+Loads predictions and prints score predictions, captain picks, differentials.
 Optionally shows squad optimiser if --optimise flag is set.
 
 Usage:
@@ -12,6 +12,7 @@ Usage:
   python wc/scripts/run_matchday.py --matchday 1 --squad 123,456,...  # mark squad players *
   python wc/scripts/run_matchday.py --matchday 1 --optimise           # squad optimiser
   python wc/scripts/run_matchday.py --matchday 1 --max-ownership 20   # wider differentials
+  python wc/scripts/run_matchday.py --matchday 1 --no-scores          # skip score predictions
 """
 
 import argparse
@@ -24,6 +25,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from wc.src.ml_predictor import WCPredictor
 from wc.src.analytics import captain_picks, find_differentials, squad_optimiser
+from wc.src.score_predictor import DCPredictor
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "wc.db"
 
@@ -78,6 +80,8 @@ def main():
                         help="Run group stage squad optimiser")
     parser.add_argument("--budget", type=float, default=100.0,
                         help="Budget in millions for squad optimiser (default 100)")
+    parser.add_argument("--no-scores", action="store_true",
+                        help="Skip score predictions section")
     args = parser.parse_args()
 
     matchday = args.matchday if args.matchday > 0 else _next_matchday()
@@ -101,6 +105,27 @@ def main():
 
     predictions = predictor.predict_matchday(matchday)
     print(f"  {len(predictions)} players with fixtures in matchday {matchday}.\n")
+
+    if not args.no_scores:
+        _header(f"SCORE PREDICTIONS  — Matchday {matchday}")
+        try:
+            dc = DCPredictor()
+            dc.load()
+            score_results = dc.predict_matchday(matchday)
+            print(f"\n  {'Home':20s}  {'xG':>5}  {'Win%':>5}  {'Draw%':>5}  {'Loss%':>5}  {'Away':20s}  {'xG':>5}")
+            print("  " + "-" * 76)
+            for r in score_results:
+                top = r["most_likely"][0]
+                predicted = f"{top[0]}-{top[1]}"
+                print(
+                    f"  {r['home_name']:20s}  {r['home_xg']:5.2f}  "
+                    f"{r['win_pct']:5.1f}  {r['draw_pct']:5.1f}  {r['loss_pct']:5.1f}  "
+                    f"{r['away_name']:20s}  {r['away_xg']:5.2f}  (pred {predicted})"
+                )
+        except FileNotFoundError:
+            print("  [skip] DC model not trained — run: python wc/scripts/train_dc.py")
+        except RuntimeError as e:
+            print(f"  [skip] {e}")
 
     _header(f"CAPTAIN PICKS  — Matchday {matchday}")
     print("  * = in your squad\n")

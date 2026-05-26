@@ -141,6 +141,20 @@ SCHEMA = [
         FOREIGN KEY (fantasy_id) REFERENCES fantasy_players(fantasy_id)
     )
     """,
+    # Recent international results (last ~2 years from martj42/international_results)
+    # Used to give the Dixon-Coles model current team form beyond WC2018/2022 history.
+    """
+    CREATE TABLE IF NOT EXISTS recent_results (
+        result_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+        match_date TEXT NOT NULL,
+        home_team  TEXT NOT NULL,
+        away_team  TEXT NOT NULL,
+        home_score INTEGER NOT NULL,
+        away_score INTEGER NOT NULL,
+        tournament TEXT DEFAULT '',
+        neutral    INTEGER DEFAULT 0
+    )
+    """,
 ]
 
 INDEXES = [
@@ -148,6 +162,7 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_pms_player ON player_match_stats(player_id)",
     "CREATE INDEX IF NOT EXISTS idx_fix_md     ON fixtures(matchday)",
     "CREATE INDEX IF NOT EXISTS idx_pred_fmd   ON predictions(fantasy_id, matchday)",
+    "CREATE INDEX IF NOT EXISTS idx_rr_date    ON recent_results(match_date)",
 ]
 
 

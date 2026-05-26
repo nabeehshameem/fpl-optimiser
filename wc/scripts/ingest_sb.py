@@ -360,15 +360,11 @@ def ingest_tournament(tournament_key: str) -> None:
 
     print(f"  {len(matches_df)} matches found.")
 
-    # Collect unique teams
+    # Collect unique teams (statsbombpy >= 1.0 uses flat columns)
     teams = {}
     for _, m in matches_df.iterrows():
-        ht = m.get("home_team", {})
-        at = m.get("away_team", {})
-        if isinstance(ht, dict):
-            teams[ht["home_team_id"]] = ht["home_team_name"]
-        if isinstance(at, dict):
-            teams[at["away_team_id"]] = at["away_team_name"]
+        teams[int(m["home_team_id"])] = str(m["home_team"])
+        teams[int(m["away_team_id"])] = str(m["away_team"])
 
     conn = sqlite3.connect(DB_PATH)
     _upsert_teams(conn, teams)
@@ -377,14 +373,11 @@ def ingest_tournament(tournament_key: str) -> None:
     processed = 0
     for _, m in matches_df.iterrows():
         match_id   = int(m["match_id"])
-        ht         = m.get("home_team", {})
-        at         = m.get("away_team", {})
-        home_id    = ht.get("home_team_id")   if isinstance(ht, dict) else None
-        away_id    = at.get("away_team_id")   if isinstance(at, dict) else None
+        home_id    = int(m["home_team_id"])
+        away_id    = int(m["away_team_id"])
         home_score = m.get("home_score")
         away_score = m.get("away_score")
-        stage      = m.get("competition_stage", {})
-        stage_name = stage.get("name", "Group Stage") if isinstance(stage, dict) else str(stage)
+        stage_name = str(m.get("competition_stage", "Group Stage"))
         matchday   = _stage_to_matchday(stage_name)
         # For group stage, use match_week as matchday
         if stage_name == "Group Stage":
