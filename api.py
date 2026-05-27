@@ -25,6 +25,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from wc.src.score_predictor import DCPredictor, _canonical
+from wc.src.fantasy_optimizer import optimise as _optimise, captain_picks as _captain_picks
 
 DB_PATH = PROJECT_ROOT / "wc" / "data" / "wc.db"
 
@@ -43,6 +44,20 @@ async def lifespan(app: FastAPI):
     except FileNotFoundError as e:
         _load_error = str(e)
         print(f"[warn] DC model not loaded: {e}")
+
+    # Auto-seed fantasy players if table is empty
+    try:
+        import sqlite3 as _sq
+        _conn = _sq.connect(DB_PATH)
+        _n = _conn.execute("SELECT COUNT(*) FROM fantasy_players").fetchone()[0]
+        _conn.close()
+        if _n == 0:
+            from wc.scripts.seed_fantasy_players import seed as _seed
+            print("Seeding fantasy players…")
+            _seed()
+    except Exception as _e:
+        print(f"[warn] Fantasy seed skipped: {_e}")
+
     yield
 
 
@@ -167,6 +182,69 @@ def predict_match(req: PredictRequest) -> PredictResponse:
             for h, a, p in result["most_likely"]
         ],
     )
+
+
+# ── Fantasy endpoints ─────────────────────────────────────────────────────────
+
+class FantasyPlayerOut(BaseModel):
+    id: int
+    name: str
+    team: str
+    pos: str
+    price: int
+    price_m: float
+    projected_pts: float
+    pts_per_match: float
+    is_captain: bool = False
+
+
+class OptimiseRequest(BaseModel):
+    budget: int = 1000  # £0.1m units; default £100m
+
+
+class OptimiseResponse(BaseModel):
+    squad: list[FantasyPlayerOut]
+    total_pts: float
+    total_cost: int
+    total_cost_m: float
+    captain: FantasyPlayerOut
+
+
+class CaptainsResponse(BaseModel):
+    picks: list[FantasyPlayerOut]
+
+
+def _fmt_player(p: dict, is_captain: bool = False) -> FantasyPlayerOut:
+    return FantasyPlayerOut(
+        id=p["id"], name=p["name"], team=p["team"], pos=p["pos"],
+        price=p["price"], price_m=round(p["price"] / 10, 1),
+        projected_pts=p.get("projected_pts", 0.0),
+        pts_per_match=p.get("pts_per_match", 0.0),
+        is_captain=is_captain,
+    )
+
+
+@app.post("/api/wc/fantasy/optimise", response_model=OptimiseResponse)
+def fantasy_optimise(req: OptimiseRequest):
+    try:
+        res = _optimise(budget=req.budget)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    captain_id = res["captain"]["id"]
+    squad = [_fmt_player(p, is_captain=(p["id"] == captain_id)) for p in res["squad"]]
+    return OptimiseResponse(
+        squad=squad,
+        total_pts=res["total_pts"],
+        total_cost=res["total_cost"],
+        total_cost_m=round(res["total_cost"] / 10, 1),
+        captain=_fmt_player(res["captain"], is_captain=True),
+    )
+
+
+@app.get("/api/wc/fantasy/captains", response_model=CaptainsResponse)
+def fantasy_captains(top_n: int = 10):
+    picks = _captain_picks(top_n=top_n)
+    return CaptainsResponse(picks=[_fmt_player(p) for p in picks])
 
 
 if __name__ == "__main__":
