@@ -61,6 +61,15 @@ RANKS: dict[str, int] = {
     "Panama":        62,
     "Iceland":       72,
     "Peru":          88,
+    "Austria":       22,
+    "Turkey":        38,
+    "Czech Republic":40,
+    "Scotland":      42,
+    "Algeria":       45,
+    "Paraguay":      55,
+    "DR Congo":      58,
+    "Uzbekistan":    65,
+    "New Zealand":  102,
 }
 
 
@@ -82,7 +91,11 @@ def run():
     conn = sqlite3.connect(DB_PATH)
 
     # Teams that qualify for WC2026 but weren't in WC2018/2022 StatsBomb data
-    _ensure_teams(conn, ["Norway"])
+    _ensure_teams(conn, [
+        "Norway", "Austria", "Turkey", "Czech Republic",
+        "Scotland", "Algeria", "Paraguay", "DR Congo",
+        "Uzbekistan", "New Zealand",
+    ])
     conn.commit()
 
     updated = 0
