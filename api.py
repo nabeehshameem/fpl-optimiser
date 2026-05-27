@@ -11,6 +11,7 @@ Requires a trained DC model and populated DB:
     python wc/scripts/ingest_fixtures.py
 """
 
+import os
 import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -145,3 +146,9 @@ def predict_match(req: PredictRequest) -> PredictResponse:
             for h, a, p in result["most_likely"]
         ],
     )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("api:app", host="0.0.0.0", port=port)
