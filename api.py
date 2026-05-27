@@ -18,6 +18,7 @@ from pathlib import Path
 import sys
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -50,6 +51,17 @@ app = FastAPI(
     description="Dixon-Coles Poisson model blending WC2018/2022 history with recent international form.",
     version="1.0.0",
     lifespan=lifespan,
+)
+
+ALLOWED_ORIGINS = os.environ.get(
+    "ALLOWED_ORIGINS", "*"
+).split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -105,6 +117,15 @@ class PredictResponse(BaseModel):
 @app.get("/health")
 def health():
     return {"status": "ok", "model_loaded": _predictor is not None}
+
+
+@app.get("/api/wc/teams")
+def list_teams():
+    """Return all team names the model knows, sorted alphabetically."""
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute("SELECT name FROM teams ORDER BY name").fetchall()
+    conn.close()
+    return {"teams": [r[0] for r in rows]}
 
 
 @app.post("/api/wc/predict", response_model=PredictResponse)
