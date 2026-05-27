@@ -45,16 +45,11 @@ async def lifespan(app: FastAPI):
         _load_error = str(e)
         print(f"[warn] DC model not loaded: {e}")
 
-    # Auto-seed fantasy players if table is empty
+    # Seed fantasy players — always overwrite so deploys pick up price updates
     try:
-        import sqlite3 as _sq
-        _conn = _sq.connect(DB_PATH)
-        _n = _conn.execute("SELECT COUNT(*) FROM fantasy_players").fetchone()[0]
-        _conn.close()
-        if _n == 0:
-            from wc.scripts.seed_fantasy_players import seed as _seed
-            print("Seeding fantasy players…")
-            _seed()
+        from wc.scripts.seed_fantasy_players import seed as _seed
+        print("Seeding fantasy players…")
+        _seed(overwrite=True)
     except Exception as _e:
         print(f"[warn] Fantasy seed skipped: {_e}")
 
@@ -199,7 +194,7 @@ class FantasyPlayerOut(BaseModel):
 
 
 class OptimiseRequest(BaseModel):
-    budget: int = 1000  # £0.1m units; default £100m
+    budget: int = 1000  # $0.1m units; default $100m
 
 
 class OptimiseResponse(BaseModel):

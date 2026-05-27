@@ -95,8 +95,8 @@ def _project(players: list[dict], dc: dict, matches: int = 3) -> list[dict]:
     for p in players:
         m   = metrics.get(_canonical(p["team"]), {"xg_for": 1.0, "xg_against": 1.0, "cs_prob": 0.35})
         pos = p["pos"]
-        # Price-based star factor: £4.5m → 0.7, £12.0m → 1.4
-        sf  = 0.7 + (max(45, min(120, p["price"])) - 45) / 75.0 * 0.7
+        # Price-based star factor: $4.5m → 0.7, $10.5m → 1.4
+        sf  = 0.7 + (max(45, min(105, p["price"])) - 45) / 60.0 * 0.7
 
         exp_goals   = m["xg_for"] * GOAL_SHARE.get(pos, 0.1)   * sf
         exp_assists = m["xg_for"] * ASSIST_RATIO * ASSIST_SHARE.get(pos, 0.1) * sf

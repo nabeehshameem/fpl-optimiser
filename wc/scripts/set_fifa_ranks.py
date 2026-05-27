@@ -46,6 +46,7 @@ RANKS: dict[str, int] = {
     "Wales":         27,
     "Poland":        27,
     "Tunisia":       29,
+    "Norway":        31,
     "Sweden":        30,
     "Ecuador":       33,
     "Egypt":         34,
@@ -63,8 +64,27 @@ RANKS: dict[str, int] = {
 }
 
 
+def _ensure_teams(conn: sqlite3.Connection, names: list[str]) -> None:
+    """Insert teams that exist in recent_results but not yet in the teams table."""
+    for name in names:
+        exists = conn.execute(
+            "SELECT 1 FROM teams WHERE LOWER(name) = LOWER(?)", (name,)
+        ).fetchone()
+        if not exists:
+            conn.execute(
+                "INSERT INTO teams (name, short_name, source) VALUES (?, ?, 'recent_results')",
+                (name, name[:3].upper()),
+            )
+            print(f"  [info] Inserted missing team '{name}' into teams table")
+
+
 def run():
     conn = sqlite3.connect(DB_PATH)
+
+    # Teams that qualify for WC2026 but weren't in WC2018/2022 StatsBomb data
+    _ensure_teams(conn, ["Norway"])
+    conn.commit()
+
     updated = 0
     for name, rank in RANKS.items():
         cur = conn.execute(
