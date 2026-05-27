@@ -2,6 +2,7 @@
 builder = "dockerfile"
 
 [deploy]
+startCommand = "python api.py"
 runtime = "V2"
 numReplicas = 1
 sleepApplication = false
