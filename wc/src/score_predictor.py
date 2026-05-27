@@ -275,6 +275,22 @@ class DCPredictor:
         m01 = (hg == 0) & (ag == 1)
         m11 = (hg == 1) & (ag == 1)
 
+        # L2 regularisation toward FIFA rank priors, applied ONLY to the 40 WC
+        # teams.  Non-WC teams (Asian minnows, etc.) fit freely as reference
+        # points — this stops Japan's 6-0 qualifier wins from inflating its
+        # attack rating by the same mechanism they inflate the minnows' defense.
+        REG_LAMBDA   = 25.0
+        rank_map     = self._load_team_ranks()   # {canonical: prior_attack_strength}
+        log_rank_atk = np.array(
+            [np.log(rank_map.get(k, _rank_prior(35))) for k in team_keys]
+        )
+        log_rank_def = -log_rank_atk   # defence prior = inverse of attack
+
+        # Mask: 1.0 for teams with a FIFA rank in the DB (our 40 WC teams)
+        wc_mask = np.array(
+            [1.0 if k in rank_map else 0.0 for k in team_keys]
+        )
+
         def neg_ll(params: np.ndarray) -> float:
             atk = np.exp(params[:n])
             dfn = np.exp(params[n:2 * n])
@@ -297,10 +313,21 @@ class DCPredictor:
             if np.any(tau <= 0):
                 return 1e10
 
-            return -float(np.dot(weights, np.log(np.maximum(tau, 1e-12)) + log_p))
+            ll = float(np.dot(weights, np.log(np.maximum(tau, 1e-12)) + log_p))
 
-        x0         = np.zeros(2 * n + 2)
-        x0[2 * n]  = np.log(1.05)
+            # Regularisation only for WC teams (skip first team — fixed at 0)
+            reg = REG_LAMBDA * (
+                float(np.sum(wc_mask[1:] * (params[1:n]     - log_rank_atk[1:]) ** 2)) +
+                float(np.sum(wc_mask    * (params[n:2 * n]  - log_rank_def)     ** 2))
+            )
+            return -ll + reg
+
+        # Initialise from rank priors for faster, more stable convergence
+        x0           = np.zeros(2 * n + 2)
+        x0[:n]       = log_rank_atk
+        x0[0]        = 0.0             # first team fixed
+        x0[n:2 * n]  = log_rank_def
+        x0[2 * n]    = np.log(1.05)
         x0[2 * n + 1] = -0.1
 
         bounds = (
@@ -313,7 +340,7 @@ class DCPredictor:
 
         result = minimize(
             neg_ll, x0, method="L-BFGS-B", bounds=bounds,
-            options={"maxiter": 3000, "ftol": 1e-12, "gtol": 1e-8},
+            options={"maxiter": 10000, "ftol": 1e-10, "gtol": 1e-6},
         )
 
         opt     = result.x
