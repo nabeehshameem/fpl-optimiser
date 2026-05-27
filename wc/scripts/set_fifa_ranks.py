@@ -70,6 +70,15 @@ RANKS: dict[str, int] = {
     "DR Congo":      58,
     "Uzbekistan":    65,
     "New Zealand":  102,
+    # WC2026 additions
+    "South Africa":          58,
+    "Bosnia and Herzegovina":65,
+    "Haiti":                115,
+    "Curaçao":               94,
+    "Ivory Coast":           48,
+    "Cape Verde":            80,
+    "Iraq":                  73,
+    "Jordan":                91,
 }
 
 
@@ -95,6 +104,8 @@ def run():
         "Norway", "Austria", "Turkey", "Czech Republic",
         "Scotland", "Algeria", "Paraguay", "DR Congo",
         "Uzbekistan", "New Zealand",
+        "South Africa", "Bosnia and Herzegovina", "Haiti",
+        "Curaçao", "Ivory Coast", "Cape Verde", "Iraq", "Jordan",
     ])
     conn.commit()
 
