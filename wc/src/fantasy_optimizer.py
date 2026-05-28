@@ -5,21 +5,31 @@ Projects fantasy points per player and optimises squad selection.
 Point projection uses Monte Carlo simulation (N=50,000 by default):
   - Draws team goals from Poisson distributions using actual WC2026 group
     fixtures and opponent-specific DC attack/defence ratings.
-  - Averages binary events (clean sheets, conceding 2+) across all simulations
+  - Averages binary events (clean sheets, conceding) across all simulations
     so projected points reflect real schedule difficulty, not just mean opponent.
+  - Adds expected Qualification Booster value (+2 x P(team advances from R32)).
 
-Squad optimization uses scipy.optimize.milp (binary ILP).
+Squad optimization uses scipy.optimize.milp (binary MILP).
 
-WC Fantasy rules:
-  Squad:  2 GK + 5 DEF + 5 MID + 3 FWD = 15 players
-  Budget: $100m (1000 in $0.1m units)
-  Cap:    max 3 players per team
-  Projection base: 3 group-stage matches
+The MILP models three binary variable sets per player:
+  x_i  in squad (15 players)
+  s_i  in starting XI (11 of the 15)
+  c_i  captain (1 of the 11)
+
+Objective: maximise sum(s_i * pts_i) + sum(c_i * pts_i)
+  — bench slots (x_i=1, s_i=0) contribute nothing to the objective, so the
+    solver naturally fills them with the cheapest eligible players, freeing
+    budget for higher-quality starters.
+
+WC Fantasy rules enforced:
+  Squad:         2 GK + 5 DEF + 5 MID + 3 FWD = 15 players
+  Starting XI:   1 GK, 3-5 DEF, 3-5 MID, 1-3 FWD (all valid WC formations)
+  Budget:        $100m (1000 in $0.1m units)
+  Team cap:      max 3 players per country (group stage)
 """
 
 import json
 import sqlite3
-from itertools import combinations
 from pathlib import Path
 
 import numpy as np
@@ -32,12 +42,17 @@ MODEL_PATH   = PROJECT_ROOT / "models" / "dc_params.json"
 SQUAD_RULES    = {"GK": 2, "DEF": 5, "MID": 5, "FWD": 3}
 BUDGET_DEFAULT = 1000  # $100.0m
 
-PT_PLAYED  = 1.0
-PT_CS      = {"GK": 4.0, "DEF": 4.0, "MID": 1.0, "FWD": 0.0}
-PT_GOAL    = {"GK": 6.0, "DEF": 6.0, "MID": 5.0, "FWD": 4.0}
+# WC Fantasy 2026 scoring
+PT_APPEARANCE = 1.8   # expected pts/match: 1pt any app + ~0.8 chance of 60+ min bonus
+PT_CS      = {"GK": 5.0, "DEF": 5.0, "MID": 1.0, "FWD": 0.0}
+PT_GOAL    = {"GK": 9.0, "DEF": 7.0, "MID": 6.0, "FWD": 5.0}
 PT_ASSIST  = 3.0
 PT_SAVE3   = 1.0   # per 3 saves (GK only)
-PT_CONCEDE = -1.0  # per match with 2+ goals conceded (GK/DEF)
+PT_CONCEDE = -1.0  # per goal beyond the first (0 for 1 goal, -1 for 2, -2 for 3...)
+# Rough stat bonuses per group stage (3 matches): MID tackles/chances, FWD shots
+PT_STAT_BONUS = {"GK": 0.0, "DEF": 0.0, "MID": 1.5, "FWD": 1.0}
+# Scouting bonus (+2 if >4pts AND <5% ownership) — ownership data unavailable
+# pre-tournament; differentials already rewarded via higher pts/$ ratio in the MILP.
 
 GOAL_SHARE   = {"GK": 0.01, "DEF": 0.07, "MID": 0.30, "FWD": 0.62}
 ASSIST_SHARE = {"GK": 0.01, "DEF": 0.12, "MID": 0.50, "FWD": 0.37}
@@ -66,9 +81,7 @@ def _canonical(name: str) -> str:
         "south korea":                      "korea republic",
         "iran":                             "ir iran",
         "china":                            "china pr",
-        # Cape Verde is stored as "cape verde islands" in StatsBomb / DC model
         "cape verde":                       "cape verde islands",
-        # Flatten legacy variants to the DC-model canonical form
         "democratic republic of the congo": "dr congo",
         "bosnia & herzegovina":             "bosnia and herzegovina",
     }
@@ -94,6 +107,32 @@ def _load_dc() -> dict:
     if not MODEL_PATH.exists():
         return {}
     return json.loads(MODEL_PATH.read_text())
+
+
+def _get_qual_probs(predictor=None) -> dict[str, dict]:
+    """
+    Returns {canonical_team: {qf_pct, sf_pct, final_pct, win_pct}} from a fast
+    tournament simulation. qf_pct = P(team wins their R32 match and reaches R16).
+    Used to compute expected Qualification Booster value per player.
+    """
+    try:
+        if predictor is None:
+            from wc.src.score_predictor import DCPredictor
+            p = DCPredictor()
+            p.load()
+            predictor = p
+        results = predictor.simulate_tournament(n_sim=10_000)
+        return {
+            _canonical(r["team"]): {
+                "qf_pct":    r["qf_pct"],
+                "sf_pct":    r["sf_pct"],
+                "final_pct": r["final_pct"],
+                "win_pct":   r["win_pct"],
+            }
+            for r in results
+        }
+    except Exception:
+        return {}
 
 
 def _build_fixture_lambdas(dc: dict) -> dict[str, list[tuple[float, float]]]:
@@ -125,13 +164,21 @@ def _build_fixture_lambdas(dc: dict) -> dict[str, list[tuple[float, float]]]:
     return result
 
 
-def _project_mc(players: list[dict], dc: dict, n_sim: int = 50_000) -> list[dict]:
+def _project_mc(
+    players: list[dict],
+    dc: dict,
+    n_sim: int = 50_000,
+    qual_probs: dict | None = None,
+) -> list[dict]:
     """
     Monte Carlo projection using actual WC2026 group fixtures.
 
-    For each team, simulates n_sim independent draws of (goals_for, goals_against)
-    per group match using opponent-specific Poisson lambdas from the DC model.
-    Fantasy points are accumulated per simulation then averaged.
+    For each team, simulates n_sim draws of (goals_for, goals_against) per group
+    match using opponent-specific Poisson lambdas from the DC model. Fantasy points
+    are accumulated per simulation then averaged.
+
+    qual_probs: optional {canonical_team: {qf_pct, ...}} dict used to add expected
+    Qualification Booster value (+2 x P(team wins R32)) to projected_pts.
     """
     rng = np.random.default_rng(42)
 
@@ -158,32 +205,30 @@ def _project_mc(players: list[dict], dc: dict, n_sim: int = 50_000) -> list[dict
             team_sims[tk] = (gf, ga)
 
     for p in players:
-        tk = _canonical(p["team"])
+        tk  = _canonical(p["team"])
         pos = p["pos"]
-        # Price-based star factor: $4.5m → 0.7, $10.5m → 1.4
+        # Price-based star factor: $4.5m -> 0.7, $10.5m -> 1.4
         sf = 0.7 + (max(45, min(105, p["price"])) - 45) / 60.0 * 0.7
 
         if tk in team_sims:
             gf_arr, ga_arr = team_sims[tk]   # (n_sim, 3)
         else:
-            lam = mean_atk * mean_def
+            lam    = mean_atk * mean_def
             gf_arr = rng.poisson(lam, (n_sim, 3))
             ga_arr = rng.poisson(lam, (n_sim, 3))
 
-        # --- Per-match events, summed across 3 matches ---
-
-        # Clean-sheet points: 4/4/1/0 per match with zero goals against
+        # Clean-sheet points (must have played 60+ min — assumed for starters)
         cs_pts = (ga_arr == 0).astype(np.float32).sum(axis=1) * PT_CS.get(pos, 0.0)
 
-        # Concede-2+ penalty: −1 per match where ≥2 goals against (GK/DEF only)
+        # Concede penalty: -1 per goal beyond the first (GK/DEF only)
         if pos in ("GK", "DEF"):
-            concede_pts = (ga_arr >= 2).astype(np.float32).sum(axis=1) * PT_CONCEDE
+            concede_pts = np.maximum(0, ga_arr - 1).astype(np.float32).sum(axis=1) * PT_CONCEDE
         else:
             concede_pts = 0.0
 
-        # Goal contribution: team goals × position share × star factor × pts/goal
+        # Goal contribution
         gf_total = gf_arr.sum(axis=1).astype(np.float32)
-        pt_g = gf_total * GOAL_SHARE.get(pos, 0.1) * sf * PT_GOAL.get(pos, 4.0)
+        pt_g = gf_total * GOAL_SHARE.get(pos, 0.1) * sf * PT_GOAL.get(pos, 5.0)
 
         # Assist contribution
         pt_a = gf_total * ASSIST_RATIO * ASSIST_SHARE.get(pos, 0.1) * sf * PT_ASSIST
@@ -194,16 +239,35 @@ def _project_mc(players: list[dict], dc: dict, n_sim: int = 50_000) -> list[dict
         else:
             save_pts = 0.0
 
-        # Appearance: 1pt × 3 matches
-        total = 3.0 + pt_g + pt_a + cs_pts + concede_pts + save_pts
+        # Appearance + position stat bonus (tackles/chances for MID, shots for FWD)
+        appearance = 3 * PT_APPEARANCE
+        stat_bonus = PT_STAT_BONUS.get(pos, 0.0)
 
-        p["projected_pts"] = round(float(total.mean()), 2)
-        p["pts_per_match"] = round(float(total.mean()) / 3, 2)
+        match_avg = float((appearance + pt_g + pt_a + cs_pts + concede_pts + save_pts + stat_bonus).mean())
+
+        # Qualification Booster expected value: +2 if team wins their R32 match.
+        # Applied as a flat bonus on top of group-stage MC (one chip, best used R32).
+        qual_bonus = 0.0
+        if qual_probs:
+            qp = qual_probs.get(tk, {})
+            qual_bonus = 2.0 * qp.get("qf_pct", 0.0) / 100.0
+
+        p["projected_pts"] = round(match_avg + qual_bonus, 2)
+        p["pts_per_match"] = round(match_avg / 3, 2)
 
     return players
 
 
-def optimise(budget: int = BUDGET_DEFAULT) -> dict:
+def optimise(budget: int = BUDGET_DEFAULT, predictor=None) -> dict:
+    """
+    Select the optimal 15-player squad with explicit starting XI (11) and bench (4).
+
+    Bench slots are naturally filled by the cheapest eligible players because bench
+    pts do not count toward the objective — freeing budget for better starters.
+
+    Returns squad, starters, bench, captain, total_pts (starters + captain bonus).
+    Pass predictor= to reuse an already-loaded DCPredictor (avoids re-loading model).
+    """
     conn    = sqlite3.connect(DB_PATH)
     players = _load_players(conn)
     conn.close()
@@ -211,60 +275,115 @@ def optimise(budget: int = BUDGET_DEFAULT) -> dict:
     if not players:
         raise RuntimeError("No fantasy players in DB. Run: python wc/scripts/seed_fantasy_players.py")
 
-    dc      = _load_dc()
-    players = _project_mc(players, dc)
-    n       = len(players)
+    dc         = _load_dc()
+    qual_probs = _get_qual_probs(predictor)
+    players    = _project_mc(players, dc, qual_probs=qual_probs)
+    n          = len(players)
 
     pts    = np.array([p["projected_pts"] for p in players], dtype=float)
     prices = np.array([p["price"]         for p in players], dtype=float)
     pos_l  = [p["pos"]  for p in players]
     teams  = [p["team"] for p in players]
 
-    rows, lbs, ubs = [], [], []
+    # Variables: [x_0..x_{n-1}, s_0..s_{n-1}, c_0..c_{n-1}]
+    # Objective: minimise −(sum(s_i*pts_i) + sum(c_i*pts_i))
+    obj = np.concatenate([np.zeros(n), -pts, -pts])
 
-    rows.append(np.ones(n)); lbs.append(15.0); ubs.append(15.0)
+    rows: list[np.ndarray] = []
+    lbs:  list[float]      = []
+    ubs:  list[float]      = []
 
+    def _xrow(v): return np.concatenate([v,          np.zeros(n), np.zeros(n)])
+    def _srow(v): return np.concatenate([np.zeros(n), v,          np.zeros(n)])
+    def _crow(v): return np.concatenate([np.zeros(n), np.zeros(n), v         ])
+
+    # ── Cardinality ───────────────────────────────────────────────────────────
+    rows.append(_xrow(np.ones(n))); lbs.append(15.0); ubs.append(15.0)  # squad = 15
+    rows.append(_srow(np.ones(n))); lbs.append(11.0); ubs.append(11.0)  # starters = 11
+    rows.append(_crow(np.ones(n))); lbs.append(1.0);  ubs.append(1.0)   # captain = 1
+
+    # ── Squad position counts (on x) ─────────────────────────────────────────
     for pos, count in SQUAD_RULES.items():
-        rows.append(np.array([1.0 if x == pos else 0.0 for x in pos_l]))
-        lbs.append(float(count)); ubs.append(float(count))
+        v = np.array([1.0 if p == pos else 0.0 for p in pos_l])
+        rows.append(_xrow(v)); lbs.append(float(count)); ubs.append(float(count))
 
-    rows.append(prices); lbs.append(0.0); ubs.append(float(budget))
+    # ── Starting XI formation bounds (on s) ──────────────────────────────────
+    # Covers all valid WC Fantasy formations: 4-4-2, 4-3-3, 4-5-1, 3-4-3, 3-5-2, 5-4-1, 5-3-2
+    for pos, lo, hi in [("GK", 1, 1), ("DEF", 3, 5), ("MID", 3, 5), ("FWD", 1, 3)]:
+        v = np.array([1.0 if p == pos else 0.0 for p in pos_l])
+        rows.append(_srow(v)); lbs.append(float(lo)); ubs.append(float(hi))
 
+    # ── Budget (on x) ────────────────────────────────────────────────────────
+    rows.append(_xrow(prices)); lbs.append(0.0); ubs.append(float(budget))
+
+    # ── Per-team cap = 3 (on x) ───────────────────────────────────────────────
     for team in set(teams):
-        rows.append(np.array([1.0 if t == team else 0.0 for t in teams]))
-        lbs.append(0.0); ubs.append(3.0)
+        v = np.array([1.0 if t == team else 0.0 for t in teams])
+        rows.append(_xrow(v)); lbs.append(0.0); ubs.append(3.0)
+
+    # ── Hierarchy: c_i <= s_i <= x_i (block-matrix form) ────────────────────
+    I_n = np.eye(n)
+    Z_n = np.zeros((n, n))
+    # s_i - x_i <= 0: row per player, [-I | I | 0]
+    sx_block = np.hstack([-I_n, I_n, Z_n])
+    # c_i - s_i <= 0: row per player, [0 | -I | I]
+    cs_block = np.hstack([Z_n, -I_n, I_n])
+
+    for row in sx_block:
+        rows.append(row); lbs.append(-np.inf); ubs.append(0.0)
+    for row in cs_block:
+        rows.append(row); lbs.append(-np.inf); ubs.append(0.0)
 
     A           = np.vstack(rows)
     constraints = LinearConstraint(A, lb=np.array(lbs), ub=np.array(ubs))
-    result      = milp(-pts, constraints=constraints,
-                       integrality=np.ones(n), bounds=Bounds(0.0, 1.0))
+    result      = milp(obj, constraints=constraints,
+                       integrality=np.ones(3 * n), bounds=Bounds(0.0, 1.0))
 
     if result.status != 0:
         raise RuntimeError(f"Optimizer failed: {result.message}")
 
+    x_sol = result.x[:n]
+    s_sol = result.x[n:2 * n]
+    c_sol = result.x[2 * n:]
+
     pos_order = list(SQUAD_RULES.keys())
-    squad = sorted(
-        [players[i] for i, x in enumerate(result.x) if x > 0.5],
-        key=lambda p: (pos_order.index(p["pos"]), -p["projected_pts"]),
-    )
-    captain = max(squad, key=lambda p: p["projected_pts"])
+    squad = []
+    for i, player in enumerate(players):
+        if x_sol[i] > 0.5:
+            player["is_starter"] = bool(s_sol[i] > 0.5)
+            player["is_captain"] = bool(c_sol[i] > 0.5)
+            squad.append(player)
+
+    # Sort: starters before bench, then by position order, then by projected pts
+    squad.sort(key=lambda p: (
+        pos_order.index(p["pos"]),
+        not p["is_starter"],
+        -p["projected_pts"],
+    ))
+
+    captain  = next(p for p in squad if p["is_captain"])
+    starters = [p for p in squad if p["is_starter"]]
+    bench    = [p for p in squad if not p["is_starter"]]
 
     return {
         "squad":      squad,
-        "total_pts":  round(sum(p["projected_pts"] for p in squad), 1),
+        "starters":   starters,
+        "bench":      bench,
+        "total_pts":  round(sum(p["projected_pts"] for p in starters) + captain["projected_pts"], 1),
         "total_cost": int(sum(p["price"] for p in squad)),
         "captain":    captain,
     }
 
 
-def captain_picks(top_n: int = 10) -> list[dict]:
+def captain_picks(top_n: int = 10, predictor=None) -> list[dict]:
     conn    = sqlite3.connect(DB_PATH)
     players = _load_players(conn)
     conn.close()
     if not players:
         return []
-    dc      = _load_dc()
-    players = _project_mc(players, dc)
-    outfield = [p for p in players if p["pos"] != "GK"]
+    dc         = _load_dc()
+    qual_probs = _get_qual_probs(predictor)
+    players    = _project_mc(players, dc, qual_probs=qual_probs)
+    outfield   = [p for p in players if p["pos"] != "GK"]
     outfield.sort(key=lambda p: p["projected_pts"], reverse=True)
     return outfield[:top_n]

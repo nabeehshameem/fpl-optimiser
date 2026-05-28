@@ -162,13 +162,12 @@ def predict_match(req: PredictRequest) -> PredictResponse:
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    top = result["most_likely"][0]
     return PredictResponse(
         home_name=result["home_name"],
         away_name=result["away_name"],
         home_xg=result["home_xg"],
         away_xg=result["away_xg"],
-        predicted_score=f"{top[0]}-{top[1]}",
+        predicted_score=f"{round(result['home_xg'])}-{round(result['away_xg'])}",
         win_pct=result["win_pct"],
         draw_pct=result["draw_pct"],
         loss_pct=result["loss_pct"],
@@ -190,6 +189,7 @@ class FantasyPlayerOut(BaseModel):
     price_m: float
     projected_pts: float
     pts_per_match: float
+    is_starter: bool = True
     is_captain: bool = False
 
 
@@ -199,6 +199,8 @@ class OptimiseRequest(BaseModel):
 
 class OptimiseResponse(BaseModel):
     squad: list[FantasyPlayerOut]
+    starters: list[FantasyPlayerOut]
+    bench: list[FantasyPlayerOut]
     total_pts: float
     total_cost: int
     total_cost_m: float
@@ -215,6 +217,7 @@ def _fmt_player(p: dict, is_captain: bool = False) -> FantasyPlayerOut:
         price=p["price"], price_m=round(p["price"] / 10, 1),
         projected_pts=p.get("projected_pts", 0.0),
         pts_per_match=p.get("pts_per_match", 0.0),
+        is_starter=p.get("is_starter", True),
         is_captain=is_captain,
     )
 
@@ -222,13 +225,17 @@ def _fmt_player(p: dict, is_captain: bool = False) -> FantasyPlayerOut:
 @app.post("/api/wc/fantasy/optimise", response_model=OptimiseResponse)
 def fantasy_optimise(req: OptimiseRequest):
     try:
-        res = _optimise(budget=req.budget)
+        res = _optimise(budget=req.budget, predictor=_predictor)
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     captain_id = res["captain"]["id"]
-    squad = [_fmt_player(p, is_captain=(p["id"] == captain_id)) for p in res["squad"]]
+    squad    = [_fmt_player(p, is_captain=(p["id"] == captain_id)) for p in res["squad"]]
+    starters = [_fmt_player(p, is_captain=(p["id"] == captain_id)) for p in res["starters"]]
+    bench    = [_fmt_player(p) for p in res["bench"]]
     return OptimiseResponse(
         squad=squad,
+        starters=starters,
+        bench=bench,
         total_pts=res["total_pts"],
         total_cost=res["total_cost"],
         total_cost_m=round(res["total_cost"] / 10, 1),
@@ -238,7 +245,7 @@ def fantasy_optimise(req: OptimiseRequest):
 
 @app.get("/api/wc/fantasy/captains", response_model=CaptainsResponse)
 def fantasy_captains(top_n: int = 10):
-    picks = _captain_picks(top_n=top_n)
+    picks = _captain_picks(top_n=top_n, predictor=_predictor)
     return CaptainsResponse(picks=[_fmt_player(p) for p in picks])
 
 
