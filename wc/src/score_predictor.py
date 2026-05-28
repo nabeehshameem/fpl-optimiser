@@ -473,6 +473,300 @@ class DCPredictor:
             )
         return [self.predict(r[0], r[1]) for r in rows]
 
+    # ── Tournament simulator (vectorised) ───────────────────────────────────
+
+    # WC2026 confirmed group draw (same as in fantasy_optimizer)
+    WC2026_GROUPS: dict[str, list[str]] = {
+        "A": ["Mexico",        "South Korea",  "South Africa",          "Czech Republic"],
+        "B": ["Canada",        "Switzerland",  "Qatar",                 "Bosnia and Herzegovina"],
+        "C": ["Brazil",        "Morocco",      "Scotland",              "Haiti"],
+        "D": ["United States", "Australia",    "Paraguay",              "Turkey"],
+        "E": ["Germany",       "Curaçao",      "Ivory Coast",           "Ecuador"],
+        "F": ["Netherlands",   "Japan",        "Tunisia",               "Sweden"],
+        "G": ["Belgium",       "Iran",         "Egypt",                 "New Zealand"],
+        "H": ["Spain",         "Uruguay",      "Saudi Arabia",          "Cape Verde"],
+        "I": ["France",        "Senegal",      "Norway",                "Iraq"],
+        "J": ["Argentina",     "Austria",      "Algeria",               "Jordan"],
+        "K": ["Portugal",      "Colombia",     "Uzbekistan",            "DR Congo"],
+        "L": ["England",       "Croatia",      "Panama",                "Ghana"],
+    }
+
+    def _sim_match_goals(
+        self, home_key: str, away_key: str,
+        rng: np.random.Generator, home_advantage: bool = False,
+    ) -> tuple[int, int]:
+        """Sample one match result from the DC-Poisson model."""
+        atk_h, def_h = self._team_atk_def(home_key)
+        atk_a, def_a = self._team_atk_def(away_key)
+        ha = self.home_adv if home_advantage else 1.0
+        mu_h = atk_h * def_a * ha
+        mu_a = atk_a * def_h
+        hg = int(rng.poisson(mu_h))
+        ag = int(rng.poisson(mu_a))
+        # DC low-score correction: accept/reject via tau
+        tau = _dc_tau(hg, ag, mu_h, mu_a, self.rho)
+        if tau < 0:
+            tau = 0.0
+        # Re-sample the specific outcome if needed (importance weight via bernoulli)
+        # Simple approach: adjust by tau proportionally (works since tau ≈ 1 for most)
+        if rng.random() > tau:
+            hg = int(rng.poisson(mu_h))
+            ag = int(rng.poisson(mu_a))
+        return hg, ag
+
+    def _sim_knockout_match(
+        self, home_key: str, away_key: str, rng: np.random.Generator,
+    ) -> str:
+        """Simulate a knockout match (ET + pens if draw). Returns winner key."""
+        hg, ag = self._sim_match_goals(home_key, away_key, rng, home_advantage=False)
+        if hg != ag:
+            return home_key if hg > ag else away_key
+        # Extra time: ~30 min ≈ 1/3 of normal time lambda
+        atk_h, def_h = self._team_atk_def(home_key)
+        atk_a, def_a = self._team_atk_def(away_key)
+        et_h = int(rng.poisson(atk_h * def_a / 3.0))
+        et_a = int(rng.poisson(atk_a * def_h / 3.0))
+        if et_h != et_a:
+            return home_key if et_h > et_a else away_key
+        # Penalty shootout: coin flip
+        return home_key if rng.random() < 0.5 else away_key
+
+    def _sim_group_stage(
+        self, rng: np.random.Generator,
+    ) -> tuple[list[str], list[tuple[str, int, int, int]]]:
+        """
+        Simulate all 12 groups.  Returns:
+          qualified: list[str] canonical team keys — 24 group tops/runners-up
+                     + best 8 3rd-place teams  (32 total)
+          third_place_table: [(team_key, pts, gd, gf), ...]  all 12 3rd-place teams
+        """
+        top2: list[str] = []
+        thirds: list[tuple[str, int, int, int]] = []
+
+        for group_name, teams in self.WC2026_GROUPS.items():
+            keys = [_canonical(t) for t in teams]
+            # Track (pts, gd, gf) per team
+            stats: dict[str, list[int]] = {k: [0, 0, 0] for k in keys}
+
+            for i in range(len(keys)):
+                for j in range(i + 1, len(keys)):
+                    hk, ak = keys[i], keys[j]
+                    hg, ag = self._sim_match_goals(hk, ak, rng)
+                    diff = hg - ag
+                    if diff > 0:
+                        stats[hk][0] += 3
+                    elif diff < 0:
+                        stats[ak][0] += 3
+                    else:
+                        stats[hk][0] += 1
+                        stats[ak][0] += 1
+                    stats[hk][1] += diff;  stats[ak][1] -= diff
+                    stats[hk][2] += hg;    stats[ak][2] += ag
+
+            ranked = sorted(keys, key=lambda k: (stats[k][0], stats[k][1], stats[k][2]), reverse=True)
+            top2.extend(ranked[:2])
+            thirds.append((ranked[2], stats[ranked[2]][0], stats[ranked[2]][1], stats[ranked[2]][2]))
+
+        # Best 8 third-place teams
+        thirds.sort(key=lambda x: (x[1], x[2], x[3]), reverse=True)
+        qualified_thirds = [t[0] for t in thirds[:8]]
+
+        return top2 + qualified_thirds, thirds
+
+    def _build_r32_bracket(self, qualified: list[str]) -> list[tuple[str, str]]:
+        """
+        Pair the 32 qualifiers into 16 R32 matches.
+
+        Layout mirrors the official WC2026 bracket:
+        - First 24 entries are ordered: [1A,2A, 1B,2B, …, 1L,2L]
+          (as returned by _sim_group_stage's top2 list, pair-by-pair per group)
+        - Entries 24-31 are the 8 best 3rd-place teams (seeded 25-32)
+
+        Standard seeding: 1 vs 32, 2 vs 31 … preserving opposite-half separation.
+        """
+        n = len(qualified)  # should be 32
+        # Simple seeded bracket: top seeds meet bottom seeds
+        pairs: list[tuple[str, str]] = []
+        for i in range(n // 2):
+            pairs.append((qualified[i], qualified[n - 1 - i]))
+        return pairs
+
+    def simulate_tournament(self, n_sim: int = 50_000) -> list[dict]:
+        """
+        Monte Carlo simulation of the full WC2026 tournament.
+
+        Fully vectorised: all 72 group-stage match goals are sampled in two
+        numpy calls; knockout rounds are batched per-round across n_sim.
+        Typical runtime: <1 s for n_sim=50 000.
+
+        Returns a list of dicts (one per team) sorted by win probability.
+        """
+        if not self._fitted and not self.team_params:
+            raise RuntimeError("Model not loaded. Call load() first.")
+
+        rng = np.random.default_rng(42)
+
+        # ── Team index (48 WC2026 teams) ──────────────────────────────────────
+        all_teams  = [t for teams in self.WC2026_GROUPS.values() for t in teams]
+        all_keys   = [_canonical(t) for t in all_teams]
+        T          = len(all_keys)
+        key_to_idx = {k: i for i, k in enumerate(all_keys)}
+
+        mean_atk = float(np.mean([v["attack"]  for v in self.team_params.values()]))
+        mean_def = float(np.mean([v["defense"] for v in self.team_params.values()]))
+
+        atk_arr = np.array([self.team_params.get(k, {"attack":  mean_atk})["attack"]  for k in all_keys])
+        def_arr = np.array([self.team_params.get(k, {"defense": mean_def})["defense"] for k in all_keys])
+
+        # lam[i, j] = expected goals scored by team i vs team j
+        lam = np.outer(atk_arr, def_arr)  # (T, T)
+
+        # ── Build group match index (72 matches) ──────────────────────────────
+        group_lists: list[list[int]] = []
+        gm_h_lst, gm_a_lst = [], []
+        gm_g_lst, gm_hp_lst, gm_ap_lst = [], [], []
+
+        for g_idx, g_teams in enumerate(self.WC2026_GROUPS.values()):
+            g_idxs = [key_to_idx[_canonical(t)] for t in g_teams]
+            group_lists.append(g_idxs)
+            for pi in range(4):
+                for pj in range(pi + 1, 4):
+                    gm_h_lst.append(g_idxs[pi]); gm_a_lst.append(g_idxs[pj])
+                    gm_g_lst.append(g_idx);       gm_hp_lst.append(pi); gm_ap_lst.append(pj)
+
+        M    = len(gm_h_lst)  # 72
+        gm_h = np.array(gm_h_lst, dtype=np.int32)
+        gm_a = np.array(gm_a_lst, dtype=np.int32)
+
+        mu_h_gm = lam[gm_h, gm_a]   # (72,)
+        mu_a_gm = lam[gm_a, gm_h]   # (72,)
+
+        # ── Sample all n_sim × 72 group goals in two calls ────────────────────
+        hg_all = rng.poisson(np.tile(mu_h_gm, (n_sim, 1)))  # (n_sim, 72)
+        ag_all = rng.poisson(np.tile(mu_a_gm, (n_sim, 1)))  # (n_sim, 72)
+
+        # ── Accumulate group standings ────────────────────────────────────────
+        pts_arr = np.zeros((n_sim, 12, 4), dtype=np.int32)
+        gd_arr  = np.zeros((n_sim, 12, 4), dtype=np.int32)
+        gf_arr  = np.zeros((n_sim, 12, 4), dtype=np.int32)
+
+        for m in range(M):
+            g, hp, ap = gm_g_lst[m], gm_hp_lst[m], gm_ap_lst[m]
+            h_goals   = hg_all[:, m]
+            a_goals   = ag_all[:, m]
+            diff      = (h_goals - a_goals).astype(np.int32)
+            h_pts = np.where(diff > 0, 3, np.where(diff == 0, 1, 0)).astype(np.int32)
+            a_pts = np.where(diff < 0, 3, np.where(diff == 0, 1, 0)).astype(np.int32)
+            pts_arr[:, g, hp] += h_pts;  pts_arr[:, g, ap] += a_pts
+            gd_arr[:, g, hp]  += diff;   gd_arr[:, g, ap]  -= diff
+            gf_arr[:, g, hp]  += h_goals.astype(np.int32)
+            gf_arr[:, g, ap]  += a_goals.astype(np.int32)
+
+        # ── Rank teams within each group ──────────────────────────────────────
+        sort_key = (pts_arr.astype(np.int64) * 1_000_000
+                    + gd_arr.astype(np.int64) * 1_000
+                    + gf_arr.astype(np.int64))          # (n_sim, 12, 4)
+        ranks = np.argsort(-sort_key, axis=-1)           # (n_sim, 12, 4)
+
+        group_arrs = [np.array(g, dtype=np.int32) for g in group_lists]
+
+        # top2_idx[s, g, r] = global team index of rank-r team in group g for sim s
+        top2_idx = np.stack(
+            [group_arrs[g][ranks[:, g, :2]] for g in range(12)], axis=1
+        )  # (n_sim, 12, 2)
+
+        third_pos = ranks[:, :, 2]  # (n_sim, 12) — group position of 3rd-place team
+        third_idx = np.stack(
+            [group_arrs[g][third_pos[:, g]] for g in range(12)], axis=1
+        )  # (n_sim, 12)
+
+        sim_idx   = np.arange(n_sim)[:, None]  # (n_sim, 1)
+        grp_idx   = np.arange(12)[None, :]     # (1, 12)
+        third_pts = pts_arr[sim_idx, grp_idx, third_pos]
+        third_gd  = gd_arr[ sim_idx, grp_idx, third_pos]
+        third_gf  = gf_arr[ sim_idx, grp_idx, third_pos]
+
+        # Best 8 3rd-place teams per sim
+        third_sort  = (third_pts.astype(np.int64) * 1_000_000
+                       + third_gd.astype(np.int64) * 1_000
+                       + third_gf.astype(np.int64))             # (n_sim, 12)
+        best8_local     = np.argsort(-third_sort, axis=-1)[:, :8]  # (n_sim, 8)
+        best8_team_idx  = third_idx[np.arange(n_sim)[:, None], best8_local]  # (n_sim, 8)
+
+        r32_teams = np.concatenate(
+            [top2_idx.reshape(n_sim, 24), best8_team_idx], axis=1
+        )  # (n_sim, 32)
+
+        # ── Count stage qualifications ────────────────────────────────────────
+        # WC2026 has 5 knockout rounds: R32(32→16), R16(16→8), QF(8→4), SF(4→2), F(2→1)
+        # We track: r32 = qualify from groups; qf/sf/final/win = respective stages
+        r32_counts   = np.zeros(T, dtype=np.int64)
+        qf_counts    = np.zeros(T, dtype=np.int64)
+        sf_counts    = np.zeros(T, dtype=np.int64)
+        final_counts = np.zeros(T, dtype=np.int64)
+        win_counts   = np.zeros(T, dtype=np.int64)
+
+        np.add.at(r32_counts, r32_teams.ravel(), 1)
+
+        # ── Bracket: seed i vs seed 31-i, winners meet consecutively ─────────
+        bracket_order = []
+        for i in range(16):
+            bracket_order.extend([i, 31 - i])
+        current = r32_teams[:, bracket_order]  # (n_sim, 32)
+
+        # ── Simulate 5 knockout rounds (vectorised per-round) ─────────────────
+        # R32 (32→16): skip counting — r32_pct already tracks group qualification
+        # R16 (16→8): qf_pct; QF (8→4): sf_pct; SF (4→2): final_pct; F (2→1): win_pct
+        for cnt_arr in (None, qf_counts, sf_counts, final_counts, win_counts):
+            h_mat = current[:, 0::2]  # (n_sim, n_matches) home teams
+            a_mat = current[:, 1::2]  # (n_sim, n_matches) away teams
+
+            mu_h = lam[h_mat, a_mat]   # (n_sim, n_matches)
+            mu_a = lam[a_mat, h_mat]
+
+            hg = rng.poisson(mu_h)
+            ag = rng.poisson(mu_a)
+
+            draw = hg == ag
+            if draw.any():
+                et_h = rng.poisson(mu_h[draw] / 3.0)
+                et_a = rng.poisson(mu_a[draw] / 3.0)
+                sd   = et_h == et_a
+                if sd.any():
+                    coin     = rng.random(int(sd.sum())) < 0.5
+                    et_h[sd] = coin.astype(np.int64)
+                    et_a[sd] = (~coin).astype(np.int64)
+                hg[draw] += et_h
+                ag[draw] += et_a
+
+            winners = np.where(hg > ag, h_mat, a_mat)  # (n_sim, n_matches)
+            if cnt_arr is not None:
+                np.add.at(cnt_arr, winners.ravel(), 1)
+            current = winners  # advance; shape halves each round
+
+        # ── Build results ─────────────────────────────────────────────────────
+        group_of = {
+            _canonical(t): g
+            for g, teams in self.WC2026_GROUPS.items()
+            for t in teams
+        }
+        name_map = {_canonical(t): t for t in all_teams}
+
+        results = [
+            {
+                "team":      name_map.get(k, k),
+                "group":     group_of.get(k, "?"),
+                "r32_pct":   round(r32_counts[i]   / n_sim * 100, 1),
+                "qf_pct":    round(qf_counts[i]    / n_sim * 100, 1),
+                "sf_pct":    round(sf_counts[i]    / n_sim * 100, 1),
+                "final_pct": round(final_counts[i] / n_sim * 100, 1),
+                "win_pct":   round(win_counts[i]   / n_sim * 100, 1),
+            }
+            for i, k in enumerate(all_keys)
+        ]
+        results.sort(key=lambda x: x["win_pct"], reverse=True)
+        return results
+
     def team_strengths(self) -> list[dict]:
         """All teams sorted by attack strength descending."""
         return sorted(

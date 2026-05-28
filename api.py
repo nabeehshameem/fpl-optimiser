@@ -242,6 +242,89 @@ def fantasy_captains(top_n: int = 10):
     return CaptainsResponse(picks=[_fmt_player(p) for p in picks])
 
 
+# ── Tournament simulator ──────────────────────────────────────────────────────
+
+class TournamentTeamOut(BaseModel):
+    team: str
+    group: str
+    r32_pct: float
+    qf_pct: float
+    sf_pct: float
+    final_pct: float
+    win_pct: float
+
+
+class TournamentResponse(BaseModel):
+    teams: list[TournamentTeamOut]
+    n_sim: int
+
+
+@app.get("/api/wc/simulate", response_model=TournamentResponse)
+def simulate_tournament(n_sim: int = 50_000):
+    """
+    Monte Carlo tournament simulation (default 50 000 runs).
+    Returns win/final/SF/QF/R32 probabilities for all 48 teams.
+    Results reflect the current DC model — retrain after each matchday for live updates.
+    """
+    predictor = _get_predictor()
+    results = predictor.simulate_tournament(n_sim=n_sim)
+    return TournamentResponse(
+        teams=[TournamentTeamOut(**r) for r in results],
+        n_sim=n_sim,
+    )
+
+
+# ── Live retrain ──────────────────────────────────────────────────────────────
+
+import subprocess
+import threading
+
+_retrain_lock = threading.Lock()
+_retrain_status: dict = {"running": False, "last": None, "error": None}
+
+
+def _run_retrain() -> None:
+    global _predictor
+    try:
+        subprocess.run(
+            ["python", "wc/scripts/ingest_recent_form.py", "--months", "30"],
+            check=True, capture_output=True, cwd=str(PROJECT_ROOT),
+        )
+        subprocess.run(
+            ["python", "wc/scripts/train_dc.py"],
+            check=True, capture_output=True, cwd=str(PROJECT_ROOT),
+        )
+        # Hot-reload the model in the running API
+        p = DCPredictor()
+        p.load()
+        _predictor = p
+        _retrain_status["last"] = "success"
+        _retrain_status["error"] = None
+        print("[retrain] DC model refreshed successfully.")
+    except subprocess.CalledProcessError as e:
+        _retrain_status["error"] = e.stderr.decode(errors="replace")[-500:]
+        print(f"[retrain] failed: {_retrain_status['error']}")
+    finally:
+        _retrain_status["running"] = False
+
+
+@app.post("/api/wc/retrain")
+def trigger_retrain():
+    """
+    Re-ingest recent international results (including any WC2026 matches played)
+    and retrain the DC model in the background.
+
+    Call this after each matchday to keep predictions up to date.
+    The martj42 dataset (GitHub) updates within hours of each match finishing.
+    """
+    if not _retrain_lock.acquire(blocking=False):
+        return {"status": "already_running"}
+    _retrain_status["running"] = True
+    t = threading.Thread(target=_run_retrain, daemon=True)
+    t.start()
+    return {"status": "started", "message": "Retraining in background — check /health for completion."}
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))

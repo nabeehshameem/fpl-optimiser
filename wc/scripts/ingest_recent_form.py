@@ -71,8 +71,12 @@ TOURNAMENT_TIERS = {
 TIER_WEIGHTS = {"A": 0.85, "B": 0.70, "C": 0.35}
 MIN_IMPORTANCE = {"A": ("A",), "B": ("A", "B"), "friendly": ("A", "B", "C")}
 
-# Skip WC finals — already have them via StatsBomb with richer event data
-SKIP_TOURNAMENTS = {"FIFA World Cup"}
+# WC2018/2022 are already ingested via StatsBomb (richer data, higher weight).
+# WC2026 matches are NOT in StatsBomb yet — include them here as live form data.
+SKIP_TOURNAMENTS = {"FIFA World Cup 2022", "FIFA World Cup 2018"}
+
+# WC2026 live matches get tier "A" weight — most relevant form signal
+TOURNAMENT_TIERS["FIFA World Cup"] = "A"
 
 
 def _fetch_csv() -> pd.DataFrame:
