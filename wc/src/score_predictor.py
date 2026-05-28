@@ -708,11 +708,18 @@ class DCPredictor:
 
         np.add.at(r32_counts, r32_teams.ravel(), 1)
 
-        # ── Bracket: seed i vs seed 31-i, winners meet consecutively ─────────
+        # ── Bracket: seed by DC quality (attack/defense), 1 vs 32, 2 vs 31 … ─
+        # This avoids group-letter bias: England/France/Spain/Argentina get top
+        # seeds based on actual model strength, not their group position.
+        quality     = atk_arr / def_arr                          # (T,) strength proxy
+        r32_quality = quality[r32_teams]                         # (n_sim, 32)
+        seed_order  = np.argsort(-r32_quality, axis=-1)          # (n_sim, 32) desc
+        seeded      = r32_teams[np.arange(n_sim)[:, None], seed_order]  # (n_sim, 32)
+
         bracket_order = []
         for i in range(16):
             bracket_order.extend([i, 31 - i])
-        current = r32_teams[:, bracket_order]  # (n_sim, 32)
+        current = seeded[:, bracket_order]  # (n_sim, 32)
 
         # ── Simulate 5 knockout rounds (vectorised per-round) ─────────────────
         # R32 (32→16): skip counting — r32_pct already tracks group qualification
