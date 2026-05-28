@@ -127,8 +127,8 @@ def _dc_tau(x: int, y: int, mu_h: float, mu_a: float, rho: float) -> float:
 
 
 def _rank_prior(rank: int) -> float:
-    """FIFA rank → rough attack strength. Rank 1 ≈ 1.4, rank 48 ≈ 0.7."""
-    return max(0.5, 1.45 - (rank - 1) * 0.015)
+    """FIFA rank → rough attack strength. Rank 1 ≈ 1.75, rank 80 ≈ 0.40."""
+    return max(0.4, 1.75 - (rank - 1) * 0.017)
 
 
 def _recency_weight(match_date_str: str, decay: float = 0.6) -> float:
@@ -184,7 +184,8 @@ class DCPredictor:
                 "home_key":   home_name, "away_key": away_name,
                 "home_goals": int(r[2]), "away_goals": int(r[3]),
                 "weight":     base_w,
-                "home_id":    r[0],      "away_id":   r[1],
+                "neutral":    True,       # WC matches are played at a host nation
+                "home_id":    r[0],       "away_id":   r[1],
             })
         return out
 
@@ -193,7 +194,7 @@ class DCPredictor:
         conn = sqlite3.connect(DB_PATH)
         rows = conn.execute("""
             SELECT match_date, home_team, away_team,
-                   home_score, away_score, tournament
+                   home_score, away_score, tournament, neutral
             FROM recent_results
             WHERE home_score IS NOT NULL AND away_score IS NOT NULL
         """).fetchall()
@@ -201,7 +202,7 @@ class DCPredictor:
 
         out = []
         for r in rows:
-            match_date, home, away, hg, ag, tourney = r
+            match_date, home, away, hg, ag, tourney = r[0], r[1], r[2], r[3], r[4], r[5]
             tier     = TOURNAMENT_TIERS.get(tourney or "", "C")
             tier_w   = TIER_WEIGHTS.get(tier, 0.4)
             recency  = _recency_weight(match_date)
@@ -212,6 +213,7 @@ class DCPredictor:
                 "home_key":   _canonical(home), "away_key": _canonical(away),
                 "home_goals": int(hg), "away_goals": int(ag),
                 "weight":     weight,
+                "neutral":    bool(r[6]) if r[6] else False,
                 "home_id":    None, "away_id": None,
             })
         return out
@@ -263,6 +265,8 @@ class DCPredictor:
         hg         = np.array([m["home_goals"]       for m in all_matches], dtype=np.float64)
         ag         = np.array([m["away_goals"]       for m in all_matches], dtype=np.float64)
         weights    = np.array([m["weight"]           for m in all_matches], dtype=np.float64)
+        # 0 = neutral venue (no home advantage), 1 = genuine home game
+        home_mask  = np.array([0.0 if m.get("neutral", False) else 1.0 for m in all_matches], dtype=np.float64)
 
         # Precompute log-factorials (constant across optimizer calls)
         from scipy.special import gammaln
@@ -279,7 +283,7 @@ class DCPredictor:
         # teams.  Non-WC teams (Asian minnows, etc.) fit freely as reference
         # points — this stops Japan's 6-0 qualifier wins from inflating its
         # attack rating by the same mechanism they inflate the minnows' defense.
-        REG_LAMBDA   = 25.0
+        REG_LAMBDA   = 12.0
         rank_map     = self._load_team_ranks()   # {canonical: prior_attack_strength}
         log_rank_atk = np.array(
             [np.log(rank_map.get(k, _rank_prior(35))) for k in team_keys]
@@ -297,7 +301,9 @@ class DCPredictor:
             ha  = np.exp(params[2 * n])
             rho = params[2 * n + 1]
 
-            mu_h = atk[home_idx] * dfn[away_idx] * ha
+            # Apply home advantage only to non-neutral matches
+            ha_mult = 1.0 + home_mask * (ha - 1.0)
+            mu_h = atk[home_idx] * dfn[away_idx] * ha_mult
             mu_a = atk[away_idx] * dfn[home_idx]
 
             # Vectorised Poisson log-PMF: x*log(mu) - mu - log(x!)
@@ -327,20 +333,20 @@ class DCPredictor:
         x0[:n]       = log_rank_atk
         x0[0]        = 0.0             # first team fixed
         x0[n:2 * n]  = log_rank_def
-        x0[2 * n]    = np.log(1.05)
+        x0[2 * n]    = np.log(1.10)    # start at 10% home advantage for non-neutral games
         x0[2 * n + 1] = -0.1
 
         bounds = (
             [(0.0, 0.0)]                              # first team fixed for identifiability
             + [(-3.0, 3.0)] * (n - 1)
             + [(-3.0, 3.0)] * n
-            + [(np.log(0.85), np.log(1.4))]
+            + [(np.log(0.98), np.log(1.3))]           # home adv: 0.98–1.30, WC mostly neutral
             + [(-0.5, 0.2)]
         )
 
         result = minimize(
             neg_ll, x0, method="L-BFGS-B", bounds=bounds,
-            options={"maxiter": 10000, "ftol": 1e-10, "gtol": 1e-6},
+            options={"maxiter": 50000, "ftol": 1e-9, "gtol": 1e-5},
         )
 
         opt     = result.x
