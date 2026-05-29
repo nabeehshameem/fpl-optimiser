@@ -75,6 +75,21 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"[warn] Fantasy seed skipped: {_e}")
 
+    # Ensure subscribers table exists
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS subscribers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.commit()
+        conn.close()
+    except Exception as _e:
+        print(f"[warn] Subscribers table init failed: {_e}")
+
     yield
 
 
@@ -314,6 +329,31 @@ def simulate_tournament(request: Request, n_sim: int = 50_000):
         teams=[TournamentTeamOut(**r) for r in results],
         n_sim=n_sim,
     )
+
+
+# ── Email notifications ───────────────────────────────────────────────────────
+
+class SubscribeRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=254)
+
+
+@app.post("/api/notify/subscribe")
+@limiter.limit("5/minute")
+def subscribe_email(req: SubscribeRequest, request: Request):
+    """Save an email address for match-day notifications."""
+    import re
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", req.email):
+        raise HTTPException(status_code=422, detail="Invalid email address.")
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("INSERT INTO subscribers (email) VALUES (?)", (req.email,))
+        conn.commit()
+        conn.close()
+        return {"status": "subscribed"}
+    except sqlite3.IntegrityError:
+        return {"status": "already_subscribed"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to save subscription.")
 
 
 # ── Live retrain ──────────────────────────────────────────────────────────────
