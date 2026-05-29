@@ -409,6 +409,7 @@ class DCPredictor:
         home_id: int,
         away_id: int,
         home_advantage: bool = False,
+        knockout: bool = False,
         max_goals: int = MAX_GOALS,
     ) -> dict:
         """
@@ -451,7 +452,7 @@ class DCPredictor:
             key=lambda x: x[2], reverse=True,
         )
 
-        return {
+        result = {
             "home_id":     home_id,
             "away_id":     away_id,
             "home_name":   self._display_name(home_id),
@@ -464,6 +465,20 @@ class DCPredictor:
             "most_likely": [(h, a, round(p, 1)) for h, a, p in flat[:10]],
             "prob_matrix": mat,
         }
+
+        if knockout:
+            # Redistribute draw probability: ET (30 min ≈ mu/3) then coin-flip pens
+            et_goals = np.arange(max_goals + 1)
+            et_mat = np.outer(poisson.pmf(et_goals, mu_h / 3.0), poisson.pmf(et_goals, mu_a / 3.0))
+            et_mat /= et_mat.sum()
+            p_et_home = float(np.tril(et_mat, -1).sum())
+            p_et_away = float(np.triu(et_mat, 1).sum())
+            p_et_draw = float(np.diag(et_mat).sum())
+            d = draw_pct / 100.0
+            result["ko_win_pct"]  = round(win_pct  + d * (p_et_home + p_et_draw * 0.5) * 100, 1)
+            result["ko_loss_pct"] = round(loss_pct + d * (p_et_away + p_et_draw * 0.5) * 100, 1)
+
+        return result
 
     def predict_matchday(self, matchday: int) -> list[dict]:
         """Predict all fixtures in a given matchday."""

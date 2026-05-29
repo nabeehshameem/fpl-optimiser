@@ -13,13 +13,19 @@ Requires a trained DC model and populated DB:
 
 import os
 import sqlite3
+import subprocess
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 import sys
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.security import APIKeyHeader
+from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -31,6 +37,22 @@ DB_PATH = PROJECT_ROOT / "wc" / "data" / "wc.db"
 
 _predictor: DCPredictor | None = None
 _load_error: str | None = None
+
+# ── Rate limiter ──────────────────────────────────────────────────────────────
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+
+# ── Retrain auth ──────────────────────────────────────────────────────────────
+
+_RETRAIN_TOKEN = os.environ.get("RETRAIN_SECRET_TOKEN", "")
+_retrain_header = APIKeyHeader(name="X-Retrain-Token", auto_error=False)
+
+
+def _require_retrain_token(token: str | None = Depends(_retrain_header)):
+    if not _RETRAIN_TOKEN:
+        raise HTTPException(status_code=503, detail="Retrain endpoint not configured.")
+    if token != _RETRAIN_TOKEN:
+        raise HTTPException(status_code=401, detail="Invalid or missing retrain token.")
 
 
 @asynccontextmanager
@@ -63,9 +85,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-ALLOWED_ORIGINS = os.environ.get(
-    "ALLOWED_ORIGINS", "*"
-).split(",")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "*").split(",")
 
 app.add_middleware(
     CORSMiddleware,
@@ -99,9 +122,10 @@ def _resolve_team_id(name: str) -> int | None:
 # ── Request / Response models ─────────────────────────────────────────────────
 
 class PredictRequest(BaseModel):
-    home_team: str
-    away_team: str
+    home_team: str = Field(..., min_length=1, max_length=100)
+    away_team: str = Field(..., min_length=1, max_length=100)
     home_advantage: bool = False
+    knockout: bool = False
 
 
 class ScoreLine(BaseModel):
@@ -120,6 +144,8 @@ class PredictResponse(BaseModel):
     draw_pct: float
     loss_pct: float
     most_likely: list[ScoreLine]
+    ko_win_pct: float | None = None
+    ko_loss_pct: float | None = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -130,7 +156,8 @@ def health():
 
 
 @app.get("/api/wc/teams")
-def list_teams():
+@limiter.limit("30/minute")
+def list_teams(request: Request):
     """Return all team names the model knows, sorted alphabetically."""
     conn = sqlite3.connect(DB_PATH)
     rows = conn.execute("SELECT name FROM teams ORDER BY name").fetchall()
@@ -139,7 +166,8 @@ def list_teams():
 
 
 @app.post("/api/wc/predict", response_model=PredictResponse)
-def predict_match(req: PredictRequest) -> PredictResponse:
+@limiter.limit("30/minute")
+def predict_match(req: PredictRequest, request: Request) -> PredictResponse:
     """
     Predict the scoreline for a single match.
 
@@ -158,7 +186,7 @@ def predict_match(req: PredictRequest) -> PredictResponse:
         raise HTTPException(status_code=404, detail=f"Team not found: '{req.away_team}'")
 
     try:
-        result = predictor.predict(home_id, away_id, home_advantage=req.home_advantage)
+        result = predictor.predict(home_id, away_id, home_advantage=req.home_advantage, knockout=req.knockout)
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -175,6 +203,8 @@ def predict_match(req: PredictRequest) -> PredictResponse:
             ScoreLine(home_goals=h, away_goals=a, probability_pct=p)
             for h, a, p in result["most_likely"]
         ],
+        ko_win_pct=result.get("ko_win_pct"),
+        ko_loss_pct=result.get("ko_loss_pct"),
     )
 
 
@@ -194,7 +224,7 @@ class FantasyPlayerOut(BaseModel):
 
 
 class OptimiseRequest(BaseModel):
-    budget: int = 1000  # $0.1m units; default $100m
+    budget: int = Field(default=1000, ge=500, le=1500)  # $50m–$150m in $0.1m units
 
 
 class OptimiseResponse(BaseModel):
@@ -223,7 +253,8 @@ def _fmt_player(p: dict, is_captain: bool = False) -> FantasyPlayerOut:
 
 
 @app.post("/api/wc/fantasy/optimise", response_model=OptimiseResponse)
-def fantasy_optimise(req: OptimiseRequest):
+@limiter.limit("10/minute")
+def fantasy_optimise(req: OptimiseRequest, request: Request):
     try:
         res = _optimise(budget=req.budget, predictor=_predictor)
     except RuntimeError as e:
@@ -244,7 +275,9 @@ def fantasy_optimise(req: OptimiseRequest):
 
 
 @app.get("/api/wc/fantasy/captains", response_model=CaptainsResponse)
-def fantasy_captains(top_n: int = 10):
+@limiter.limit("20/minute")
+def fantasy_captains(request: Request, top_n: int = 10):
+    top_n = min(max(top_n, 1), 20)
     picks = _captain_picks(top_n=top_n, predictor=_predictor)
     return CaptainsResponse(picks=[_fmt_player(p) for p in picks])
 
@@ -267,12 +300,14 @@ class TournamentResponse(BaseModel):
 
 
 @app.get("/api/wc/simulate", response_model=TournamentResponse)
-def simulate_tournament(n_sim: int = 50_000):
+@limiter.limit("5/minute")
+def simulate_tournament(request: Request, n_sim: int = 50_000):
     """
     Monte Carlo tournament simulation (default 50 000 runs).
     Returns win/final/SF/QF/R32 probabilities for all 48 teams.
     Results reflect the current DC model — retrain after each matchday for live updates.
     """
+    n_sim = min(max(n_sim, 1_000), 100_000)
     predictor = _get_predictor()
     results = predictor.simulate_tournament(n_sim=n_sim)
     return TournamentResponse(
@@ -282,9 +317,6 @@ def simulate_tournament(n_sim: int = 50_000):
 
 
 # ── Live retrain ──────────────────────────────────────────────────────────────
-
-import subprocess
-import threading
 
 _retrain_lock = threading.Lock()
 _retrain_status: dict = {"running": False, "last": None, "error": None}
@@ -301,7 +333,6 @@ def _run_retrain() -> None:
             ["python", "wc/scripts/train_dc.py"],
             check=True, capture_output=True, cwd=str(PROJECT_ROOT),
         )
-        # Hot-reload the model in the running API
         p = DCPredictor()
         p.load()
         _predictor = p
@@ -315,14 +346,11 @@ def _run_retrain() -> None:
         _retrain_status["running"] = False
 
 
-@app.post("/api/wc/retrain")
+@app.post("/api/wc/retrain", dependencies=[Depends(_require_retrain_token)])
 def trigger_retrain():
     """
-    Re-ingest recent international results (including any WC2026 matches played)
-    and retrain the DC model in the background.
-
-    Call this after each matchday to keep predictions up to date.
-    The martj42 dataset (GitHub) updates within hours of each match finishing.
+    Re-ingest recent international results and retrain the DC model in the background.
+    Requires X-Retrain-Token header matching RETRAIN_SECRET_TOKEN env var.
     """
     if not _retrain_lock.acquire(blocking=False):
         return {"status": "already_running"}
