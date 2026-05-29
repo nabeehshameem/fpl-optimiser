@@ -11,24 +11,42 @@ Requires a trained DC model and populated DB:
     python wc/scripts/ingest_fixtures.py
 """
 
+import logging
 import os
 import sqlite3
 import subprocess
 import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 import sys
 
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+logger = logging.getLogger(__name__)
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+# ── Sentry (optional — only active when SENTRY_DSN env var is set) ────────────
+_SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if _SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+    sentry_sdk.init(
+        dsn=_SENTRY_DSN,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+    )
 
 from wc.src.score_predictor import DCPredictor, _canonical
 from wc.src.fantasy_optimizer import optimise as _optimise, captain_picks as _captain_picks
@@ -37,6 +55,10 @@ DB_PATH = PROJECT_ROOT / "wc" / "data" / "wc.db"
 
 _predictor: DCPredictor | None = None
 _load_error: str | None = None
+
+# ── Simulate cache (keyed by n_sim, TTL = 30 min) ────────────────────────────
+_sim_cache: dict[int, tuple[float, list]] = {}
+_SIM_CACHE_TTL = 1800
 
 # ── Rate limiter ──────────────────────────────────────────────────────────────
 
@@ -102,6 +124,12 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(Exception)
+async def _unhandled(request: Request, exc: Exception):
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "An internal error occurred."})
 
 ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 
@@ -203,7 +231,8 @@ def predict_match(req: PredictRequest, request: Request) -> PredictResponse:
     try:
         result = predictor.predict(home_id, away_id, home_advantage=req.home_advantage, knockout=req.knockout)
     except RuntimeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception("predict failed for %s vs %s", req.home_team, req.away_team)
+        raise HTTPException(status_code=400, detail="Prediction failed. Check team names and try again.")
 
     return PredictResponse(
         home_name=result["home_name"],
@@ -272,8 +301,9 @@ def _fmt_player(p: dict, is_captain: bool = False) -> FantasyPlayerOut:
 def fantasy_optimise(req: OptimiseRequest, request: Request):
     try:
         res = _optimise(budget=req.budget, predictor=_predictor)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+    except RuntimeError:
+        logger.exception("fantasy optimise failed")
+        raise HTTPException(status_code=503, detail="Optimisation unavailable. Try again shortly.")
     captain_id = res["captain"]["id"]
     squad    = [_fmt_player(p, is_captain=(p["id"] == captain_id)) for p in res["squad"]]
     starters = [_fmt_player(p, is_captain=(p["id"] == captain_id)) for p in res["starters"]]
@@ -315,16 +345,23 @@ class TournamentResponse(BaseModel):
 
 
 @app.get("/api/wc/simulate", response_model=TournamentResponse)
-@limiter.limit("5/minute")
+@limiter.limit("2/minute")
 def simulate_tournament(request: Request, n_sim: int = 50_000):
     """
     Monte Carlo tournament simulation (default 50 000 runs).
     Returns win/final/SF/QF/R32 probabilities for all 48 teams.
     Results reflect the current DC model — retrain after each matchday for live updates.
+    Results are cached for 30 minutes per n_sim value.
     """
     n_sim = min(max(n_sim, 1_000), 100_000)
     predictor = _get_predictor()
+
+    cached = _sim_cache.get(n_sim)
+    if cached and (time.time() - cached[0]) < _SIM_CACHE_TTL:
+        return TournamentResponse(teams=[TournamentTeamOut(**r) for r in cached[1]], n_sim=n_sim)
+
     results = predictor.simulate_tournament(n_sim=n_sim)
+    _sim_cache[n_sim] = (time.time(), results)
     return TournamentResponse(
         teams=[TournamentTeamOut(**r) for r in results],
         n_sim=n_sim,
@@ -342,18 +379,19 @@ class SubscribeRequest(BaseModel):
 def subscribe_email(req: SubscribeRequest, request: Request):
     """Save an email address for match-day notifications."""
     import re
+    _OK = {"status": "ok"}
     if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", req.email):
-        raise HTTPException(status_code=422, detail="Invalid email address.")
+        return _OK
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.execute("INSERT INTO subscribers (email) VALUES (?)", (req.email,))
         conn.commit()
         conn.close()
-        return {"status": "subscribed"}
     except sqlite3.IntegrityError:
-        return {"status": "already_subscribed"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to save subscription.")
+        pass
+    except Exception:
+        logger.exception("Failed to save subscriber")
+    return _OK
 
 
 # ── Live retrain ──────────────────────────────────────────────────────────────
@@ -376,6 +414,7 @@ def _run_retrain() -> None:
         p = DCPredictor()
         p.load()
         _predictor = p
+        _sim_cache.clear()
         _retrain_status["last"] = "success"
         _retrain_status["error"] = None
         print("[retrain] DC model refreshed successfully.")
