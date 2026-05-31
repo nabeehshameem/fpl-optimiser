@@ -97,6 +97,14 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"[warn] Fantasy seed skipped: {_e}")
 
+    # Seed group-stage fixtures (matchday pairings + kickoff times)
+    try:
+        from wc.scripts.seed_fixtures import seed as _seed_fixtures
+        print("Seeding fixtures…")
+        _seed_fixtures(overwrite=True)
+    except Exception as _e:
+        print(f"[warn] Fixture seed skipped: {_e}")
+
     # Ensure subscribers table exists
     try:
         conn = sqlite3.connect(DB_PATH)
