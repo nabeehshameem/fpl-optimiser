@@ -58,6 +58,13 @@ GOAL_SHARE   = {"GK": 0.01, "DEF": 0.07, "MID": 0.30, "FWD": 0.62}
 ASSIST_SHARE = {"GK": 0.01, "DEF": 0.12, "MID": 0.50, "FWD": 0.37}
 ASSIST_RATIO = 0.85
 
+# Players confirmed unavailable for specific matchdays.
+# Keys are lowercase substrings of the player name; values are sets of MD numbers missed.
+# Update as injury/suspension news changes before each matchday.
+PLAYER_UNAVAILABLE: dict[str, set[int]] = {
+    "yamal": {1, 2},   # knee injury, expected return matchday 3
+}
+
 # Confirmed WC2026 group draw (official, April 2026)
 WC2026_GROUPS: dict[str, list[str]] = {
     "A": ["Mexico",        "South Korea",  "South Africa",          "Czech Republic"],
@@ -274,7 +281,20 @@ def _project_mc(
             qp = qual_probs.get(tk, {})
             qual_bonus = 2.0 * qp.get("qf_pct", 0.0) / 100.0
 
-        p["projected_pts"] = round(match_avg + qual_bonus, 2)
+        projected = match_avg + qual_bonus
+
+        # Injury discount: scale down by available matches
+        name_lower = p["name"].lower()
+        for inj_key, missed_mds in PLAYER_UNAVAILABLE.items():
+            if inj_key in name_lower:
+                if matchday is not None and matchday in missed_mds:
+                    projected = 0.0   # unavailable this matchday
+                elif matchday is None and missed_mds:
+                    available = max(0, n_m - len(missed_mds))
+                    projected = projected * (available / n_m) if n_m > 0 else 0.0
+                break
+
+        p["projected_pts"] = round(projected, 2)
         p["pts_per_match"] = round(match_avg / max(n_m, 1), 2)
 
     return players
@@ -406,7 +426,7 @@ def captain_picks(top_n: int = 10, predictor=None, matchday: int | None = None) 
     dc         = _load_dc()
     qual_probs = _get_qual_probs(predictor) if matchday is None else None
     players    = _project_mc(players, dc, qual_probs=qual_probs, matchday=matchday)
-    outfield   = [p for p in players if p["pos"] != "GK"]
+    outfield   = [p for p in players if p["pos"] != "GK" and p["projected_pts"] > 0]
     outfield.sort(key=lambda p: p["projected_pts"], reverse=True)
     return outfield[:top_n]
 
