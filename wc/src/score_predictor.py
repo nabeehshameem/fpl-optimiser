@@ -131,7 +131,7 @@ def _rank_prior(rank: int) -> float:
     return max(0.4, 1.75 - (rank - 1) * 0.017)
 
 
-def _recency_weight(match_date_str: str, decay: float = 0.6) -> float:
+def _recency_weight(match_date_str: str, decay: float = 1.0) -> float:
     """Exponential decay: exp(-decay * years_ago). Recent = higher weight."""
     try:
         d = date.fromisoformat(str(match_date_str)[:10])
