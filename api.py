@@ -426,6 +426,19 @@ def subscribe_email(req: SubscribeRequest, request: Request):
     return _OK
 
 
+@app.get("/api/notify/export")
+def export_subscribers(token: str | None = Depends(_retrain_header)):
+    """Download all subscriber emails as CSV. Requires the retrain token."""
+    _require_retrain_token(token)
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute("SELECT email, created_at FROM subscribers ORDER BY created_at").fetchall()
+    conn.close()
+    lines = ["email,created_at"] + [f"{r[0]},{r[1]}" for r in rows]
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse("\n".join(lines), media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=subscribers.csv"})
+
+
 # ── Live retrain ──────────────────────────────────────────────────────────────
 
 _retrain_lock = threading.Lock()
