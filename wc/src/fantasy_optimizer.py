@@ -135,10 +135,12 @@ def _get_qual_probs(predictor=None) -> dict[str, dict]:
         return {}
 
 
-def _build_fixture_lambdas(dc: dict) -> dict[str, list[tuple[float, float]]]:
+def _build_fixture_lambdas(dc: dict, matchday: int | None = None) -> dict[str, list[tuple[float, float]]]:
     """
-    For each WC team compute (lambda_for, lambda_against) for their 3 group matches.
-    Returns canonical_name -> [(lf, la), (lf, la), (lf, la)].
+    For each WC team compute (lambda_for, lambda_against) per match.
+    matchday=None  → all 3 group matches per team (original behaviour).
+    matchday=1/2/3 → only the fixture(s) in that matchday from the fixtures table.
+    Returns canonical_name -> [(lf, la), ...].
     """
     team_params = dc.get("team_params", {})
     if not team_params:
@@ -152,15 +154,32 @@ def _build_fixture_lambdas(dc: dict) -> dict[str, list[tuple[float, float]]]:
         return team_params.get(key, {"attack": mean_atk, "defense": mean_def})
 
     result: dict[str, list[tuple[float, float]]] = {}
-    for group_teams in WC2026_GROUPS.values():
-        for team in group_teams:
-            tk = _canonical(team)
-            tp = _p(team)
-            result[tk] = [
-                (tp["attack"] * _p(opp)["defense"],
-                 _p(opp)["attack"] * tp["defense"])
-                for opp in group_teams if opp != team
-            ]
+
+    if matchday is not None:
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute("""
+            SELECT ht.name, at.name
+            FROM   fixtures f
+            JOIN   teams ht ON f.home_team_id = ht.team_id
+            JOIN   teams at ON f.away_team_id = at.team_id
+            WHERE  f.matchday = ?
+        """, (matchday,)).fetchall()
+        conn.close()
+        for home, away in rows:
+            hk, ak = _canonical(home), _canonical(away)
+            hp, ap = _p(home), _p(away)
+            result.setdefault(hk, []).append((hp["attack"] * ap["defense"], ap["attack"] * hp["defense"]))
+            result.setdefault(ak, []).append((ap["attack"] * hp["defense"], hp["attack"] * ap["defense"]))
+    else:
+        for group_teams in WC2026_GROUPS.values():
+            for team in group_teams:
+                tk = _canonical(team)
+                tp = _p(team)
+                result[tk] = [
+                    (tp["attack"] * _p(opp)["defense"],
+                     _p(opp)["attack"] * tp["defense"])
+                    for opp in group_teams if opp != team
+                ]
     return result
 
 
@@ -169,16 +188,15 @@ def _project_mc(
     dc: dict,
     n_sim: int = 50_000,
     qual_probs: dict | None = None,
+    matchday: int | None = None,
 ) -> list[dict]:
     """
     Monte Carlo projection using actual WC2026 group fixtures.
 
-    For each team, simulates n_sim draws of (goals_for, goals_against) per group
-    match using opponent-specific Poisson lambdas from the DC model. Fantasy points
-    are accumulated per simulation then averaged.
+    matchday=None  → project over all 3 group matches (full-tournament view).
+    matchday=1/2/3 → project only the fixtures played on that matchday.
 
-    qual_probs: optional {canonical_team: {qf_pct, ...}} dict used to add expected
-    Qualification Booster value (+2 x P(team wins R32)) to projected_pts.
+    qual_probs: optional {canonical_team: {qf_pct, ...}} for Qualification Booster.
     """
     rng = np.random.default_rng(42)
 
@@ -189,20 +207,23 @@ def _project_mc(
     else:
         mean_atk = mean_def = 1.0
 
-    fixture_lambdas = _build_fixture_lambdas(dc)
-    fallback = [(mean_atk * mean_def, mean_atk * mean_def)] * 3
+    fixture_lambdas = _build_fixture_lambdas(dc, matchday=matchday)
+    n_matches_default = 1 if matchday is not None else 3
+    fallback = [(mean_atk * mean_def, mean_atk * mean_def)] * n_matches_default
 
-    # Pre-simulate all 48 teams' match goals once — shape (n_sim, 3) per team
+    # Pre-simulate all teams' match goals once — shape (n_sim, n_matches) per team
     team_sims: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-    for group_teams in WC2026_GROUPS.values():
-        for team in group_teams:
-            tk = _canonical(team)
-            if tk in team_sims:
-                continue
-            matches = fixture_lambdas.get(tk, fallback)
-            gf = np.column_stack([rng.poisson(lf, n_sim) for lf, _  in matches])
-            ga = np.column_stack([rng.poisson(la, n_sim) for _,  la in matches])
-            team_sims[tk] = (gf, ga)
+    all_teams = [t for grp in WC2026_GROUPS.values() for t in grp]
+    for team in all_teams:
+        tk = _canonical(team)
+        if tk in team_sims:
+            continue
+        matches = fixture_lambdas.get(tk, fallback)
+        if not matches:
+            matches = fallback
+        gf = np.stack([rng.poisson(lf, n_sim) for lf, _  in matches], axis=1)
+        ga = np.stack([rng.poisson(la, n_sim) for _,  la in matches], axis=1)
+        team_sims[tk] = (gf, ga)
 
     for p in players:
         tk  = _canonical(p["team"])
@@ -211,13 +232,15 @@ def _project_mc(
         sf = 0.7 + (max(45, min(105, p["price"])) - 45) / 60.0 * 0.7
 
         if tk in team_sims:
-            gf_arr, ga_arr = team_sims[tk]   # (n_sim, 3)
+            gf_arr, ga_arr = team_sims[tk]
         else:
             lam    = mean_atk * mean_def
-            gf_arr = rng.poisson(lam, (n_sim, 3))
-            ga_arr = rng.poisson(lam, (n_sim, 3))
+            gf_arr = np.stack([rng.poisson(lam, n_sim)] * n_matches_default, axis=1)
+            ga_arr = np.stack([rng.poisson(lam, n_sim)] * n_matches_default, axis=1)
 
-        # Clean-sheet points (must have played 60+ min — assumed for starters)
+        n_m = gf_arr.shape[1]  # actual matches for this team in the scope
+
+        # Clean-sheet points
         cs_pts = (ga_arr == 0).astype(np.float32).sum(axis=1) * PT_CS.get(pos, 0.0)
 
         # Concede penalty: -1 per goal beyond the first (GK/DEF only)
@@ -233,27 +256,26 @@ def _project_mc(
         # Assist contribution
         pt_a = gf_total * ASSIST_RATIO * ASSIST_SHARE.get(pos, 0.1) * sf * PT_ASSIST
 
-        # Saves (GK only): estimate ~2 saves per goal conceded, 1pt per 3 saves
+        # Saves (GK only)
         if pos == "GK":
             save_pts = (ga_arr.sum(axis=1) * 2.0 / 3.0).astype(np.float32) * PT_SAVE3
         else:
             save_pts = 0.0
 
-        # Appearance + position stat bonus (tackles/chances for MID, shots for FWD)
-        appearance = 3 * PT_APPEARANCE
-        stat_bonus = PT_STAT_BONUS.get(pos, 0.0)
+        # Appearance + stat bonus scaled to actual match count
+        appearance = n_m * PT_APPEARANCE
+        stat_bonus = PT_STAT_BONUS.get(pos, 0.0) * (n_m / 3)
 
         match_avg = float((appearance + pt_g + pt_a + cs_pts + concede_pts + save_pts + stat_bonus).mean())
 
-        # Qualification Booster expected value: +2 if team wins their R32 match.
-        # Applied as a flat bonus on top of group-stage MC (one chip, best used R32).
+        # Qualification Booster (only meaningful for full-tournament view)
         qual_bonus = 0.0
-        if qual_probs:
+        if qual_probs and matchday is None:
             qp = qual_probs.get(tk, {})
             qual_bonus = 2.0 * qp.get("qf_pct", 0.0) / 100.0
 
         p["projected_pts"] = round(match_avg + qual_bonus, 2)
-        p["pts_per_match"] = round(match_avg / 3, 2)
+        p["pts_per_match"] = round(match_avg / max(n_m, 1), 2)
 
     return players
 
@@ -375,15 +397,80 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None) -> dict:
     }
 
 
-def captain_picks(top_n: int = 10, predictor=None) -> list[dict]:
+def captain_picks(top_n: int = 10, predictor=None, matchday: int | None = None) -> list[dict]:
     conn    = sqlite3.connect(DB_PATH)
     players = _load_players(conn)
     conn.close()
     if not players:
         return []
     dc         = _load_dc()
-    qual_probs = _get_qual_probs(predictor)
-    players    = _project_mc(players, dc, qual_probs=qual_probs)
+    qual_probs = _get_qual_probs(predictor) if matchday is None else None
+    players    = _project_mc(players, dc, qual_probs=qual_probs, matchday=matchday)
     outfield   = [p for p in players if p["pos"] != "GK"]
     outfield.sort(key=lambda p: p["projected_pts"], reverse=True)
     return outfield[:top_n]
+
+
+def live_captain_advice(matchday: int, predictor=None) -> dict:
+    """
+    For a live matchday: determine which fixtures have already kicked off and
+    return the best captain options from teams that haven't played yet.
+
+    is_live=True when some fixtures have started and some haven't — that's the
+    window where changing your captain is still meaningful.
+    """
+    from datetime import datetime, timezone
+
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute("""
+        SELECT f.home_team_id, f.away_team_id, f.kickoff_time
+        FROM   fixtures f
+        WHERE  f.matchday = ?
+    """, (matchday,)).fetchall()
+    conn.close()
+
+    if not rows:
+        return {"is_live": False, "matchday": matchday,
+                "played_team_count": 0, "remaining_team_count": 0, "remaining_picks": []}
+
+    now = datetime.now(timezone.utc)
+    played_ids: set[int]    = set()
+    remaining_ids: set[int] = set()
+
+    for home_id, away_id, kickoff_str in rows:
+        if not kickoff_str:
+            remaining_ids.update([home_id, away_id])
+            continue
+        try:
+            ko = datetime.fromisoformat(kickoff_str.replace("Z", "+00:00"))
+            if ko.tzinfo is None:
+                ko = ko.replace(tzinfo=timezone.utc)
+            if ko <= now:
+                played_ids.update([home_id, away_id])
+            else:
+                remaining_ids.update([home_id, away_id])
+        except Exception:
+            remaining_ids.update([home_id, away_id])
+
+    is_live = bool(played_ids) and bool(remaining_ids)
+
+    remaining_picks: list[dict] = []
+    if remaining_ids:
+        conn = sqlite3.connect(DB_PATH)
+        team_rows = conn.execute(
+            "SELECT team_id, name FROM teams WHERE team_id IN (%s)"
+            % ",".join("?" * len(remaining_ids)),
+            list(remaining_ids),
+        ).fetchall()
+        conn.close()
+        remaining_canonical = {_canonical(name) for _, name in team_rows}
+        all_picks = captain_picks(top_n=30, predictor=predictor, matchday=matchday)
+        remaining_picks = [p for p in all_picks if _canonical(p["team"]) in remaining_canonical][:10]
+
+    return {
+        "is_live":              is_live,
+        "matchday":             matchday,
+        "played_team_count":    len(played_ids),
+        "remaining_team_count": len(remaining_ids),
+        "remaining_picks":      remaining_picks,
+    }
