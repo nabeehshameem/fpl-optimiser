@@ -247,7 +247,7 @@ def predict_match(req: PredictRequest, request: Request) -> PredictResponse:
         away_name=result["away_name"],
         home_xg=result["home_xg"],
         away_xg=result["away_xg"],
-        predicted_score=f"{int(result['home_xg'])}-{int(result['away_xg'])}",
+        predicted_score=f"{result['most_likely'][0][0]}-{result['most_likely'][0][1]}",
         win_pct=result["win_pct"],
         draw_pct=result["draw_pct"],
         loss_pct=result["loss_pct"],
