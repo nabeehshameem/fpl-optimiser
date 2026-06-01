@@ -11,6 +11,7 @@ Requires a trained DC model and populated DB:
     python wc/scripts/ingest_fixtures.py
 """
 
+import datetime as _dt
 import logging
 import os
 import sqlite3
@@ -119,6 +120,10 @@ async def lifespan(app: FastAPI):
         conn.close()
     except Exception as _e:
         print(f"[warn] Subscribers table init failed: {_e}")
+
+    # Daily auto-retrain at 06:00 UTC — keeps the model current with latest results
+    threading.Thread(target=_daily_retrain_loop, daemon=True).start()
+    print("[scheduler] Daily retrain scheduled at 06:00 UTC.")
 
     yield
 
@@ -470,6 +475,20 @@ def _run_retrain() -> None:
         _retrain_status["running"] = False
 
 
+def _daily_retrain_loop() -> None:
+    """Daemon thread: retrain once per day at 06:00 UTC."""
+    while True:
+        now = _dt.datetime.utcnow()
+        next_run = now.replace(hour=6, minute=0, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += _dt.timedelta(days=1)
+        time.sleep((next_run - now).total_seconds())
+        if _retrain_lock.acquire(blocking=False):
+            _retrain_status["running"] = True
+            threading.Thread(target=_run_retrain, daemon=True).start()
+        # If lock not acquired, a manual retrain is already running — skip this cycle
+
+
 @app.post("/api/wc/retrain", dependencies=[Depends(_require_retrain_token)])
 def trigger_retrain():
     """
@@ -481,7 +500,17 @@ def trigger_retrain():
     _retrain_status["running"] = True
     t = threading.Thread(target=_run_retrain, daemon=True)
     t.start()
-    return {"status": "started", "message": "Retraining in background — check /health for completion."}
+    return {"status": "started", "message": "Retraining in background."}
+
+
+@app.get("/api/wc/retrain/status")
+def retrain_status():
+    """Returns the result of the most recent retrain run."""
+    return {
+        "running": _retrain_status["running"],
+        "last":    _retrain_status["last"],
+        "error":   _retrain_status["error"],
+    }
 
 
 if __name__ == "__main__":

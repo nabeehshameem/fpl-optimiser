@@ -200,12 +200,21 @@ class DCPredictor:
         """).fetchall()
         conn.close()
 
+        today = date.today()
         out = []
         for r in rows:
             match_date, home, away, hg, ag, tourney = r[0], r[1], r[2], r[3], r[4], r[5]
             tier     = TOURNAMENT_TIERS.get(tourney or "", "C")
             tier_w   = TIER_WEIGHTS.get(tier, 0.4)
             recency  = _recency_weight(match_date)
+            # Pre-tournament window: matches within 14 days get at least Tier-B weight
+            # so June friendlies are treated as seriously as a Nations League game
+            try:
+                days_ago = (today - date.fromisoformat(str(match_date)[:10])).days
+            except (ValueError, TypeError):
+                days_ago = 999
+            if days_ago <= 14:
+                tier_w = max(tier_w, 0.65)
             weight   = tier_w * recency
             if weight < 0.05:   # skip very old / low-quality matches
                 continue
