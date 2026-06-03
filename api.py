@@ -459,11 +459,11 @@ def _run_retrain() -> None:
     global _predictor
     try:
         subprocess.run(
-            ["python", "wc/scripts/ingest_recent_form.py", "--months", "30"],
+            [sys.executable, "wc/scripts/ingest_recent_form.py", "--months", "30"],
             check=True, capture_output=True, cwd=str(PROJECT_ROOT),
         )
         subprocess.run(
-            ["python", "wc/scripts/train_dc.py"],
+            [sys.executable, "wc/scripts/train_dc.py"],
             check=True, capture_output=True, cwd=str(PROJECT_ROOT),
         )
         # Refresh player prices from FIFA API alongside model retrain
