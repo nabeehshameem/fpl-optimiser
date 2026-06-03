@@ -178,8 +178,8 @@ class DCPredictor:
             home_name = _canonical(r[6] or str(r[0]))
             away_name = _canonical(r[7] or str(r[1]))
             tourney   = r[4] or ""
-            # WC2022 = weight 1.0, WC2018 = 0.6; no recency decay (already decayed by era)
-            base_w = 1.0 if "2022" in tourney else 0.6
+            # WC2022 = weight 1.0, WC2018 = 0.2 (8-year-old data, different squads)
+            base_w = 1.0 if "2022" in tourney else 0.2
             out.append({
                 "home_key":   home_name, "away_key": away_name,
                 "home_goals": int(r[2]), "away_goals": int(r[3]),
@@ -207,14 +207,14 @@ class DCPredictor:
             tier     = TOURNAMENT_TIERS.get(tourney or "", "C")
             tier_w   = TIER_WEIGHTS.get(tier, 0.4)
             recency  = _recency_weight(match_date)
-            # Pre-tournament window: matches within 14 days get at least Tier-B weight
-            # so June friendlies are treated as seriously as a Nations League game
+            # Pre-tournament window (90 days): actual WC squads in friendlies
+            # get near-competitive weight — most relevant form signal available
             try:
                 days_ago = (today - date.fromisoformat(str(match_date)[:10])).days
             except (ValueError, TypeError):
                 days_ago = 999
-            if days_ago <= 14:
-                tier_w = max(tier_w, 0.65)
+            if days_ago <= 90:
+                tier_w = max(tier_w, 0.80)
             weight   = tier_w * recency
             if weight < 0.05:   # skip very old / low-quality matches
                 continue
