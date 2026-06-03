@@ -384,6 +384,7 @@ class TournamentTeamOut(BaseModel):
 class TournamentResponse(BaseModel):
     teams: list[TournamentTeamOut]
     n_sim: int
+    last_updated: str | None = None
 
 
 @app.get("/api/wc/simulate", response_model=TournamentResponse)
@@ -395,19 +396,27 @@ def simulate_tournament(request: Request, n_sim: int = 10_000):
     Results reflect the current DC model — retrain after each matchday for live updates.
     Results are cached for 30 minutes per n_sim value.
     """
+    from fastapi.responses import Response as _Resp
     n_sim = min(max(n_sim, 1_000), 20_000)
     predictor = _get_predictor()
 
     cached = _sim_cache.get(n_sim)
     if cached and (time.time() - cached[0]) < _SIM_CACHE_TTL:
-        return TournamentResponse(teams=[TournamentTeamOut(**r) for r in cached[1]], n_sim=n_sim)
+        data = TournamentResponse(
+            teams=[TournamentTeamOut(**r) for r in cached[1]],
+            n_sim=n_sim,
+            last_updated=_retrain_status.get("last_time"),
+        )
+        return JSONResponse(content=data.model_dump(), headers={"Cache-Control": "no-store"})
 
     results = predictor.simulate_tournament(n_sim=n_sim)
     _sim_cache[n_sim] = (time.time(), results)
-    return TournamentResponse(
+    data = TournamentResponse(
         teams=[TournamentTeamOut(**r) for r in results],
         n_sim=n_sim,
+        last_updated=_retrain_status.get("last_time"),
     )
+    return JSONResponse(content=data.model_dump(), headers={"Cache-Control": "no-store"})
 
 
 # ── Email notifications ───────────────────────────────────────────────────────
@@ -477,6 +486,7 @@ def _run_retrain() -> None:
         _predictor = p
         _sim_cache.clear()
         _retrain_status["last"] = "success"
+        _retrain_status["last_time"] = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         _retrain_status["error"] = None
         print("[retrain] DC model refreshed successfully.")
     except subprocess.CalledProcessError as e:
