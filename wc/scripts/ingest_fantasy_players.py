@@ -43,8 +43,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from wc.scripts.init_db import DB_PATH
 
-# Update this when the FIFA Fantasy API endpoint is known
-FIFA_FANTASY_API_URL = ""  # e.g. "https://fantasy.fifa.com/api/v2/players"
+FIFA_PLAYERS_URL = "https://play.fifa.com/json/fantasy/players.json"
+FIFA_SQUADS_URL  = "https://play.fifa.com/json/fantasy/squads_fifa.json"
 
 
 def _norm(name: str) -> str:
@@ -139,12 +139,52 @@ def ingest_from_json(path: str) -> int:
     return count
 
 
+def ingest_from_fifa_api() -> int:
+    """Pull live player + price data from play.fifa.com/json/fantasy/."""
+    print(f"  Fetching squads from {FIFA_SQUADS_URL}")
+    squads_resp = requests.get(FIFA_SQUADS_URL, timeout=30)
+    squads_resp.raise_for_status()
+    squads_data = squads_resp.json()
+    squads_list = squads_data if isinstance(squads_data, list) else squads_data.get("squads", [])
+    squad_map = {s["id"]: s["name"] for s in squads_list if "id" in s and "name" in s}
+
+    print(f"  Fetching players from {FIFA_PLAYERS_URL}")
+    players_resp = requests.get(FIFA_PLAYERS_URL, timeout=30)
+    players_resp.raise_for_status()
+    raw = players_resp.json()
+    raw_players = raw if isinstance(raw, list) else raw.get("players", [])
+
+    # Normalise to the format ingest_from_json expects
+    normalised = []
+    for p in raw_players:
+        known = (p.get("knownName") or "").strip()
+        first = (p.get("firstName") or "").strip()
+        last  = (p.get("lastName") or "").strip()
+        name  = known or f"{first} {last}".strip()
+        if not name:
+            continue
+        team = squad_map.get(p.get("squadId"), "")
+        price_raw = p.get("price", 0)
+        normalised.append({
+            "id":    p.get("id") or p.get("fifaId") or 0,
+            "name":  name,
+            "team":  team,
+            "pos":   p.get("position", "MID"),
+            "price": int(round(float(price_raw) * 10)),  # store as int (×10 = $0.1m units)
+            "ownership": float(p.get("percentSelected") or 0.0),
+        })
+
+    print(f"  {len(normalised)} players fetched, {len(squad_map)} squads resolved.")
+    tmp = Path("/tmp/wc_fantasy_players.json")
+    tmp.write_text(json.dumps(normalised))
+    return ingest_from_json(str(tmp))
+
+
 def ingest_from_api(url: str) -> int:
     print(f"  Fetching from {url}")
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     data = resp.json()
-    # Adapt the response structure for your specific API
     players = data if isinstance(data, list) else data.get("players", [])
     tmp = Path("/tmp/wc_fantasy_players.json")
     tmp.write_text(json.dumps(players))
@@ -161,15 +201,7 @@ def main():
         ingest_from_json(args.json)
         return
 
-    if FIFA_FANTASY_API_URL:
-        ingest_from_api(FIFA_FANTASY_API_URL)
-        return
-
-    print(
-        "No data source configured.\n"
-        "  Option 1: python ingest_fantasy_players.py --json players.json\n"
-        "  Option 2: Set FIFA_FANTASY_API_URL in this file."
-    )
+    ingest_from_fifa_api()
 
 
 if __name__ == "__main__":

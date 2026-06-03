@@ -90,13 +90,18 @@ async def lifespan(app: FastAPI):
         _load_error = str(e)
         print(f"[warn] DC model not loaded: {e}")
 
-    # Seed fantasy players — always overwrite so deploys pick up price updates
+    # Pull live fantasy player prices from FIFA API on every deploy
     try:
-        from wc.scripts.seed_fantasy_players import seed as _seed
-        print("Seeding fantasy players…")
-        _seed(overwrite=True)
+        from wc.scripts.ingest_fantasy_players import ingest_from_fifa_api as _ingest_players
+        print("Ingesting fantasy players from FIFA API…")
+        _ingest_players()
     except Exception as _e:
-        print(f"[warn] Fantasy seed skipped: {_e}")
+        print(f"[warn] FIFA fantasy ingest failed, falling back to seed: {_e}")
+        try:
+            from wc.scripts.seed_fantasy_players import seed as _seed
+            _seed(overwrite=False)
+        except Exception as _e2:
+            print(f"[warn] Fantasy seed also skipped: {_e2}")
 
     # Seed group-stage fixtures (matchday pairings + kickoff times)
     try:
@@ -461,6 +466,12 @@ def _run_retrain() -> None:
             ["python", "wc/scripts/train_dc.py"],
             check=True, capture_output=True, cwd=str(PROJECT_ROOT),
         )
+        # Refresh player prices from FIFA API alongside model retrain
+        try:
+            from wc.scripts.ingest_fantasy_players import ingest_from_fifa_api as _ingest_players
+            _ingest_players()
+        except Exception as _pe:
+            print(f"[retrain] player price refresh failed (non-fatal): {_pe}")
         p = DCPredictor()
         p.load()
         _predictor = p
