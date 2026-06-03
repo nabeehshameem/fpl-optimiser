@@ -383,14 +383,14 @@ class TournamentResponse(BaseModel):
 
 @app.get("/api/wc/simulate", response_model=TournamentResponse)
 @limiter.limit("2/minute")
-def simulate_tournament(request: Request, n_sim: int = 50_000):
+def simulate_tournament(request: Request, n_sim: int = 10_000):
     """
-    Monte Carlo tournament simulation (default 50 000 runs).
+    Monte Carlo tournament simulation (default 10 000 runs).
     Returns win/final/SF/QF/R32 probabilities for all 48 teams.
     Results reflect the current DC model — retrain after each matchday for live updates.
     Results are cached for 30 minutes per n_sim value.
     """
-    n_sim = min(max(n_sim, 1_000), 100_000)
+    n_sim = min(max(n_sim, 1_000), 20_000)
     predictor = _get_predictor()
 
     cached = _sim_cache.get(n_sim)

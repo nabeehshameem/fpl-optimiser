@@ -692,6 +692,8 @@ class DCPredictor:
             gf_arr[:, g, hp]  += h_goals.astype(np.int32)
             gf_arr[:, g, ap]  += a_goals.astype(np.int32)
 
+        del hg_all, ag_all  # free ~60 MB before ranking arrays are built
+
         # ── Rank teams within each group ──────────────────────────────────────
         sort_key = (pts_arr.astype(np.int64) * 1_000_000
                     + gd_arr.astype(np.int64) * 1_000
@@ -726,6 +728,8 @@ class DCPredictor:
         r32_teams = np.concatenate(
             [top2_idx.reshape(n_sim, 24), best8_team_idx], axis=1
         )  # (n_sim, 32)
+
+        del pts_arr, gd_arr, gf_arr, sort_key, ranks, top2_idx, third_idx  # free group-stage arrays
 
         # ── Count stage qualifications ────────────────────────────────────────
         # WC2026 has 5 knockout rounds: R32(32→16), R16(16→8), QF(8→4), SF(4→2), F(2→1)
