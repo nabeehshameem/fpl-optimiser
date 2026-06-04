@@ -65,6 +65,62 @@ PLAYER_UNAVAILABLE: dict[str, set[int]] = {
     "yamal": {1, 2},   # knee injury, expected return matchday 3
 }
 
+# Probability that a player starts (gets 60+ min) in a given match.
+# Default = 1.0 (no discount). Apply to squad fillers, rotation players,
+# and anyone with significant competition for their starting spot.
+# Keys are lowercase substrings of the player name.
+PLAYER_STARTER_PROB: dict[str, float] = {
+    # ── Argentina ────────────────────────────────────────────────────────
+    "soul":         0.50,  # Soulé — young, not yet a regular starter
+    "lo celso":     0.45,  # squad rotational player
+    "barco":        0.40,  # fringe squad
+    "buend":        0.55,  # competes with De Paul / Mac Allister
+
+    # ── Germany ──────────────────────────────────────────────────────────
+    "goretzka":     0.55,  # deep rotation behind Musiala/Wirtz/Kimmich
+    "leweling":     0.60,  # competes for wide role
+
+    # ── England ──────────────────────────────────────────────────────────
+    "mainoo":       0.65,  # competes with Rice/Bellingham/Foden
+    "rogers":       0.60,  # squad rotation
+    "gordon":       0.60,  # competes with Saka/Palmer
+    "eze":          0.65,  # competes with Palmer/Foden
+    "palmer":       0.70,  # competes with Eze/Foden
+
+    # ── Spain ────────────────────────────────────────────────────────────
+    "olmo":         0.75,  # competes with Pedri when both fit
+    "gavi":         0.70,  # returning from injury, competes with Zubimendi
+    "merino":       0.60,  # squad rotation
+    "zubimendi":    0.75,  # rotates with Rodri
+
+    # ── France ───────────────────────────────────────────────────────────
+    "cherki":       0.65,  # young, competes for wide/10 role
+    "dou":          0.70,  # Doué — rotation
+
+    # ── Brazil ───────────────────────────────────────────────────────────
+    "neymar":       0.60,  # injury history, fitness uncertainty at 34
+    "casemiro":     0.75,  # aging, some rotation risk
+
+    # ── Norway ───────────────────────────────────────────────────────────
+    "sorloth":      0.60,  # backup striker to Haaland
+    "ostigard":     0.70,  # competes for CB spot (name stored without diacritic)
+    "nusa":         0.65,  # young, rotation with Ødegaard/Aursnes
+
+    # ── Portugal ─────────────────────────────────────────────────────────
+    "ronaldo":      0.75,  # 41 years old in 2026; still likely starts but rotation risk
+
+    # ── Belgium ──────────────────────────────────────────────────────────
+    "tielemans":    0.75,  # rotates in Belgium's evolving midfield
+
+    # ── Netherlands ──────────────────────────────────────────────────────
+    "koopmeiners":  0.70,  # competes with Gravenberch/Reijnders
+    "madueke":      0.65,  # wide rotation
+    "schouten":     0.65,  # DM rotation
+
+    # ── Argentina / general bench GKs ────────────────────────────────────
+    "beiranvand":   0.90,  # Iran starter GK — high prob but noted for completeness
+}
+
 # Confirmed WC2026 group draw (official, April 2026)
 WC2026_GROUPS: dict[str, list[str]] = {
     "A": ["Mexico",        "South Korea",  "South Africa",          "Czech Republic"],
@@ -292,6 +348,13 @@ def _project_mc(
                 elif matchday is None and missed_mds:
                     available = max(0, n_m - len(missed_mds))
                     projected = projected * (available / n_m) if n_m > 0 else 0.0
+                break
+
+        # Starter probability discount: players unlikely to start every match
+        for prob_key, prob in PLAYER_STARTER_PROB.items():
+            if prob_key in name_lower:
+                projected *= prob
+                match_avg *= prob
                 break
 
         p["projected_pts"] = round(projected, 2)
