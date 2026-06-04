@@ -62,7 +62,10 @@ ASSIST_RATIO = 0.85
 # Keys are lowercase substrings of the player name; values are sets of MD numbers missed.
 # Update as injury/suspension news changes before each matchday.
 PLAYER_UNAVAILABLE: dict[str, set[int]] = {
-    "yamal": {1, 2},   # knee injury, expected return matchday 3
+    # yamal: coach confirmed available for MD1 June 15, removed from unavailable
+    "neymar": {1, 2},  # calf injury, ~3 weeks from May 28 — expected back MD3
+    "messi":  {1},     # left hamstring scare vs Philadelphia Union — MD1 in doubt, expected back MD2
+    "davies": {1},     # ACL (March) + hamstring (May) — hasn't played since March, MD1 in doubt
 }
 
 # Probability that a player starts (gets 60+ min) in a given match.
@@ -71,10 +74,12 @@ PLAYER_UNAVAILABLE: dict[str, set[int]] = {
 # Keys are lowercase substrings of the player name.
 PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Argentina ────────────────────────────────────────────────────────
+    "messi":        0.80,  # left hamstring scare (June 1) — likely fit MD2+ but rotation caution
     "soul":         0.50,  # Soulé — young, not yet a regular starter
     "lo celso":     0.45,  # squad rotational player
     "barco":        0.40,  # fringe squad
     "buend":        0.55,  # competes with De Paul / Mac Allister
+    "romero":       0.25,  # partially torn MCL (mid-April), World Cup in jeopardy
 
     # ── Germany ──────────────────────────────────────────────────────────
     "goretzka":     0.55,  # deep rotation behind Musiala/Wirtz/Kimmich
@@ -88,9 +93,10 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "palmer":       0.70,  # competes with Eze/Foden
 
     # ── Spain ────────────────────────────────────────────────────────────
+    "yamal":        0.70,  # hamstring (April), coach says available MD1 but possibly limited mins
     "olmo":         0.75,  # competes with Pedri when both fit
     "gavi":         0.70,  # returning from injury, competes with Zubimendi
-    "merino":       0.60,  # squad rotation
+    "merino":       0.35,  # stress fracture in foot (Feb), targeting CL final return — fitness risk
     "zubimendi":    0.75,  # rotates with Rodri
 
     # ── France ───────────────────────────────────────────────────────────
@@ -113,9 +119,25 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "tielemans":    0.75,  # rotates in Belgium's evolving midfield
 
     # ── Netherlands ──────────────────────────────────────────────────────
+    "timber":       0.40,  # groin injury, no game since March 14 — fitness uncertain
     "koopmeiners":  0.70,  # competes with Gravenberch/Reijnders
     "madueke":      0.65,  # wide rotation
     "schouten":     0.65,  # DM rotation
+
+    # ── Ghana ────────────────────────────────────────────────────────────
+    "kudus":        0.35,  # quad injury Jan + hamstring setback Apr, WC participation in doubt
+
+    # ── Morocco ──────────────────────────────────────────────────────────
+    "hakimi":       0.80,  # hamstring (PSG CL semi), expected to recover in time
+
+    # ── Turkey ───────────────────────────────────────────────────────────
+    "güler":   0.75,  # pulled hamstring (April), on track to recover for tournament
+
+    # ── Croatia ──────────────────────────────────────────────────────────
+    "modri":        0.80,  # cheekbone fracture, shut down for season but confident of recovery
+
+    # ── Canada ───────────────────────────────────────────────────────────
+    "davies":       0.55,  # ACL (March) + hamstring (May), day-by-day rehab
 
     # ── Argentina / general bench GKs ────────────────────────────────────
     "beiranvand":   0.90,  # Iran starter GK — high prob but noted for completeness
