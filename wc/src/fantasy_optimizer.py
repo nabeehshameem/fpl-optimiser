@@ -63,9 +63,9 @@ ASSIST_RATIO = 0.85
 # Update as injury/suspension news changes before each matchday.
 PLAYER_UNAVAILABLE: dict[str, set[int]] = {
     # yamal: coach confirmed available for MD1 June 15, removed from unavailable
-    "neymar": {1, 2},  # calf injury, ~3 weeks from May 28 — expected back MD3
-    "messi":  {1},     # left hamstring scare vs Philadelphia Union — MD1 in doubt, expected back MD2
-    "davies": {1},     # ACL (March) + hamstring (May) — hasn't played since March, MD1 in doubt
+    # messi: Grade 1 strain only, expected fully fit for Argentina opener June 16, removed from unavailable
+    "neymar": {1},     # Grade 2 calf (May 17), race for MD1 vs Morocco June 13 — user: maybe back MD2
+    "davies": {1},     # ACL (March) + hamstring (May, 3rd injury of season) — MD1 very much in doubt
 }
 
 # Probability that a player starts (gets 60+ min) in a given match.
@@ -74,7 +74,7 @@ PLAYER_UNAVAILABLE: dict[str, set[int]] = {
 # Keys are lowercase substrings of the player name.
 PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Argentina ────────────────────────────────────────────────────────
-    "messi":        0.80,  # left hamstring scare (June 1) — likely fit MD2+ but rotation caution
+    "messi":        0.90,  # Grade 1 strain only — expected fully fit, guaranteed starter when healthy
     "soul":         0.50,  # Soulé — young, not yet a regular starter
     "lo celso":     0.45,  # squad rotational player
     "barco":        0.40,  # fringe squad
