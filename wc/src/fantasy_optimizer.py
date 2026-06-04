@@ -382,16 +382,23 @@ def _project_mc(
 
         p["projected_pts"] = round(projected, 2)
         p["pts_per_match"] = round(match_avg / max(n_m, 1), 2)
+        p["qual_bonus"]    = round(qual_bonus, 2)
 
     return players
 
 
-def optimise(budget: int = BUDGET_DEFAULT, predictor=None) -> dict:
+def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None = None) -> dict:
     """
     Select the optimal 15-player squad with explicit starting XI (11) and bench (4).
 
     Bench slots are naturally filled by the cheapest eligible players because bench
     pts do not count toward the objective — freeing budget for better starters.
+
+    booster: one of "wildcard", "12th_man", "max_captain", "qualification_booster", or None.
+      - wildcard:               no optimizer change (squad already built from scratch).
+      - 12th_man:               returns best external player as twelfth_man in result.
+      - max_captain:            returns top starters by single-match ceiling; captain auto-assigns.
+      - qualification_booster:  returns per-starter qual bonus breakdown and total.
 
     Returns squad, starters, bench, captain, total_pts (starters + captain bonus).
     Pass predictor= to reuse an already-loaded DCPredictor (avoids re-loading model).
@@ -493,14 +500,41 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None) -> dict:
     starters = [p for p in squad if p["is_starter"]]
     bench    = [p for p in squad if not p["is_starter"]]
 
-    return {
+    out: dict = {
         "squad":      squad,
         "starters":   starters,
         "bench":      bench,
         "total_pts":  round(sum(p["projected_pts"] for p in starters) + captain["projected_pts"], 1),
         "total_cost": int(sum(p["price"] for p in squad)),
         "captain":    captain,
+        "booster":    booster,
     }
+
+    if booster == "12th_man":
+        squad_ids = {p["id"] for p in squad}
+        external  = sorted(
+            [p for p in players if p["id"] not in squad_ids],
+            key=lambda p: p["projected_pts"], reverse=True,
+        )
+        out["twelfth_man"] = external[0] if external else None
+
+    elif booster == "max_captain":
+        # Auto-assigns to highest scorer in XI — rank starters by single-match ceiling
+        by_ceiling = sorted(starters, key=lambda p: p.get("pts_per_match", 0.0), reverse=True)
+        out["max_cap_candidates"] = by_ceiling[:3]
+        top_ppg = by_ceiling[0].get("pts_per_match", 0.0) if by_ceiling else 0.0
+        # Expected max bonus ≈ top single-match pts × 2, discounted ~8% vs manual pick
+        out["expected_max_cap_pts"] = round(top_ppg * 2 * 0.92, 1)
+
+    elif booster == "qualification_booster":
+        out["qual_booster_breakdown"] = [
+            {"name": p["name"], "team": p["team"], "pos": p["pos"],
+             "qual_bonus": p.get("qual_bonus", 0.0)}
+            for p in starters
+        ]
+        out["qual_booster_total"] = round(sum(p.get("qual_bonus", 0.0) for p in starters), 2)
+
+    return out
 
 
 def captain_picks(top_n: int = 10, predictor=None, matchday: int | None = None) -> list[dict]:

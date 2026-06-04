@@ -26,6 +26,7 @@ from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -287,6 +288,14 @@ class FantasyPlayerOut(BaseModel):
 
 class OptimiseRequest(BaseModel):
     budget: int = Field(default=1000, ge=500, le=1500)  # $50m–$150m in $0.1m units
+    booster: Optional[Literal["wildcard", "12th_man", "max_captain", "qualification_booster"]] = None
+
+
+class QualBonusEntry(BaseModel):
+    name: str
+    team: str
+    pos: str
+    qual_bonus: float
 
 
 class OptimiseResponse(BaseModel):
@@ -297,6 +306,12 @@ class OptimiseResponse(BaseModel):
     total_cost: int
     total_cost_m: float
     captain: FantasyPlayerOut
+    booster: Optional[str] = None
+    twelfth_man: Optional[FantasyPlayerOut] = None
+    max_cap_candidates: Optional[list[FantasyPlayerOut]] = None
+    expected_max_cap_pts: Optional[float] = None
+    qual_booster_breakdown: Optional[list[QualBonusEntry]] = None
+    qual_booster_total: Optional[float] = None
 
 
 class CaptainsResponse(BaseModel):
@@ -326,7 +341,7 @@ def _fmt_player(p: dict, is_captain: bool = False) -> FantasyPlayerOut:
 @limiter.limit("10/minute")
 def fantasy_optimise(req: OptimiseRequest, request: Request):
     try:
-        res = _optimise(budget=req.budget, predictor=_predictor)
+        res = _optimise(budget=req.budget, predictor=_predictor, booster=req.booster)
     except RuntimeError:
         logger.exception("fantasy optimise failed")
         raise HTTPException(status_code=503, detail="Optimisation unavailable. Try again shortly.")
@@ -334,6 +349,10 @@ def fantasy_optimise(req: OptimiseRequest, request: Request):
     squad    = [_fmt_player(p, is_captain=(p["id"] == captain_id)) for p in res["squad"]]
     starters = [_fmt_player(p, is_captain=(p["id"] == captain_id)) for p in res["starters"]]
     bench    = [_fmt_player(p) for p in res["bench"]]
+
+    twelfth_man = _fmt_player(res["twelfth_man"]) if res.get("twelfth_man") else None
+    max_cap_candidates = [_fmt_player(p) for p in res.get("max_cap_candidates") or []]
+
     return OptimiseResponse(
         squad=squad,
         starters=starters,
@@ -342,6 +361,12 @@ def fantasy_optimise(req: OptimiseRequest, request: Request):
         total_cost=res["total_cost"],
         total_cost_m=round(res["total_cost"] / 10, 1),
         captain=_fmt_player(res["captain"], is_captain=True),
+        booster=req.booster,
+        twelfth_man=twelfth_man,
+        max_cap_candidates=max_cap_candidates or None,
+        expected_max_cap_pts=res.get("expected_max_cap_pts"),
+        qual_booster_breakdown=res.get("qual_booster_breakdown"),
+        qual_booster_total=res.get("qual_booster_total"),
     )
 
 
