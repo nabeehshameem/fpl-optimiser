@@ -387,7 +387,8 @@ def _project_mc(
     return players
 
 
-def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None = None) -> dict:
+def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None = None,
+             locked_player_ids: list[int] | None = None) -> dict:
     """
     Select the optimal 15-player squad with explicit starting XI (11) and bench (4).
 
@@ -471,8 +472,17 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
 
     A           = np.vstack(rows)
     constraints = LinearConstraint(A, lb=np.array(lbs), ub=np.array(ubs))
-    result      = milp(obj, constraints=constraints,
-                       integrality=np.ones(3 * n), bounds=Bounds(0.0, 1.0))
+
+    # Lock specified players into squad by forcing x_i lower bound = 1
+    lb_arr = np.zeros(3 * n)
+    ub_arr = np.ones(3 * n)
+    locked_ids = set(locked_player_ids or [])
+    for i, player in enumerate(players):
+        if player["id"] in locked_ids:
+            lb_arr[i] = 1.0
+
+    result = milp(obj, constraints=constraints,
+                  integrality=np.ones(3 * n), bounds=Bounds(lb_arr, ub_arr))
 
     if result.status != 0:
         raise RuntimeError(f"Optimizer failed: {result.message}")
@@ -614,3 +624,17 @@ def live_captain_advice(matchday: int, predictor=None) -> dict:
         "remaining_team_count": len(remaining_ids),
         "remaining_picks":      remaining_picks,
     }
+
+
+def get_projected_players(predictor=None) -> list[dict]:
+    """All fantasy players with projected points — used to populate the squad builder."""
+    conn    = sqlite3.connect(DB_PATH)
+    players = _load_players(conn)
+    conn.close()
+    if not players:
+        return []
+    dc         = _load_dc()
+    qual_probs = _get_qual_probs(predictor)
+    players    = _project_mc(players, dc, qual_probs=qual_probs)
+    players.sort(key=lambda p: p.get("projected_pts", 0.0), reverse=True)
+    return players

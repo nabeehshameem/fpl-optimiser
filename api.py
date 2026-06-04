@@ -51,7 +51,7 @@ if _SENTRY_DSN:
     )
 
 from wc.src.score_predictor import DCPredictor, _canonical
-from wc.src.fantasy_optimizer import optimise as _optimise, captain_picks as _captain_picks, live_captain_advice as _live_captain_advice
+from wc.src.fantasy_optimizer import optimise as _optimise, captain_picks as _captain_picks, live_captain_advice as _live_captain_advice, get_projected_players as _get_projected_players
 
 DB_PATH = PROJECT_ROOT / "wc" / "data" / "wc.db"
 
@@ -289,6 +289,11 @@ class FantasyPlayerOut(BaseModel):
 class OptimiseRequest(BaseModel):
     budget: int = Field(default=1000, ge=500, le=1500)  # $50m–$150m in $0.1m units
     booster: Optional[Literal["wildcard", "12th_man", "max_captain", "qualification_booster"]] = None
+    locked_player_ids: list[int] = Field(default_factory=list)
+
+
+class PlayersResponse(BaseModel):
+    players: list[FantasyPlayerOut]
 
 
 class QualBonusEntry(BaseModel):
@@ -341,7 +346,8 @@ def _fmt_player(p: dict, is_captain: bool = False) -> FantasyPlayerOut:
 @limiter.limit("10/minute")
 def fantasy_optimise(req: OptimiseRequest, request: Request):
     try:
-        res = _optimise(budget=req.budget, predictor=_predictor, booster=req.booster)
+        res = _optimise(budget=req.budget, predictor=_predictor, booster=req.booster,
+                        locked_player_ids=req.locked_player_ids or [])
     except RuntimeError:
         logger.exception("fantasy optimise failed")
         raise HTTPException(status_code=503, detail="Optimisation unavailable. Try again shortly.")
@@ -368,6 +374,17 @@ def fantasy_optimise(req: OptimiseRequest, request: Request):
         qual_booster_breakdown=res.get("qual_booster_breakdown"),
         qual_booster_total=res.get("qual_booster_total"),
     )
+
+
+@app.get("/api/wc/fantasy/players", response_model=PlayersResponse)
+@limiter.limit("20/minute")
+def fantasy_players_list(request: Request):
+    try:
+        players = _get_projected_players(predictor=_predictor)
+        return PlayersResponse(players=[_fmt_player(p) for p in players])
+    except Exception:
+        logger.exception("fantasy players list failed")
+        raise HTTPException(status_code=503, detail="Player data unavailable.")
 
 
 @app.get("/api/wc/fantasy/captains", response_model=CaptainsResponse)
