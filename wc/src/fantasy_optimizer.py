@@ -62,7 +62,7 @@ ASSIST_RATIO = 0.85
 # Keys are lowercase substrings of the player name; values are sets of MD numbers missed.
 # Update as injury/suspension news changes before each matchday.
 PLAYER_UNAVAILABLE: dict[str, set[int]] = {
-    # yamal: coach confirmed available for MD1 June 15, removed from unavailable
+    # yamal/williams: not in unavailable — de la Fuente says "could be ready June 15" but start not guaranteed; handled via starter_prob 0.60
     # messi: Grade 1 strain only, expected fully fit for Argentina opener June 16, removed from unavailable
     "neymar": {1},     # Grade 2 calf (May 17), race for MD1 vs Morocco June 13 — user: maybe back MD2
     "davies": {1},     # ACL (March) + hamstring (May, 3rd injury of season) — MD1 very much in doubt
@@ -93,7 +93,8 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "palmer":       0.70,  # competes with Eze/Foden
 
     # ── Spain ────────────────────────────────────────────────────────────
-    "yamal":        0.70,  # hamstring (April), coach says available MD1 but possibly limited mins
+    "yamal":        0.60,  # hamstring — de la Fuente: "could be ready June 15 but doesn't guarantee he'll play"
+    "williams":     0.60,  # same coach quote applies — MD1 start not guaranteed
     "olmo":         0.75,  # competes with Pedri when both fit
     "gavi":         0.70,  # returning from injury, competes with Zubimendi
     "merino":       0.35,  # stress fracture in foot (Feb), targeting CL final return — fitness risk
