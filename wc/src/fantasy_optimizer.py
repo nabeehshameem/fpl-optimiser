@@ -158,11 +158,12 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Spain ────────────────────────────────────────────────────────────
     "cubarsi":      0.78,  # competes with Laporte and García for CB slot
 
-    # ── Fantasy data artefacts / confirmed non-squad ──────────────────────
+    # ── Fantasy data artefacts / confirmed non-squad / poor value ────────
     "dacosta":      0.05,  # not in Ecuador's actual WC squad
     "boulbina":     0.05,  # Algeria MID — very low qual probability; poor fantasy value
     "yaimar":       0.10,  # Ecuador DEF fringe — 0.5% ownership, unlikely starter
     "jayden":       0.10,  # Jayden Adams (South Africa) — low-qual team, unknown starter
+    "mateo ch":     0.10,  # Mateo Chávez (Mexico DEF) — 0.5% ownership, fringe squad player
 
     # ── Argentina / general bench GKs ────────────────────────────────────
     "beiranvand":   0.90,  # Iran starter GK — high prob but noted for completeness
