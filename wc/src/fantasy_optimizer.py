@@ -111,7 +111,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── Norway ───────────────────────────────────────────────────────────
     "sorloth":      0.60,  # backup striker to Haaland
-    "ostigard":     0.70,  # competes for CB spot (name stored without diacritic)
+    "stig":          0.50,  # L. Østigård — Norway 3rd in group; tough France/Senegal fixtures
     "nusa":         0.65,  # young, rotation with Ødegaard/Aursnes
 
     # ── Portugal ─────────────────────────────────────────────────────────
@@ -332,6 +332,14 @@ def _project_mc(
     n_matches_default = 1 if matchday is not None else 3
     fallback = [(mean_atk * mean_def, mean_atk * mean_def)] * n_matches_default
 
+    # Pre-compute per-team average goals-against lambda.
+    # Used to apply a defensive context discount for GK/DEF from high-conceding teams.
+    team_avg_la: dict[str, float] = {
+        tk: float(np.mean([la for _, la in matches]))
+        for tk, matches in fixture_lambdas.items()
+        if matches
+    }
+
     # Pre-simulate all teams' match goals once — shape (n_sim, n_matches) per team
     team_sims: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     all_teams = [t for grp in WC2026_GROUPS.values() for t in grp]
@@ -388,6 +396,17 @@ def _project_mc(
         stat_bonus = PT_STAT_BONUS.get(pos, 0.0) * (n_m / 3)
 
         match_avg = float((appearance + pt_g + pt_a + cs_pts + concede_pts + save_pts + stat_bonus).mean())
+
+        # Defensive context discount for GK/DEF from high-conceding teams.
+        # Teams with avg goals-against > 0.75 across their 3 fixtures get a graded
+        # penalty (max 25% for the weakest defensive groups).  This is additional to
+        # what the MC already captures — it penalises variance risk and the tendency
+        # for the Iraq-game spike to over-value defenders from mixed-fixture teams.
+        if pos in ("GK", "DEF") and matchday is None:
+            avg_la = team_avg_la.get(tk, 1.0)
+            if avg_la > 0.75:
+                def_ctx = max(0.75, 1.0 - (avg_la - 0.75) * 0.25)
+                match_avg *= def_ctx
 
         # Qualification Booster (only meaningful for full-tournament view)
         qual_bonus = 0.0
