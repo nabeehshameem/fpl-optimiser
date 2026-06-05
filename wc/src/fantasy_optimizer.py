@@ -164,7 +164,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "halhal":       0.05,  # Morocco DEF fringe — not a reliable starter
     "yaimar":       0.10,  # Ecuador DEF fringe — 0.5% ownership, unlikely starter
     "jayden":       0.10,  # Jayden Adams (South Africa) — low-qual team, unknown starter
-    "mateo ch":     0.10,  # Mateo Chávez (Mexico DEF) — 0.5% ownership, fringe squad player
+
     "sucic":        0.10,  # Petar Sučić (Croatia MID) — low ownership, fringe pick
     "vuskovic":     0.10,  # Luka Vusković (Croatia DEF) — low ownership, fringe pick
 
