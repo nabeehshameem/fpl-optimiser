@@ -161,7 +161,17 @@ def ingest_from_json(path: str) -> int:
 
 
 def ingest_from_fifa_api() -> int:
-    """Pull live player + price data from play.fifa.com/json/fantasy/."""
+    """Pull live player + price data from play.fifa.com/json/fantasy/.
+
+    Clears the fantasy_players table before inserting so stale seeded data
+    doesn't coexist with live records (which use different fantasy_id values).
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("DELETE FROM fantasy_players")
+    conn.commit()
+    conn.close()
+    print("  Cleared existing fantasy_players.")
+
     print(f"  Fetching squads from {FIFA_SQUADS_URL}")
     squads_resp = requests.get(FIFA_SQUADS_URL, headers=_BROWSER_HEADERS, timeout=30)
     squads_resp.raise_for_status()

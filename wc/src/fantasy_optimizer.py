@@ -85,6 +85,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "sané":         0.62,  # rotation risk — Nagelsmann XI leans on Musiala/Wirtz; Sané not guaranteed starter
     "goretzka":     0.55,  # deep rotation behind Musiala/Wirtz/Kimmich
     "leweling":     0.60,  # competes for wide role
+    "lennart karl": 0.45,  # Freiburg MID — Germany squad but not guaranteed starter
 
     # ── England ──────────────────────────────────────────────────────────
     "mainoo":       0.65,  # competes with Rice/Bellingham/Foden
@@ -108,6 +109,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Brazil ───────────────────────────────────────────────────────────
     "neymar":       0.60,  # injury history, fitness uncertainty at 34
     "casemiro":     0.75,  # aging, some rotation risk
+    "wesley":       0.70,  # Brazil RB rotation — competes with Vanderson/Danilo
 
     # ── Norway ───────────────────────────────────────────────────────────
     "sorloth":      0.60,  # backup striker to Haaland
@@ -118,7 +120,10 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "ronaldo":      0.75,  # 41 years old in 2026; still likely starts but rotation risk
 
     # ── Belgium ──────────────────────────────────────────────────────────
+    "lammens":      0.20,  # Belgium #2 GK — Courtois is clear starter when fit
+    "penders":      0.15,  # Belgium #3 GK
     "tielemans":    0.75,  # rotates in Belgium's evolving midfield
+    "witsel":       0.50,  # 36 years old in 2026, squad veteran, not guaranteed XI
 
     # ── New Zealand ───────────────────────────────────────────────────────
     "o. sail":      0.70,  # NZ #1 GK — save bonus vs Belgium overstated; model discount applied
@@ -214,13 +219,14 @@ def _canonical(name: str) -> str:
 def _load_players(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute("""
         SELECT fp.fantasy_id, fp.name, fp.position, fp.price,
-               t.name AS team_name
+               t.name AS team_name, fp.ownership
         FROM   fantasy_players fp
         LEFT JOIN teams t ON fp.team_id = t.team_id
         WHERE  fp.position IS NOT NULL AND fp.price IS NOT NULL AND fp.price > 0
     """).fetchall()
     return [
-        {"id": r[0], "name": r[1], "pos": r[2], "price": r[3], "team": r[4] or "Unknown"}
+        {"id": r[0], "name": r[1], "pos": r[2], "price": r[3],
+         "team": r[4] or "Unknown", "ownership": float(r[5] or 0.0)}
         for r in rows
     ]
 
@@ -434,12 +440,22 @@ def _project_mc(
                     projected = projected * (available / n_m) if n_m > 0 else 0.0
                 break
 
-        # Starter probability discount: players unlikely to start every match
-        for prob_key, prob in PLAYER_STARTER_PROB.items():
-            if prob_key in name_lower:
-                projected *= prob
-                match_avg *= prob
-                break
+        # Starter probability discount: explicit overrides first, then ownership-derived.
+        # Low-ownership players (<1%) are bench/fringe squad members who rarely start.
+        explicit_prob = next(
+            (prob for key, prob in PLAYER_STARTER_PROB.items() if key in name_lower),
+            None,
+        )
+        if explicit_prob is not None:
+            projected *= explicit_prob
+            match_avg *= explicit_prob
+        else:
+            own = p.get("ownership", 0.0)
+            if own < 1.0:
+                # Scale from 0.40 (0% ownership) to 0.85 (1% ownership)
+                auto_prob = 0.40 + own * 0.45
+                projected *= auto_prob
+                match_avg *= auto_prob
 
         p["projected_pts"] = round(projected, 2)
         p["pts_per_match"] = round(match_avg / max(n_m, 1), 2)
