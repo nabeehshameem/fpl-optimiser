@@ -44,7 +44,15 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from wc.scripts.init_db import DB_PATH
 
 FIFA_PLAYERS_URL = "https://play.fifa.com/json/fantasy/players.json"
-FIFA_SQUADS_URL  = "https://play.fifa.com/json/fantasy/squads_fifa.json"
+FIFA_SQUADS_URL  = "https://play.fifa.com/json/fantasy/squads.json"
+
+_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://play.fifa.com/fantasy/",
+    "Origin": "https://play.fifa.com",
+}
 
 
 def _norm(name: str) -> str:
@@ -71,10 +79,23 @@ def _match_player_id(conn, name: str) -> int | None:
     return None
 
 
+_TEAM_ALIASES: dict[str, str] = {
+    "IR Iran":         "Iran",
+    "Korea Republic":  "South Korea",
+    "USA":             "United States",
+    "Türkiye":         "Turkey",
+    "Côte d'Ivoire":   "Ivory Coast",
+    "Congo DR":        "DR Congo",
+    "Cabo Verde":      "Cape Verde",
+    "Czechia":         "Czech Republic",
+}
+
+
 def _upsert_team(conn, team_name: str) -> int | None:
+    canonical = _TEAM_ALIASES.get(team_name, team_name)
     row = conn.execute(
         "SELECT team_id FROM teams WHERE name = ? OR short_name = ?",
-        (team_name, team_name)
+        (canonical, canonical)
     ).fetchone()
     return row[0] if row else None
 
@@ -142,14 +163,14 @@ def ingest_from_json(path: str) -> int:
 def ingest_from_fifa_api() -> int:
     """Pull live player + price data from play.fifa.com/json/fantasy/."""
     print(f"  Fetching squads from {FIFA_SQUADS_URL}")
-    squads_resp = requests.get(FIFA_SQUADS_URL, timeout=30)
+    squads_resp = requests.get(FIFA_SQUADS_URL, headers=_BROWSER_HEADERS, timeout=30)
     squads_resp.raise_for_status()
     squads_data = squads_resp.json()
     squads_list = squads_data if isinstance(squads_data, list) else squads_data.get("squads", [])
     squad_map = {s["id"]: s["name"] for s in squads_list if "id" in s and "name" in s}
 
     print(f"  Fetching players from {FIFA_PLAYERS_URL}")
-    players_resp = requests.get(FIFA_PLAYERS_URL, timeout=30)
+    players_resp = requests.get(FIFA_PLAYERS_URL, headers=_BROWSER_HEADERS, timeout=30)
     players_resp.raise_for_status()
     raw = players_resp.json()
     raw_players = raw if isinstance(raw, list) else raw.get("players", [])
@@ -175,8 +196,9 @@ def ingest_from_fifa_api() -> int:
         })
 
     print(f"  {len(normalised)} players fetched, {len(squad_map)} squads resolved.")
-    tmp = Path("/tmp/wc_fantasy_players.json")
-    tmp.write_text(json.dumps(normalised))
+    import tempfile
+    tmp = Path(tempfile.gettempdir()) / "wc_fantasy_players.json"
+    tmp.write_text(json.dumps(normalised), encoding="utf-8")
     return ingest_from_json(str(tmp))
 
 
