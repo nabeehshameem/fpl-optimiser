@@ -95,8 +95,8 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "palmer":       0.70,  # competes with Eze/Foden
 
     # ── Spain ────────────────────────────────────────────────────────────
-    "yamal":        0.60,  # hamstring — de la Fuente: "could be ready June 15 but doesn't guarantee he'll play"
-    "williams":     0.60,  # same coach quote applies — MD1 start not guaranteed
+    "yamal":        0.82,  # 44.7% ownership; community expects him fit; revised up from initial fitness doubt
+    "williams":     0.75,  # Nico Williams, competing with Yamal/Olmo
     "olmo":         0.75,  # competes with Pedri when both fit
     "gavi":         0.70,  # returning from injury, competes with Zubimendi
     "merino":       0.35,  # stress fracture in foot (Feb), targeting CL final return — fitness risk
@@ -149,9 +149,14 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Canada ───────────────────────────────────────────────────────────
     "davies":       0.55,  # ACL (March) + hamstring (May), day-by-day rehab
 
-    # ── Spain ────────────────────────────────────────────────────────────
-    "yamal":        0.82,  # revised up — 44.7% ownership; community expects him fit
-    "williams":     0.75,  # Nico Williams, competing with Yamal/Olmo
+    # ── Colombia ─────────────────────────────────────────────────────────
+    "mojica":       0.75,  # LB rotation risk — competes with Machado/Arias for left slot
+
+    # ── Morocco ──────────────────────────────────────────────────────────
+    "halhal":       0.50,  # uncertain starter — Regragui's LB pecking order behind Mazraoui
+
+    # ── Ecuador ──────────────────────────────────────────────────────────
+    "dacosta":      0.05,  # not in Ecuador's actual WC squad — fantasy data artefact
 
     # ── Argentina / general bench GKs ────────────────────────────────────
     "beiranvand":   0.90,  # Iran starter GK — high prob but noted for completeness
