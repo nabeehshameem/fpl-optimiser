@@ -152,6 +152,9 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Colombia ─────────────────────────────────────────────────────────
     "mojica":       0.75,  # LB rotation risk — competes with Machado/Arias for left slot
 
+    # ── Argentina ─────────────────────────────────────────────────────────
+    "otamendi":     0.40,  # 3rd-choice CB behind Romero and L. Martínez
+
     # ── Spain ────────────────────────────────────────────────────────────
     "cubarsi":      0.78,  # competes with Laporte and García for CB slot
 
