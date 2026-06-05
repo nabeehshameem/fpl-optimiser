@@ -82,6 +82,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "romero":       0.25,  # partially torn MCL (mid-April), World Cup in jeopardy
 
     # ── Germany ──────────────────────────────────────────────────────────
+    "sané":         0.62,  # rotation risk — Nagelsmann XI leans on Musiala/Wirtz; Sané not guaranteed starter
     "goretzka":     0.55,  # deep rotation behind Musiala/Wirtz/Kimmich
     "leweling":     0.60,  # competes for wide role
 
@@ -119,6 +120,9 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Belgium ──────────────────────────────────────────────────────────
     "tielemans":    0.75,  # rotates in Belgium's evolving midfield
 
+    # ── New Zealand ───────────────────────────────────────────────────────
+    "o. sail":      0.70,  # NZ #1 GK — save bonus vs Belgium overstated; model discount applied
+
     # ── Netherlands ──────────────────────────────────────────────────────
     "timber":       0.40,  # groin injury, no game since March 14 — fitness uncertain
     "koopmeiners":  0.70,  # competes with Gravenberch/Reijnders
@@ -142,6 +146,37 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── Argentina / general bench GKs ────────────────────────────────────
     "beiranvand":   0.90,  # Iran starter GK — high prob but noted for completeness
+}
+
+# Extra projected points awarded to players with a confirmed set-piece role.
+# Values are over the full 3-match group stage; _project_mc scales by (n_m / 3).
+#
+# Penalty taker formula: 1.2 PKs awarded per team × 0.75 conversion × goal_pts[pos]
+#   FWD (5 pts/goal) → +4.5 pts   MID (6 pts/goal) → +5.4 pts
+# Corner / FK taker:  extra assist flow from delivering dead balls → +0.8–1.5 pts
+#
+# Scouting bonus (+2 if >4 pts AND <5% ownership) is not modelled — ownership data
+# is unavailable pre-tournament.  Differentials are already indirectly rewarded by
+# the MILP's pts/$ objective (higher pts per unit of budget = preferred).
+PLAYER_SETPIECE_BONUS: dict[str, float] = {
+    # ── Penalty takers ───────────────────────────────────────────────────
+    "messi":      4.5,   # ARG
+    "mbapp":      4.5,   # FRA — K. Mbappé (accent-safe prefix key)
+    "haaland":    4.5,   # NOR
+    "ronaldo":    4.5,   # POR — C. Ronaldo still designated taker
+    "kane":       4.5,   # ENG
+    "havertz":    4.5,   # GER — confirmed FWD/PK role
+    "lukaku":     4.5,   # BEL
+    "vinicius":   4.5,   # BRA — first-choice taker over Rodrygo
+
+    # ── Corner / FK takers ───────────────────────────────────────────────
+    "de bruyne":  1.5,   # BEL — primary FK delivery
+    "degaard":    1.5,   # NOR — M. Ødegaard (Ø prefix skipped; "degaard" matches)
+    "bellingham": 1.0,   # ENG
+    "güler":      1.5,   # TUR — FK specialist
+    "de paul":    1.0,   # ARG
+    "pedri":      1.0,   # ESP
+    "hakimi":     0.8,   # MAR — overlapping FK role
 }
 
 # Confirmed WC2026 group draw (official, April 2026)
@@ -360,10 +395,16 @@ def _project_mc(
             qp = qual_probs.get(tk, {})
             qual_bonus = 2.0 * qp.get("qf_pct", 0.0) / 100.0
 
+        # Set-piece / penalty taker bonus (scaled to actual match count)
+        name_lower = p["name"].lower()
+        for sp_key, sp_bonus in PLAYER_SETPIECE_BONUS.items():
+            if sp_key in name_lower:
+                match_avg += sp_bonus * (n_m / 3)
+                break
+
         projected = match_avg + qual_bonus
 
         # Injury discount: scale down by available matches
-        name_lower = p["name"].lower()
         for inj_key, missed_mds in PLAYER_UNAVAILABLE.items():
             if inj_key in name_lower:
                 if matchday is not None and matchday in missed_mds:
