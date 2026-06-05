@@ -159,6 +159,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "cubarsi":      0.78,  # competes with Laporte and García for CB slot
 
     # ── Fantasy data artefacts / confirmed non-squad / poor value ────────
+    "tagnaouti":    0.10,  # Morocco backup GK — Bounou is their clear #1
     "dacosta":      0.05,  # not in Ecuador's actual WC squad
     "boulbina":     0.05,  # Algeria MID — very low qual probability; poor fantasy value
     "halhal":       0.05,  # Morocco DEF fringe — not a reliable starter
