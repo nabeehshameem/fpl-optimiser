@@ -149,6 +149,13 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Canada ───────────────────────────────────────────────────────────
     "davies":       0.55,  # ACL (March) + hamstring (May), day-by-day rehab
 
+    # ── Brazil ─ GK rotation ─────────────────────────────────────────────
+    "ederson":      0.75,  # competes with Alisson for Brazil #1 spot; Alisson higher ownership
+
+    # ── Spain ────────────────────────────────────────────────────────────
+    "yamal":        0.82,  # revised up — 44.7% ownership; community expects him fit
+    "williams":     0.75,  # Nico Williams, competing with Yamal/Olmo
+
     # ── Argentina / general bench GKs ────────────────────────────────────
     "beiranvand":   0.90,  # Iran starter GK — high prob but noted for completeness
 }
@@ -183,6 +190,22 @@ PLAYER_SETPIECE_BONUS: dict[str, float] = {
     "de paul":    1.0,   # ARG
     "pedri":      1.0,   # ESP
     "hakimi":     0.8,   # MAR — overlapping FK role
+}
+
+# Attacking-contribution multiplier for defensive/holding midfielders.
+# Applied to the star-factor (sf) that drives goal/assist projections.
+# CS and appearance points are unaffected — these players still earn those.
+# Keys are lowercase substrings of the player name.
+PLAYER_CDM_DISCOUNT: dict[str, float] = {
+    "rodri":        0.25,  # Spain CDM — Ballon d'Or for defending, rarely scores
+    "zubimendi":    0.30,  # Spain back-up DM
+    "rice":         0.40,  # England DM — some attacking output but mainly defensive
+    "casemiro":     0.35,  # aging Brazil CDM
+    "tchouameni":   0.35,  # France DM
+    "camavinga":    0.45,  # France CM, more box-to-box but still low goal return
+    "amrabat":      0.30,  # Morocco DM
+    "gravenberch":  0.45,  # Netherlands CM — runner, rarely scores
+    "goretzka":     0.55,  # Germany box-to-box, some goals but limited
 }
 
 # Confirmed WC2026 group draw (official, April 2026)
@@ -347,6 +370,13 @@ def _project_mc(
         if matches
     }
 
+    # Pre-compute max ownership within each (team, position) group.
+    # Used to detect genuine backup players vs starters.
+    team_pos_max_own: dict[tuple, float] = {}
+    for p in players:
+        key = (p["team"], p["pos"])
+        team_pos_max_own[key] = max(team_pos_max_own.get(key, 0.0), p.get("ownership", 0.0))
+
     # Pre-simulate all teams' match goals once — shape (n_sim, n_matches) per team
     team_sims: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     all_teams = [t for grp in WC2026_GROUPS.values() for t in grp]
@@ -364,8 +394,16 @@ def _project_mc(
     for p in players:
         tk  = _canonical(p["team"])
         pos = p["pos"]
+        name_lower = p["name"].lower()
+
         # Price-based star factor: $4.5m -> 0.7, $10.5m -> 1.4
         sf = 0.7 + (max(45, min(105, p["price"])) - 45) / 60.0 * 0.7
+
+        # CDM/holding-MID discount: reduces goal/assist projection for defensive mids
+        for cdm_key, cdm_disc in PLAYER_CDM_DISCOUNT.items():
+            if cdm_key in name_lower:
+                sf *= cdm_disc
+                break
 
         if tk in team_sims:
             gf_arr, ga_arr = team_sims[tk]
@@ -422,7 +460,6 @@ def _project_mc(
             qual_bonus = 2.0 * qp.get("qf_pct", 0.0) / 100.0
 
         # Set-piece / penalty taker bonus (scaled to actual match count)
-        name_lower = p["name"].lower()
         for sp_key, sp_bonus in PLAYER_SETPIECE_BONUS.items():
             if sp_key in name_lower:
                 match_avg += sp_bonus * (n_m / 3)
@@ -441,7 +478,6 @@ def _project_mc(
                 break
 
         # Starter probability discount: explicit overrides first, then ownership-derived.
-        # Low-ownership players (<1%) are bench/fringe squad members who rarely start.
         explicit_prob = next(
             (prob for key, prob in PLAYER_STARTER_PROB.items() if key in name_lower),
             None,
@@ -451,9 +487,24 @@ def _project_mc(
             match_avg *= explicit_prob
         else:
             own = p.get("ownership", 0.0)
+            group_max = team_pos_max_own.get((p["team"], pos), 1.0)
+
             if own < 1.0:
-                # Scale from 0.40 (0% ownership) to 0.85 (1% ownership)
+                # Absolute fringe: scale 0.40 → 0.85 over 0–1% ownership
                 auto_prob = 0.40 + own * 0.45
+                projected *= auto_prob
+                match_avg *= auto_prob
+            elif pos == "GK" and group_max > 0 and own < group_max:
+                # Only the highest-owned GK on a team starts. Apply a continuous
+                # backup discount to all non-leaders.  At own/group_max = 1 (same ownership
+                # as leader) the factor → 0.80; at 0 it → 0.20.
+                backup_prob = max(0.20, (own / group_max) ** 0.5 * 0.80)
+                projected *= backup_prob
+                match_avg *= backup_prob
+            elif group_max > 2.0 and own < group_max * 0.30 and own < 3.0:
+                # Relative outfield backup: clearly behind the group leader and <3% absolute
+                rel = own / (group_max * 0.30)
+                auto_prob = 0.50 + rel * 0.30
                 projected *= auto_prob
                 match_avg *= auto_prob
 
