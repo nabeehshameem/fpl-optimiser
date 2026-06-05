@@ -149,9 +149,6 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Canada ───────────────────────────────────────────────────────────
     "davies":       0.55,  # ACL (March) + hamstring (May), day-by-day rehab
 
-    # ── Brazil ─ GK rotation ─────────────────────────────────────────────
-    "ederson":      0.75,  # competes with Alisson for Brazil #1 spot; Alisson higher ownership
-
     # ── Spain ────────────────────────────────────────────────────────────
     "yamal":        0.82,  # revised up — 44.7% ownership; community expects him fit
     "williams":     0.75,  # Nico Williams, competing with Yamal/Olmo
@@ -373,9 +370,13 @@ def _project_mc(
     # Pre-compute max ownership within each (team, position) group.
     # Used to detect genuine backup players vs starters.
     team_pos_max_own: dict[tuple, float] = {}
+    team_gk_sum_own: dict[str, float] = {}
     for p in players:
         key = (p["team"], p["pos"])
-        team_pos_max_own[key] = max(team_pos_max_own.get(key, 0.0), p.get("ownership", 0.0))
+        own_val = p.get("ownership", 0.0)
+        team_pos_max_own[key] = max(team_pos_max_own.get(key, 0.0), own_val)
+        if p["pos"] == "GK":
+            team_gk_sum_own[p["team"]] = team_gk_sum_own.get(p["team"], 0.0) + own_val
 
     # Pre-simulate all teams' match goals once — shape (n_sim, n_matches) per team
     team_sims: dict[str, tuple[np.ndarray, np.ndarray]] = {}
@@ -489,18 +490,21 @@ def _project_mc(
             own = p.get("ownership", 0.0)
             group_max = team_pos_max_own.get((p["team"], pos), 1.0)
 
-            if own < 1.0:
-                # Absolute fringe: scale 0.40 → 0.85 over 0–1% ownership
+            if pos == "GK":
+                # GKs always use normalised ownership within the team.
+                # (own / sum)^0.5 rewards a clear #1 (Neuer ≈ 0.94) while giving
+                # genuinely competing GKs (Alisson vs Ederson) a meaningful haircut.
+                # Backup GKs with near-zero ownership naturally project very low.
+                gk_sum = team_gk_sum_own.get(p["team"], 0.0)
+                if gk_sum > 0:
+                    norm_prob = max(0.10, (own / gk_sum) ** 0.5)
+                    projected *= norm_prob
+                    match_avg *= norm_prob
+            elif own < 1.0:
+                # Outfield fringe: scale 0.40 → 0.85 over 0–1% ownership
                 auto_prob = 0.40 + own * 0.45
                 projected *= auto_prob
                 match_avg *= auto_prob
-            elif pos == "GK" and group_max > 0 and own < group_max:
-                # Only the highest-owned GK on a team starts. Apply a continuous
-                # backup discount to all non-leaders.  At own/group_max = 1 (same ownership
-                # as leader) the factor → 0.80; at 0 it → 0.20.
-                backup_prob = max(0.20, (own / group_max) ** 0.5 * 0.80)
-                projected *= backup_prob
-                match_avg *= backup_prob
             elif group_max > 2.0 and own < group_max * 0.30 and own < 3.0:
                 # Relative outfield backup: clearly behind the group leader and <3% absolute
                 rel = own / (group_max * 0.30)
