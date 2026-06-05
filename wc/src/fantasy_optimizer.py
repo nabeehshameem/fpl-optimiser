@@ -546,7 +546,7 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
     """
     Select the optimal 15-player squad with explicit starting XI (11) and bench (4).
 
-    Bench slots earn 15% of their projected pts in the objective (BENCH_WEIGHT=0.15),
+    Bench slots earn 16% of their projected pts in the objective (BENCH_WEIGHT=0.16),
     so the solver picks quality backup options rather than just the cheapest fillers.
 
     booster: one of "wildcard", "12th_man", "max_captain", "qualification_booster", or None.
@@ -580,7 +580,7 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
     # Bench players earn BENCH_WEIGHT × pts rather than 0.
     # Decompose: x_i gets w×pts, s_i gets (1−w)×pts, so a starter still totals pts.
     # A bench player earns w×pts, giving the solver an incentive to pick useful backups.
-    BENCH_WEIGHT = 0.15
+    BENCH_WEIGHT = 0.16
     obj = np.concatenate([-pts * BENCH_WEIGHT, -pts * (1 - BENCH_WEIGHT), -pts])
 
     rows: list[np.ndarray] = []
