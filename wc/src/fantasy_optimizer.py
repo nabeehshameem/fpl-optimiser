@@ -104,7 +104,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── France ───────────────────────────────────────────────────────────
     "cherki":       0.65,  # young, competes for wide/10 role
-    "dou":          0.70,  # Doué — rotation
+    "doué":         0.70,  # Désiré Doué — rotation
 
     # ── Brazil ───────────────────────────────────────────────────────────
     "neymar":       0.60,  # injury history, fitness uncertainty at 34
@@ -152,18 +152,18 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Colombia ─────────────────────────────────────────────────────────
     "mojica":       0.75,  # LB rotation risk — competes with Machado/Arias for left slot
 
-    # ── Morocco ──────────────────────────────────────────────────────────
-    "halhal":       0.50,  # uncertain starter — Regragui's LB pecking order behind Mazraoui
-
     # ── Spain ────────────────────────────────────────────────────────────
     "cubarsi":      0.78,  # competes with Laporte and García for CB slot
 
     # ── Fantasy data artefacts / confirmed non-squad / poor value ────────
     "dacosta":      0.05,  # not in Ecuador's actual WC squad
     "boulbina":     0.05,  # Algeria MID — very low qual probability; poor fantasy value
+    "halhal":       0.05,  # Morocco DEF fringe — not a reliable starter
     "yaimar":       0.10,  # Ecuador DEF fringe — 0.5% ownership, unlikely starter
     "jayden":       0.10,  # Jayden Adams (South Africa) — low-qual team, unknown starter
     "mateo ch":     0.10,  # Mateo Chávez (Mexico DEF) — 0.5% ownership, fringe squad player
+    "sucic":        0.10,  # Petar Sučić (Croatia MID) — low ownership, fringe pick
+    "vuskovic":     0.10,  # Luka Vusković (Croatia DEF) — low ownership, fringe pick
 
     # ── Argentina / general bench GKs ────────────────────────────────────
     "beiranvand":   0.90,  # Iran starter GK — high prob but noted for completeness
