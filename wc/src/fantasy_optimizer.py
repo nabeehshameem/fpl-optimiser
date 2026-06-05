@@ -192,7 +192,7 @@ PLAYER_SETPIECE_BONUS: dict[str, float] = {
     "kane":       4.5,   # ENG
     "havertz":    4.5,   # GER — confirmed FWD/PK role
     "lukaku":     4.5,   # BEL
-    "vinicius":   4.5,   # BRA — first-choice taker over Rodrygo
+    "raphinha":   4.5,   # BRA — penalty + set piece taker, Brazil captain
 
     # ── Corner / FK takers ───────────────────────────────────────────────
     "kimmich":    1.8,   # GER — RB/DEF but primary corner + FK delivery for Germany
