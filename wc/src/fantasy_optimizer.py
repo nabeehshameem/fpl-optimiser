@@ -155,8 +155,14 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Morocco ──────────────────────────────────────────────────────────
     "halhal":       0.50,  # uncertain starter — Regragui's LB pecking order behind Mazraoui
 
-    # ── Ecuador ──────────────────────────────────────────────────────────
-    "dacosta":      0.05,  # not in Ecuador's actual WC squad — fantasy data artefact
+    # ── Spain ────────────────────────────────────────────────────────────
+    "cubarsi":      0.78,  # competes with Laporte and García for CB slot
+
+    # ── Fantasy data artefacts / confirmed non-squad ──────────────────────
+    "dacosta":      0.05,  # not in Ecuador's actual WC squad
+    "boulbina":     0.05,  # Algeria MID — very low qual probability; poor fantasy value
+    "yaimar":       0.10,  # Ecuador DEF fringe — 0.5% ownership, unlikely starter
+    "jayden":       0.10,  # Jayden Adams (South Africa) — low-qual team, unknown starter
 
     # ── Argentina / general bench GKs ────────────────────────────────────
     "beiranvand":   0.90,  # Iran starter GK — high prob but noted for completeness
@@ -209,6 +215,12 @@ PLAYER_CDM_DISCOUNT: dict[str, float] = {
     "gravenberch":  0.45,  # Netherlands CM — runner, rarely scores
     "goretzka":     0.55,  # Germany box-to-box, some goals but limited
 }
+
+# Host nations receive a 10% boost to projected match points.
+# The DC model is calibrated on neutral-venue history and doesn't account for
+# home crowd lift, venue familiarity, or the extra motivation of hosting.
+HOST_NATIONS: frozenset[str] = frozenset({"United States", "Mexico", "Canada"})
+HOST_ADVANTAGE = 1.10
 
 # Confirmed WC2026 group draw (official, April 2026)
 WC2026_GROUPS: dict[str, list[str]] = {
@@ -458,6 +470,10 @@ def _project_mc(
             if avg_la > 0.75:
                 def_ctx = max(0.75, 1.0 - (avg_la - 0.75) * 0.25)
                 match_avg *= def_ctx
+
+        # Host nation advantage: USA/Mexico/Canada get 10% uplift on expected pts.
+        if p["team"] in HOST_NATIONS:
+            match_avg *= HOST_ADVANTAGE
 
         # Qualification Booster (only meaningful for full-tournament view)
         qual_bonus = 0.0
