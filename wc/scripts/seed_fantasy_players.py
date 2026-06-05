@@ -268,7 +268,7 @@ SEED_PLAYERS = [
     ("Germany",     "J. Musiala",         "MID",  80),
     ("Germany",     "K. Havertz",         "FWD",  78),
     ("Germany",     "F. Wirtz",           "MID",  75),
-    ("Germany",     "J. Kimmich",         "MID",  75),
+    ("Germany",     "J. Kimmich",         "DEF",  75),
     ("Germany",     "L. Sané",            "MID",  74),
     ("Germany",     "N. Woltemade",       "FWD",  72),
     ("Germany",     "D. Undav",           "FWD",  66),

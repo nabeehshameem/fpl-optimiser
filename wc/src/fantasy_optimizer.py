@@ -170,6 +170,7 @@ PLAYER_SETPIECE_BONUS: dict[str, float] = {
     "vinicius":   4.5,   # BRA — first-choice taker over Rodrygo
 
     # ── Corner / FK takers ───────────────────────────────────────────────
+    "kimmich":    1.8,   # GER — RB/DEF but primary corner + FK delivery for Germany
     "de bruyne":  1.5,   # BEL — primary FK delivery
     "degaard":    1.5,   # NOR — M. Ødegaard (Ø prefix skipped; "degaard" matches)
     "bellingham": 1.0,   # ENG
