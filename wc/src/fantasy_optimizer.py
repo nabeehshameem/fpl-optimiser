@@ -101,6 +101,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "gavi":         0.70,  # returning from injury, competes with Zubimendi
     "merino":       0.35,  # stress fracture in foot (Feb), targeting CL final return — fitness risk
     "zubimendi":    0.75,  # rotates with Rodri
+    "ferran":       0.50,  # Ferran Torres — super sub behind Williams/Yamal/Oyarzabal, rarely starts
 
     # ── France ───────────────────────────────────────────────────────────
     "cherki":       0.65,  # young, competes for wide/10 role
@@ -158,6 +159,12 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Spain ────────────────────────────────────────────────────────────
     "cubarsi":      0.78,  # competes with Laporte and García for CB slot
 
+    # ── Mexico ───────────────────────────────────────────────────────────
+    "mateo ch":     0.15,  # Mateo Chávez — widely regarded as second-choice; Aguirre's regular LB is different
+
+    # ── Argentina ────────────────────────────────────────────────────────
+    "nico paz":     0.25,  # won't get minutes over Mac Allister / Enzo / De Paul in Argentina's midfield
+
     # ── Fantasy data artefacts / confirmed non-squad / poor value ────────
     "tagnaouti":    0.10,  # Morocco backup GK — Bounou is their clear #1
     "dacosta":      0.05,  # not in Ecuador's actual WC squad
@@ -192,7 +199,7 @@ PLAYER_SETPIECE_BONUS: dict[str, float] = {
     "kane":       4.5,   # ENG
     "havertz":    4.5,   # GER — confirmed FWD/PK role
     "lukaku":     4.5,   # BEL
-    "raphinha":   4.5,   # BRA — penalty + set piece taker, Brazil captain
+    "raphinha":   6.0,   # BRA — penalty + corner/FK taker, Brazil captain
 
     # ── Corner / FK takers ───────────────────────────────────────────────
     "kimmich":    1.8,   # GER — RB/DEF but primary corner + FK delivery for Germany
@@ -225,7 +232,7 @@ PLAYER_CDM_DISCOUNT: dict[str, float] = {
 # The DC model is calibrated on neutral-venue history and doesn't account for
 # home crowd lift, venue familiarity, or the extra motivation of hosting.
 HOST_NATIONS: frozenset[str] = frozenset({"United States", "Mexico", "Canada"})
-HOST_ADVANTAGE = 1.10
+HOST_ADVANTAGE = 1.05
 
 # Confirmed WC2026 group draw (official, April 2026)
 WC2026_GROUPS: dict[str, list[str]] = {
@@ -492,6 +499,25 @@ def _project_mc(
                 match_avg += sp_bonus * (n_m / 3)
                 break
 
+        # Scouting bonus: WC Fantasy awards +2pts per matchday where a player scores
+        # >4pts AND has <5% ownership.  This rewards genuine differential picks.
+        # GK/DEF: P(>4pts per match) ≈ P(clean sheet) since 5 CS pts > 4-pt threshold.
+        # MID/FWD: P(>4pts) requires a personal goal/assist; divide position-group
+        #   share by squad-size to get per-player lambda (avoids overstating P for
+        #   forwards on strong teams who share goals across the squad).
+        if p.get("ownership", 0.0) < 5.0:
+            if pos in ("GK", "DEF"):
+                p_qualify = (ga_arr == 0).astype(np.float32).mean(axis=0)
+            else:
+                exp_gf = gf_arr.astype(np.float32).mean(axis=0)
+                squad_sz = max(1, SQUAD_RULES.get(pos, 3))
+                indiv_share = (
+                    GOAL_SHARE.get(pos, 0.1) + ASSIST_RATIO * ASSIST_SHARE.get(pos, 0.1)
+                ) / squad_sz
+                lam_ga = exp_gf * indiv_share * sf
+                p_qualify = 1 - np.exp(-lam_ga)
+            match_avg += float(p_qualify.sum()) * 2.0
+
         projected = match_avg + qual_bonus
 
         # Injury discount: scale down by available matches
@@ -550,8 +576,8 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
     """
     Select the optimal 15-player squad with explicit starting XI (11) and bench (4).
 
-    Bench slots earn 16% of their projected pts in the objective (BENCH_WEIGHT=0.16),
-    so the solver picks quality backup options rather than just the cheapest fillers.
+    Bench slots earn BENCH_WEIGHT × their projected pts in the objective,
+    so the solver picks quality backup options suitable for live substitutions.
 
     booster: one of "wildcard", "12th_man", "max_captain", "qualification_booster", or None.
       - wildcard:               no optimizer change (squad already built from scratch).
@@ -581,10 +607,9 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
 
     # Variables: [x_0..x_{n-1}, s_0..s_{n-1}, c_0..c_{n-1}]
     # Objective: minimise −(sum(s_i*pts_i) + sum(c_i*pts_i))
-    # Bench players earn BENCH_WEIGHT × pts rather than 0.
-    # Decompose: x_i gets w×pts, s_i gets (1−w)×pts, so a starter still totals pts.
-    # A bench player earns w×pts, giving the solver an incentive to pick useful backups.
-    BENCH_WEIGHT = 0.16
+    # Decompose: x_i gets BENCH_WEIGHT×pts, s_i gets (1−BENCH_WEIGHT)×pts, starter still totals pts.
+    # Bench player earns BENCH_WEIGHT×pts, giving the solver an incentive to pick quality live subs.
+    BENCH_WEIGHT = 0.35
     obj = np.concatenate([-pts * BENCH_WEIGHT, -pts * (1 - BENCH_WEIGHT), -pts])
 
     rows: list[np.ndarray] = []
