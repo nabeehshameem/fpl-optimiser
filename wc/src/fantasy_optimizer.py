@@ -226,6 +226,7 @@ PLAYER_CDM_DISCOUNT: dict[str, float] = {
     "amrabat":      0.30,  # Morocco DM
     "gravenberch":  0.45,  # Netherlands CM — runner, rarely scores
     "goretzka":     0.55,  # Germany box-to-box, some goals but limited
+    "mac allister": 0.30,  # Argentina CDM — sits deep, low personal goal/assist ceiling
 }
 
 # Host nations receive a 10% boost to projected match points.
