@@ -157,7 +157,8 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "otamendi":     0.40,  # 3rd-choice CB behind Romero and L. Martínez
 
     # ── Spain ────────────────────────────────────────────────────────────
-    "cubarsi":      0.78,  # competes with Laporte and García for CB slot
+    "cubar":        0.78,  # Cubarsi — competes with Laporte and García for CB slot (key avoids accent: "Cubarsí")
+    "laporte":      0.75,  # rotation risk — Cubarsi pushing hard for his CB spot
 
     # ── Mexico ───────────────────────────────────────────────────────────
     "mateo ch":     0.15,  # Mateo Chávez — widely regarded as second-choice; Aguirre's regular LB is different
@@ -202,7 +203,7 @@ PLAYER_SETPIECE_BONUS: dict[str, float] = {
     "raphinha":   6.0,   # BRA — penalty + corner/FK taker, Brazil captain
 
     # ── Corner / FK takers ───────────────────────────────────────────────
-    "kimmich":    1.8,   # GER — RB/DEF but primary corner + FK delivery for Germany
+    "kimmich":    5.0,   # GER — sole corner + FK taker; setpiece assists are primary ceiling-raiser as DEF
     "de bruyne":  1.5,   # BEL — primary FK delivery
     "degaard":    1.5,   # NOR — M. Ødegaard (Ø prefix skipped; "degaard" matches)
     "bellingham": 1.0,   # ENG
@@ -573,7 +574,8 @@ def _project_mc(
 
 
 def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None = None,
-             locked_player_ids: list[int] | None = None) -> dict:
+             locked_player_ids: list[int] | None = None,
+             locked_starter_ids: list[int] | None = None) -> dict:
     """
     Select the optimal 15-player squad with explicit starting XI (11) and bench (4).
 
@@ -661,13 +663,17 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
     A           = np.vstack(rows)
     constraints = LinearConstraint(A, lb=np.array(lbs), ub=np.array(ubs))
 
-    # Lock specified players into squad by forcing x_i lower bound = 1
+    # Lock specified players into squad (x_i=1) or as starters (x_i=1, s_i=1)
     lb_arr = np.zeros(3 * n)
     ub_arr = np.ones(3 * n)
     locked_ids = set(locked_player_ids or [])
+    locked_starter_set = set(locked_starter_ids or [])
     for i, player in enumerate(players):
-        if player["id"] in locked_ids:
-            lb_arr[i] = 1.0
+        pid = player["id"]
+        if pid in locked_ids or pid in locked_starter_set:
+            lb_arr[i] = 1.0        # must be in squad
+        if pid in locked_starter_set:
+            lb_arr[n + i] = 1.0    # must be a starter
 
     result = milp(obj, constraints=constraints,
                   integrality=np.ones(3 * n), bounds=Bounds(lb_arr, ub_arr))

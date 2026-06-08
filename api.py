@@ -290,6 +290,7 @@ class OptimiseRequest(BaseModel):
     budget: int = Field(default=1000, ge=500, le=1500)  # $50m–$150m in $0.1m units
     booster: Optional[Literal["wildcard", "12th_man", "max_captain", "qualification_booster"]] = None
     locked_player_ids: list[int] = Field(default_factory=list)
+    locked_starter_ids: list[int] = Field(default_factory=list)
 
 
 class PlayersResponse(BaseModel):
@@ -347,7 +348,8 @@ def _fmt_player(p: dict, is_captain: bool = False) -> FantasyPlayerOut:
 def fantasy_optimise(req: OptimiseRequest, request: Request):
     try:
         res = _optimise(budget=req.budget, predictor=_predictor, booster=req.booster,
-                        locked_player_ids=req.locked_player_ids or [])
+                        locked_player_ids=req.locked_player_ids or [],
+                        locked_starter_ids=req.locked_starter_ids or [])
     except RuntimeError:
         logger.exception("fantasy optimise failed")
         raise HTTPException(status_code=503, detail="Optimisation unavailable. Try again shortly.")
@@ -536,6 +538,7 @@ def _run_retrain() -> None:
         print(f"[retrain] failed: {_retrain_status['error']}")
     finally:
         _retrain_status["running"] = False
+        _retrain_lock.release()
 
 
 def _daily_retrain_loop() -> None:
