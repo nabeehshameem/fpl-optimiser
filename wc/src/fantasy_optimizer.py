@@ -125,6 +125,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "penders":      0.15,  # Belgium #3 GK
     "tielemans":    0.75,  # rotates in Belgium's evolving midfield
     "witsel":       0.50,  # 36 years old in 2026, squad veteran, not guaranteed XI
+    "lukaku":       0.55,  # De Ketelaere expected to start as #9; Lukaku impact sub
 
     # ── New Zealand ───────────────────────────────────────────────────────
     "o. sail":      0.70,  # NZ #1 GK — save bonus vs Belgium overstated; model discount applied
