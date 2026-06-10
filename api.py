@@ -572,10 +572,13 @@ def trigger_retrain():
 @app.get("/api/wc/retrain/status")
 def retrain_status():
     """Returns the result of the most recent retrain run."""
+    model_trained_at = getattr(_predictor, "trained_at", None) if _predictor else None
     return {
-        "running": _retrain_status["running"],
-        "last":    _retrain_status["last"],
-        "error":   _retrain_status["error"],
+        "running":          _retrain_status["running"],
+        "last":             _retrain_status["last"],
+        "last_triggered":   _retrain_status.get("last_time"),
+        "model_trained_at": model_trained_at,
+        "error":            _retrain_status["error"],
     }
 
 

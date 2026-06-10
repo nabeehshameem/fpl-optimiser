@@ -150,6 +150,9 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Mexico ───────────────────────────────────────────────────────────
     "brian guti":   P.ROTATION,    # Brian Gutiérrez — heavy competition for starting spot
 
+    # ── Australia ────────────────────────────────────────────────────────
+    "beach":        P.BENCH,       # Patrick Beach — backup GK behind Ryan/Vukovic
+
     # ── New Zealand ───────────────────────────────────────────────────────
     "o. sail":      P.LIKELY,      # NZ #1 GK — save bonus vs Belgium overstated; model discount applied
 

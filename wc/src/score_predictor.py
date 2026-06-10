@@ -820,9 +820,11 @@ class DCPredictor:
     # ── Persistence ───────────────────────────────────────────────────────────
 
     def save(self) -> None:
+        import datetime as _dt
         MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
         MODEL_PATH.write_text(json.dumps(
             {
+                "trained_at":  _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "home_adv":    self.home_adv,
                 "rho":         self.rho,
                 "team_params": self.team_params,
@@ -842,4 +844,5 @@ class DCPredictor:
         self.rho         = data["rho"]
         self.team_params = data["team_params"]
         self._id_to_name = {int(k): v for k, v in data.get("id_to_name", {}).items()}
+        self.trained_at  = data.get("trained_at")
         self._fitted     = True
