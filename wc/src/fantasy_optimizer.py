@@ -147,8 +147,8 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "lukaku":       P.IMPACT_SUB,  # De Ketelaere expected to start as #9; Lukaku impact sub
     "de cuyper":    P.LIKELY,      # some competition for Belgium LB slot
 
-    # ── USA ───────────────────────────────────────────────────────────────
-    "gutierrez":    P.ROTATION,    # Brian Gutierrez — heavy competition for starting spot
+    # ── Mexico ───────────────────────────────────────────────────────────
+    "brian guti":   P.ROTATION,    # Brian Gutiérrez — heavy competition for starting spot
 
     # ── New Zealand ───────────────────────────────────────────────────────
     "o. sail":      P.LIKELY,      # NZ #1 GK — save bonus vs Belgium overstated; model discount applied
