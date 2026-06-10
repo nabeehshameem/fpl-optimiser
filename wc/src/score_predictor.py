@@ -162,6 +162,8 @@ class DCPredictor:
         self.rho: float = -0.1
         self._id_to_name: dict[int, str] = {}    # populated by fit() / load()
         self._fitted = False
+        self.elo_ratings: dict[str, float] = {}  # canonical_name → ELO (set by fit)
+        self.form_adjustments: dict[str, tuple[float, float]] = {}  # → (atk_mult, def_mult)
 
     # ── Data loading ──────────────────────────────────────────────────────────
 
@@ -191,8 +193,10 @@ class DCPredictor:
                 "home_key":   home_name, "away_key": away_name,
                 "home_goals": int(r[2]), "away_goals": int(r[3]),
                 "weight":     base_w,
-                "neutral":    True,       # WC matches are played at a host nation
+                "neutral":    True,
                 "home_id":    r[0],       "away_id":   r[1],
+                "match_date": str(r[5] or "2018-01-01"),
+                "tier":       "A",
             })
         return out
 
@@ -231,6 +235,8 @@ class DCPredictor:
                 "weight":     weight,
                 "neutral":    bool(r[6]) if r[6] else False,
                 "home_id":    None, "away_id": None,
+                "match_date": str(match_date or ""),
+                "tier":       tier,
             })
         return out
 
@@ -249,6 +255,98 @@ class DCPredictor:
         ).fetchall()
         conn.close()
         return {_canonical(r[0]): _rank_prior(int(r[1])) for r in rows}
+
+    # ── ELO + form ────────────────────────────────────────────────────────────
+
+    def _compute_elo(self, all_matches: list[dict]) -> dict[str, float]:
+        """
+        Compute ELO ratings from all training matches in chronological order.
+        K-factor: tier A = 30, B = 20, C = 10. Margin-of-victory multiplier applied.
+        Used to build data-driven DC regularisation priors.
+        """
+        K_BY_TIER = {"A": 30, "B": 20, "C": 10}
+        ratings: dict[str, float] = {}
+
+        for m in sorted(all_matches, key=lambda x: x.get("match_date", "2000-01-01")):
+            h, a = m["home_key"], m["away_key"]
+            hg, ag = m["home_goals"], m["away_goals"]
+            K = K_BY_TIER.get(m.get("tier", "C"), 10)
+
+            r_h = ratings.get(h, 1000.0)
+            r_a = ratings.get(a, 1000.0)
+
+            exp_h = 1.0 / (1.0 + 10.0 ** ((r_a - r_h) / 400.0))
+            act_h = 1.0 if hg > ag else (0.0 if hg < ag else 0.5)
+
+            # Bigger wins move the needle more, capped to prevent blowout inflation
+            mov = min(float(np.log1p(abs(hg - ag))) * 0.5 + 1.0, 2.5)
+
+            delta = K * mov * (act_h - exp_h)
+            ratings[h] = r_h + delta
+            ratings[a] = r_a - delta
+
+        return ratings
+
+    def _compute_form_adjustments(
+        self, all_matches: list[dict], window_days: int = 300, n_matches: int = 8
+    ) -> dict[str, tuple[float, float]]:
+        """
+        Post-fit: for each team compare actual goals scored/conceded vs DC-expected
+        in their last `n_matches` within `window_days`. Returns (atk_mult, def_mult)
+        capped at ±20% and dampened 40% toward 1.0 to avoid over-reacting to noise.
+        Called after fit() so DC params are available.
+        """
+        from datetime import timedelta
+        cutoff = str(date.today() - timedelta(days=window_days))
+        # Only tier A/B — friendlies are unreliable (squad rotation, low stakes)
+        recent = sorted(
+            [
+                m for m in all_matches
+                if m.get("match_date", "") >= cutoff
+                and m.get("tier", "C") in ("A", "B")
+            ],
+            key=lambda x: x["match_date"],
+        )
+
+        # Accumulate per team: list of (actual_scored, exp_scored, actual_conceded, exp_conceded)
+        records: dict[str, list[tuple[float, float, float, float]]] = {}
+
+        for m in recent:
+            h, a = m["home_key"], m["away_key"]
+            hg, ag = float(m["home_goals"]), float(m["away_goals"])
+
+            atk_h, def_h = self._team_atk_def(h)
+            atk_a, def_a = self._team_atk_def(a)
+            ha = self.home_adv if not m.get("neutral", False) else 1.0
+
+            exp_h = atk_h * def_a * ha
+            exp_a = atk_a * def_h
+
+            records.setdefault(h, []).append((hg, exp_h, ag, exp_a))
+            records.setdefault(a, []).append((ag, exp_a, hg, exp_h))
+
+        adjustments: dict[str, tuple[float, float]] = {}
+        for team, team_records in records.items():
+            last = team_records[-n_matches:]
+            if len(last) < 3:
+                continue
+
+            n = len(last)
+            w = np.linspace(0.5, 1.0, n)
+
+            scored_ratios   = np.array([r[0] / max(r[1], 0.1) for r in last])
+            conceded_ratios = np.array([r[2] / max(r[3], 0.1) for r in last])
+
+            raw_atk = float(np.average(scored_ratios, weights=w))
+            raw_def = float(np.average(conceded_ratios, weights=w))
+
+            # Dampen 35% toward 1.0 and cap at ±15%
+            atk_mult = max(0.85, min(1.15, 1.0 + 0.35 * (raw_atk - 1.0)))
+            def_mult = max(0.85, min(1.15, 1.0 + 0.35 * (raw_def - 1.0)))
+
+            adjustments[team] = (atk_mult, def_mult)
+
+        return adjustments
 
     # ── Fitting ───────────────────────────────────────────────────────────────
 
@@ -295,18 +393,30 @@ class DCPredictor:
         m01 = (hg == 0) & (ag == 1)
         m11 = (hg == 1) & (ag == 1)
 
-        # L2 regularisation toward FIFA rank priors, applied ONLY to the 40 WC
-        # teams.  Non-WC teams (Asian minnows, etc.) fit freely as reference
-        # points — this stops Japan's 6-0 qualifier wins from inflating its
-        # attack rating by the same mechanism they inflate the minnows' defense.
-        REG_LAMBDA   = 12.0
-        rank_map     = self._load_team_ranks()   # {canonical: prior_attack_strength}
+        # L2 regularisation: blend FIFA rank priors with ELO-derived priors.
+        # Pure ELO lets recent-tournament outliers (Morocco WC2022 run) dominate;
+        # pure FIFA rank ignores current form. 55/45 blend captures both.
+        # Non-WC teams fit freely as reference points.
+        REG_LAMBDA = 12.0
+        rank_map   = self._load_team_ranks()   # {canonical: FIFA-rank prior strength}
+
+        elo_ratings      = self._compute_elo(all_matches)
+        self.elo_ratings = elo_ratings
+
+        # FIFA rank → log attack
         log_rank_atk = np.array(
             [np.log(rank_map.get(k, _rank_prior(35))) for k in team_keys]
         )
-        log_rank_def = -log_rank_atk   # defence prior = inverse of attack
+        # ELO → log attack: ±600 ELO pts ≈ ±1 log unit (moderate scale)
+        log_elo_atk = np.array(
+            [(elo_ratings.get(k, 1000.0) - 1000.0) / 600.0 for k in team_keys]
+        )
 
-        # Mask: 1.0 for teams with a FIFA rank in the DB (our 40 WC teams)
+        # Blended prior: 55% historical prestige, 45% recent form
+        log_prior_atk = 0.55 * log_rank_atk + 0.45 * log_elo_atk
+        log_prior_def = -log_prior_atk
+
+        # Mask: 1.0 for WC teams (those with a FIFA rank entry)
         wc_mask = np.array(
             [1.0 if k in rank_map else 0.0 for k in team_keys]
         )
@@ -337,18 +447,18 @@ class DCPredictor:
 
             ll = float(np.dot(weights, np.log(np.maximum(tau, 1e-12)) + log_p))
 
-            # Regularisation only for WC teams (skip first team — fixed at 0)
+            # Regularisation toward blended priors, WC teams only (skip first — fixed at 0)
             reg = REG_LAMBDA * (
-                float(np.sum(wc_mask[1:] * (params[1:n]     - log_rank_atk[1:]) ** 2)) +
-                float(np.sum(wc_mask    * (params[n:2 * n]  - log_rank_def)     ** 2))
+                float(np.sum(wc_mask[1:] * (params[1:n]     - log_prior_atk[1:]) ** 2)) +
+                float(np.sum(wc_mask    * (params[n:2 * n]  - log_prior_def)     ** 2))
             )
             return -ll + reg
 
-        # Initialise from rank priors for faster, more stable convergence
+        # Warm-start from blended priors for faster, more stable convergence
         x0           = np.zeros(2 * n + 2)
-        x0[:n]       = log_rank_atk
-        x0[0]        = 0.0             # first team fixed
-        x0[n:2 * n]  = log_rank_def
+        x0[:n]       = log_prior_atk
+        x0[0]        = 0.0             # first team fixed for identifiability
+        x0[n:2 * n]  = log_prior_def
         x0[2 * n]    = np.log(1.10)    # start at 10% home advantage for non-neutral games
         x0[2 * n + 1] = -0.1
 
@@ -381,6 +491,9 @@ class DCPredictor:
         self._build_id_name_map()
         self._fitted = True
 
+        # Compute form adjustments now that DC params are available
+        self.form_adjustments = self._compute_form_adjustments(all_matches)
+
         wc_count     = len(wc_matches)
         recent_count = len(recent_matches)
         return {
@@ -392,6 +505,7 @@ class DCPredictor:
             "rho":            round(self.rho, 4),
             "converged":      result.success,
             "message":        result.message,
+            "n_form_teams":   len(self.form_adjustments),
         }
 
     # ── Prediction ────────────────────────────────────────────────────────────
@@ -447,8 +561,15 @@ class DCPredictor:
         atk_a, def_a = self._team_atk_def(away_key)
         ha = self.home_adv if home_advantage else 1.0
 
-        mu_h = atk_h * def_a * ha
-        mu_a = atk_a * def_h
+        # Form adjustments: (attack_mult, defense_conceding_mult) per team.
+        # h_atk_mult: home team scoring more/less than DC expects recently.
+        # a_def_mult: away team conceding more/less than DC expects recently.
+        # Both shift mu_h; symmetric logic applies to mu_a.
+        h_atk_mult, h_def_mult = self.form_adjustments.get(home_key, (1.0, 1.0))
+        a_atk_mult, a_def_mult = self.form_adjustments.get(away_key, (1.0, 1.0))
+
+        mu_h = atk_h * h_atk_mult * def_a * a_def_mult * ha
+        mu_a = atk_a * a_atk_mult * def_h * h_def_mult
 
         goals = np.arange(max_goals + 1)
         mat   = np.outer(poisson.pmf(goals, mu_h), poisson.pmf(goals, mu_a))
@@ -831,11 +952,13 @@ class DCPredictor:
         MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
         MODEL_PATH.write_text(json.dumps(
             {
-                "trained_at":  _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "home_adv":    self.home_adv,
-                "rho":         self.rho,
-                "team_params": self.team_params,
-                "id_to_name":  {str(k): v for k, v in self._id_to_name.items()},
+                "trained_at":       _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "home_adv":         self.home_adv,
+                "rho":              self.rho,
+                "team_params":      self.team_params,
+                "id_to_name":       {str(k): v for k, v in self._id_to_name.items()},
+                "elo_ratings":      self.elo_ratings,
+                "form_adjustments": {k: list(v) for k, v in self.form_adjustments.items()},
             },
             indent=2,
         ))
@@ -847,9 +970,11 @@ class DCPredictor:
                 f"No DC model at {MODEL_PATH}. Run: python wc/scripts/train_dc.py"
             )
         data = json.loads(MODEL_PATH.read_text())
-        self.home_adv    = data["home_adv"]
-        self.rho         = data["rho"]
-        self.team_params = data["team_params"]
-        self._id_to_name = {int(k): v for k, v in data.get("id_to_name", {}).items()}
-        self.trained_at  = data.get("trained_at")
-        self._fitted     = True
+        self.home_adv         = data["home_adv"]
+        self.rho              = data["rho"]
+        self.team_params      = data["team_params"]
+        self._id_to_name      = {int(k): v for k, v in data.get("id_to_name", {}).items()}
+        self.trained_at       = data.get("trained_at")
+        self.elo_ratings      = data.get("elo_ratings", {})
+        self.form_adjustments = {k: tuple(v) for k, v in data.get("form_adjustments", {}).items()}
+        self._fitted          = True
