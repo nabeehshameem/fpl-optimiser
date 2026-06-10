@@ -68,118 +68,135 @@ PLAYER_UNAVAILABLE: dict[str, set[int]] = {
     "davies": {1},     # ACL (March) + hamstring (May, 3rd injury of season) — MD1 very much in doubt
 }
 
+# Named starter probability tiers — use these instead of raw floats.
+# IMPACT_SUB and below = genuinely not expected to start; ROTATION = genuine competition.
+class P:
+    NAILED     = 1.00  # near-certain starter when fit
+    EXPECTED   = 0.88  # strong first-choice, minor doubt
+    LIKELY     = 0.78  # probable starter
+    ROTATION   = 0.65  # genuine competition for starting spot
+    IMPACT_SUB = 0.55  # expected to come off the bench, gets minutes
+    BENCH      = 0.35  # squad depth, unlikely to start
+    FRINGE     = 0.15  # very unlikely to see meaningful minutes
+    OUT        = 0.05  # injury / not in squad
+
+# Unconfirmed intel is capped at LIKELY so a rumour never tanks a player's projection.
+_UNCONFIRMED_FLOOR = P.LIKELY
+
 # Probability that a player starts (gets 60+ min) in a given match.
-# Default = 1.0 (no discount). Apply to squad fillers, rotation players,
-# and anyone with significant competition for their starting spot.
-# Keys are lowercase substrings of the player name.
+# Default = 1.0 (no discount). Keys are lowercase substrings of the player name.
+# Use P.XXX tier constants — never raw floats.
 PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Argentina ────────────────────────────────────────────────────────
-    "messi":        0.90,  # Grade 1 strain only — expected fully fit, guaranteed starter when healthy
-    "soul":         0.50,  # Soulé — young, not yet a regular starter
-    "lo celso":     0.45,  # squad rotational player
-    "barco":        0.40,  # fringe squad
-    "buend":        0.55,  # competes with De Paul / Mac Allister
-    "romero":       0.25,  # partially torn MCL (mid-April), World Cup in jeopardy
+    "messi":        P.EXPECTED,    # Grade 1 strain — expected fully fit, guaranteed starter when healthy
+    "soul":         P.IMPACT_SUB,  # Soulé — young, not yet a regular starter
+    "lo celso":     P.BENCH,       # squad rotational player
+    "barco":        P.BENCH,       # fringe squad
+    "buend":        P.IMPACT_SUB,  # competes with De Paul / Mac Allister
+    "romero":       P.BENCH,       # partially torn MCL (mid-April), World Cup in jeopardy
+    "otamendi":     P.BENCH,       # 3rd-choice CB behind Romero and L. Martínez
+    "nico paz":     P.BENCH,       # won't get minutes over Mac Allister / Enzo / De Paul
 
     # ── Germany ──────────────────────────────────────────────────────────
-    "sané":         0.62,  # rotation risk — Nagelsmann XI leans on Musiala/Wirtz; Sané not guaranteed starter
-    "goretzka":     0.55,  # deep rotation behind Musiala/Wirtz/Kimmich
-    "leweling":     0.60,  # competes for wide role
-    "lennart karl": 0.45,  # Freiburg MID — Germany squad but not guaranteed starter
+    "sané":         P.ROTATION,    # Nagelsmann XI leans on Musiala/Wirtz; not guaranteed starter
+    "goretzka":     P.IMPACT_SUB,  # deep rotation behind Musiala/Wirtz/Kimmich
+    "leweling":     P.ROTATION,    # competes for wide role
+    "lennart karl": P.BENCH,       # Freiburg MID — Germany squad but not guaranteed starter
+    "raum":         P.LIKELY,      # Nathaniel Brown in contention for LB slot
 
     # ── England ──────────────────────────────────────────────────────────
-    "mainoo":       0.65,  # competes with Rice/Bellingham/Foden
-    "rogers":       0.60,  # squad rotation
-    "gordon":       0.60,  # competes with Saka/Palmer
-    "eze":          0.65,  # competes with Palmer/Foden
-    "palmer":       0.70,  # competes with Eze/Foden
+    "mainoo":       P.ROTATION,    # competes with Rice/Bellingham/Foden
+    "rogers":       P.ROTATION,    # squad rotation
+    "gordon":       P.ROTATION,    # competes with Saka/Palmer
+    "eze":          P.ROTATION,    # competes with Palmer/Foden
+    "palmer":       P.LIKELY,      # competes with Eze/Foden
 
     # ── Spain ────────────────────────────────────────────────────────────
-    "yamal":        0.82,  # 44.7% ownership; community expects him fit; revised up from initial fitness doubt
-    "williams":     0.75,  # Nico Williams, competing with Yamal/Olmo
-    "olmo":         0.75,  # competes with Pedri when both fit
-    "gavi":         0.70,  # returning from injury, competes with Zubimendi
-    "merino":       0.35,  # stress fracture in foot (Feb), targeting CL final return — fitness risk
-    "zubimendi":    0.75,  # rotates with Rodri
-    "ferran":       0.50,  # Ferran Torres — super sub behind Williams/Yamal/Oyarzabal, rarely starts
+    "yamal":        P.EXPECTED,    # 44.7% ownership; community expects him fit
+    "williams":     P.LIKELY,      # Nico Williams, competing with Yamal/Olmo
+    "olmo":         P.LIKELY,      # competes with Pedri when both fit
+    "gavi":         P.LIKELY,      # returning from injury, competes with Zubimendi
+    "merino":       P.BENCH,       # stress fracture in foot (Feb), targeting return — fitness risk
+    "zubimendi":    P.LIKELY,      # rotates with Rodri
+    "ferran":       P.IMPACT_SUB,  # super sub behind Williams/Yamal/Oyarzabal, rarely starts
+    "cubar":        P.LIKELY,      # Cubarsi — competes with Laporte/García for CB slot
+    "laporte":      P.LIKELY,      # rotation risk — Cubarsi pushing hard for his CB spot
 
     # ── France ───────────────────────────────────────────────────────────
-    "cherki":       0.65,  # young, competes for wide/10 role
-    "doué":         0.70,  # Désiré Doué — rotation
+    "cherki":       P.ROTATION,    # young, competes for wide/10 role
+    "doué":         P.LIKELY,      # Désiré Doué — rotation
 
     # ── Brazil ───────────────────────────────────────────────────────────
-    "neymar":       0.60,  # injury history, fitness uncertainty at 34
-    "casemiro":     0.75,  # aging, some rotation risk
-    "wesley":       0.70,  # Brazil RB rotation — competes with Vanderson/Danilo
+    "neymar":       P.ROTATION,    # injury history, fitness uncertainty at 34
+    "casemiro":     P.LIKELY,      # aging, some rotation risk
+    "wesley":       P.LIKELY,      # Brazil RB rotation — competes with Vanderson/Danilo
 
     # ── Norway ───────────────────────────────────────────────────────────
-    "sorloth":      0.60,  # backup striker to Haaland
-    "stig":          0.50,  # L. Østigård — Norway 3rd in group; tough France/Senegal fixtures
-    "nusa":         0.65,  # young, rotation with Ødegaard/Aursnes
+    "sorloth":      P.ROTATION,    # backup striker to Haaland
+    "stig":         P.IMPACT_SUB,  # L. Østigård — Norway 3rd in group; tough France/Senegal fixtures
+    "nusa":         P.ROTATION,    # young, rotation with Ødegaard/Aursnes
 
     # ── Portugal ─────────────────────────────────────────────────────────
-    "ronaldo":      0.75,  # 41 years old in 2026; still likely starts but rotation risk
+    "ronaldo":      P.LIKELY,      # 41 years old in 2026; still likely starts but rotation risk
 
     # ── Belgium ──────────────────────────────────────────────────────────
-    "lammens":      0.20,  # Belgium #2 GK — Courtois is clear starter when fit
-    "penders":      0.15,  # Belgium #3 GK
-    "tielemans":    0.75,  # rotates in Belgium's evolving midfield
-    "witsel":       0.50,  # 36 years old in 2026, squad veteran, not guaranteed XI
-    "lukaku":       0.55,  # De Ketelaere expected to start as #9; Lukaku impact sub
+    "lammens":      P.BENCH,       # Belgium #2 GK — Courtois is clear starter when fit
+    "penders":      P.FRINGE,      # Belgium #3 GK
+    "tielemans":    P.LIKELY,      # rotates in Belgium's evolving midfield
+    "witsel":       P.IMPACT_SUB,  # 36 years old in 2026, squad veteran, not guaranteed XI
+    "lukaku":       P.IMPACT_SUB,  # De Ketelaere expected to start as #9; Lukaku impact sub
+    "de cuyper":    P.LIKELY,      # some competition for Belgium LB slot
+
+    # ── USA ───────────────────────────────────────────────────────────────
+    "gutierrez":    P.ROTATION,    # Brian Gutierrez — heavy competition for starting spot
 
     # ── New Zealand ───────────────────────────────────────────────────────
-    "o. sail":      0.70,  # NZ #1 GK — save bonus vs Belgium overstated; model discount applied
+    "o. sail":      P.LIKELY,      # NZ #1 GK — save bonus vs Belgium overstated; model discount applied
 
     # ── Netherlands ──────────────────────────────────────────────────────
-    "timber":       0.40,  # groin injury, no game since March 14 — fitness uncertain
-    "koopmeiners":  0.70,  # competes with Gravenberch/Reijnders
-    "madueke":      0.65,  # wide rotation
-    "schouten":     0.65,  # DM rotation
+    "timber":       P.BENCH,       # groin injury, no game since March 14 — fitness uncertain
+    "koopmeiners":  P.LIKELY,      # competes with Gravenberch/Reijnders
+    "madueke":      P.ROTATION,    # wide rotation
+    "schouten":     P.ROTATION,    # DM rotation
 
     # ── Ghana ────────────────────────────────────────────────────────────
-    "kudus":        0.35,  # quad injury Jan + hamstring setback Apr, WC participation in doubt
+    "kudus":        P.BENCH,       # quad injury Jan + hamstring setback Apr, WC participation in doubt
 
     # ── Morocco ──────────────────────────────────────────────────────────
-    "hakimi":       0.80,  # hamstring (PSG CL semi), expected to recover in time
+    "hakimi":       P.EXPECTED,    # hamstring (PSG CL semi), expected to recover in time
 
     # ── Turkey ───────────────────────────────────────────────────────────
-    "güler":   0.75,  # pulled hamstring (April), on track to recover for tournament
+    "güler":        P.LIKELY,      # pulled hamstring (April), on track to recover for tournament
 
     # ── Croatia ──────────────────────────────────────────────────────────
-    "modri":        0.80,  # cheekbone fracture, shut down for season but confident of recovery
+    "modri":        P.EXPECTED,    # cheekbone fracture, shut down for season but confident of recovery
 
     # ── Canada ───────────────────────────────────────────────────────────
-    "davies":       0.55,  # ACL (March) + hamstring (May), day-by-day rehab
+    "davies":       P.IMPACT_SUB,  # ACL (March) + hamstring (May), day-by-day rehab
 
     # ── Colombia ─────────────────────────────────────────────────────────
-    "mojica":       0.75,  # LB rotation risk — competes with Machado/Arias for left slot
-
-    # ── Argentina ─────────────────────────────────────────────────────────
-    "otamendi":     0.40,  # 3rd-choice CB behind Romero and L. Martínez
-
-    # ── Spain ────────────────────────────────────────────────────────────
-    "cubar":        0.78,  # Cubarsi — competes with Laporte and García for CB slot (key avoids accent: "Cubarsí")
-    "laporte":      0.75,  # rotation risk — Cubarsi pushing hard for his CB spot
+    "mojica":       P.LIKELY,      # LB rotation risk — competes with Machado/Arias for left slot
 
     # ── Mexico ───────────────────────────────────────────────────────────
-    "mateo ch":     0.15,  # Mateo Chávez — widely regarded as second-choice; Aguirre's regular LB is different
-
-    # ── Argentina ────────────────────────────────────────────────────────
-    "nico paz":     0.25,  # won't get minutes over Mac Allister / Enzo / De Paul in Argentina's midfield
+    "mateo ch":     P.FRINGE,      # Mateo Chávez — widely regarded as second-choice LB
 
     # ── Fantasy data artefacts / confirmed non-squad / poor value ────────
-    "tagnaouti":    0.10,  # Morocco backup GK — Bounou is their clear #1
-    "dacosta":      0.05,  # not in Ecuador's actual WC squad
-    "boulbina":     0.05,  # Algeria MID — very low qual probability; poor fantasy value
-    "halhal":       0.05,  # Morocco DEF fringe — not a reliable starter
-    "yaimar":       0.10,  # Ecuador DEF fringe — 0.5% ownership, unlikely starter
-    "jayden":       0.10,  # Jayden Adams (South Africa) — low-qual team, unknown starter
+    "tagnaouti":    P.FRINGE,      # Morocco backup GK — Bounou is their clear #1
+    "dacosta":      P.OUT,         # not in Ecuador's actual WC squad
+    "boulbina":     P.OUT,         # Algeria MID — not in WC squad
+    "halhal":       P.OUT,         # Morocco DEF fringe — not a reliable starter
+    "yaimar":       P.FRINGE,      # Ecuador DEF fringe — 0.5% ownership, unlikely starter
+    "jayden":       P.FRINGE,      # Jayden Adams (South Africa) — low-qual team, unknown starter
+    "sucic":        P.FRINGE,      # Petar Sučić (Croatia MID) — low ownership, fringe pick
+    "vuskovic":     P.FRINGE,      # Luka Vusković (Croatia DEF) — low ownership, fringe pick
 
-    "sucic":        0.10,  # Petar Sučić (Croatia MID) — low ownership, fringe pick
-    "vuskovic":     0.10,  # Luka Vusković (Croatia DEF) — low ownership, fringe pick
+    # ── Iran ─────────────────────────────────────────────────────────────
+    "beiranvand":   P.EXPECTED,    # Iran starter GK — noted for completeness
+}
 
-    # ── Argentina / general bench GKs ────────────────────────────────────
-    "beiranvand":   0.90,  # Iran starter GK — high prob but noted for completeness
+# Intel not yet verified — applied as max(value, _UNCONFIRMED_FLOOR) so a rumour
+# never tanks a player's projection harder than LIKELY (0.78).
+PLAYER_STARTER_PROB_UNCONFIRMED: dict[str, float] = {
 }
 
 # Extra projected points awarded to players with a confirmed set-piece role.
@@ -533,11 +550,18 @@ def _project_mc(
                     projected = projected * (available / n_m) if n_m > 0 else 0.0
                 break
 
-        # Starter probability discount: explicit overrides first, then ownership-derived.
+        # Starter probability discount: confirmed overrides first, then unconfirmed (softcapped), then ownership-derived.
         explicit_prob = next(
             (prob for key, prob in PLAYER_STARTER_PROB.items() if key in name_lower),
             None,
         )
+        if explicit_prob is None:
+            unconf = next(
+                (prob for key, prob in PLAYER_STARTER_PROB_UNCONFIRMED.items() if key in name_lower),
+                None,
+            )
+            if unconf is not None:
+                explicit_prob = max(unconf, _UNCONFIRMED_FLOOR)
         if explicit_prob is not None:
             projected *= explicit_prob
             match_avg *= explicit_prob
