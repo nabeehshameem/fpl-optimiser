@@ -57,10 +57,13 @@ TOURNAMENT_TIERS = {
     "FIFA World Cup qualification":                "A",
     "UEFA European Championship":                  "A",
     "UEFA European Championship qualification":    "A",
+    "UEFA Euro":                                   "A",
     "Copa América":                                "A",
     "Africa Cup of Nations":                       "A",
+    "African Cup of Nations":                      "A",
     "AFC Asian Cup":                               "A",
     "CONCACAF Gold Cup":                           "A",
+    "Gold Cup":                                    "A",
     "AFC Asian Cup qualification":                 "B",
     "UEFA Nations League A":                       "B",
     "UEFA Nations League B":                       "B",
@@ -69,6 +72,10 @@ TOURNAMENT_TIERS = {
     "UEFA Nations League":                         "B",
     "CONCACAF Nations League":                     "B",
     "CAF Africa Cup of Nations qualification":     "B",
+    "African Cup of Nations qualification":        "B",
+    "Gold Cup qualification":                      "B",
+    "CONCACAF Series":                             "B",
+    "FIFA Series":                                 "B",
     "CONMEBOL-UEFA Cup of Champions":              "B",
     "Intercontinental Playoff":                    "B",
     "Friendly":                                    "C",
@@ -355,7 +362,7 @@ class DCPredictor:
 
         result = minimize(
             neg_ll, x0, method="L-BFGS-B", bounds=bounds,
-            options={"maxiter": 50000, "ftol": 1e-9, "gtol": 1e-5},
+            options={"maxiter": 500, "maxfun": 100000, "ftol": 1e-7, "gtol": 1e-3},
         )
 
         opt     = result.x
