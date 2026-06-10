@@ -192,6 +192,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── Iran ─────────────────────────────────────────────────────────────
     "beiranvand":   P.EXPECTED,    # Iran starter GK — noted for completeness
+    "shobeir":      P.IMPACT_SUB,  # Iran — not a nailed starter, expected impact sub
 }
 
 # Intel not yet verified — applied as max(value, _UNCONFIRMED_FLOOR) so a rumour
@@ -741,9 +742,10 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
 
     if booster == "12th_man":
         squad_ids = {p["id"] for p in squad}
+        # Sort by pts_per_match: the chip applies for one matchday, not the full group stage.
         external  = sorted(
             [p for p in players if p["id"] not in squad_ids],
-            key=lambda p: p["projected_pts"], reverse=True,
+            key=lambda p: p.get("pts_per_match", 0.0), reverse=True,
         )
         out["twelfth_man"] = external[0] if external else None
 
