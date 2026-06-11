@@ -291,6 +291,7 @@ class OptimiseRequest(BaseModel):
     booster: Optional[Literal["wildcard", "12th_man", "max_captain", "qualification_booster"]] = None
     locked_player_ids: list[int] = Field(default_factory=list)
     locked_starter_ids: list[int] = Field(default_factory=list)
+    matchdays: Optional[list[int]] = Field(default=None, description="Matchdays to optimise for, e.g. [1,2]. None = full group stage.")
 
 
 class PlayersResponse(BaseModel):
@@ -313,11 +314,19 @@ class OptimiseResponse(BaseModel):
     total_cost_m: float
     captain: FantasyPlayerOut
     booster: Optional[str] = None
+    model_trained_at: Optional[str] = None
     twelfth_man: Optional[FantasyPlayerOut] = None
     max_cap_candidates: Optional[list[FantasyPlayerOut]] = None
     expected_max_cap_pts: Optional[float] = None
     qual_booster_breakdown: Optional[list[QualBonusEntry]] = None
     qual_booster_total: Optional[float] = None
+    wildcard_recommendation: Optional[str] = None
+    wildcard_matchday: Optional[int] = None
+    wildcard_squad: Optional[list[FantasyPlayerOut]] = None
+    wildcard_starters: Optional[list[FantasyPlayerOut]] = None
+    wildcard_bench: Optional[list[FantasyPlayerOut]] = None
+    wildcard_captain: Optional[FantasyPlayerOut] = None
+    wildcard_total_pts: Optional[float] = None
 
 
 class CaptainsResponse(BaseModel):
@@ -349,7 +358,8 @@ def fantasy_optimise(req: OptimiseRequest, request: Request):
     try:
         res = _optimise(budget=req.budget, predictor=_predictor, booster=req.booster,
                         locked_player_ids=req.locked_player_ids or [],
-                        locked_starter_ids=req.locked_starter_ids or [])
+                        locked_starter_ids=req.locked_starter_ids or [],
+                        matchdays=req.matchdays or None)
     except RuntimeError:
         logger.exception("fantasy optimise failed")
         raise HTTPException(status_code=503, detail="Optimisation unavailable. Try again shortly.")
@@ -361,6 +371,9 @@ def fantasy_optimise(req: OptimiseRequest, request: Request):
     twelfth_man = _fmt_player(res["twelfth_man"]) if res.get("twelfth_man") else None
     max_cap_candidates = [_fmt_player(p) for p in res.get("max_cap_candidates") or []]
 
+    wc_cap = res.get("wildcard_captain")
+    wc_cap_id = wc_cap["id"] if wc_cap else None
+
     return OptimiseResponse(
         squad=squad,
         starters=starters,
@@ -370,11 +383,19 @@ def fantasy_optimise(req: OptimiseRequest, request: Request):
         total_cost_m=round(res["total_cost"] / 10, 1),
         captain=_fmt_player(res["captain"], is_captain=True),
         booster=req.booster,
+        model_trained_at=res.get("model_trained_at"),
         twelfth_man=twelfth_man,
         max_cap_candidates=max_cap_candidates or None,
         expected_max_cap_pts=res.get("expected_max_cap_pts"),
         qual_booster_breakdown=res.get("qual_booster_breakdown"),
         qual_booster_total=res.get("qual_booster_total"),
+        wildcard_recommendation=res.get("wildcard_recommendation"),
+        wildcard_matchday=res.get("wildcard_matchday"),
+        wildcard_squad=[_fmt_player(p, is_captain=(p["id"] == wc_cap_id)) for p in res.get("wildcard_squad") or []] or None,
+        wildcard_starters=[_fmt_player(p, is_captain=(p["id"] == wc_cap_id)) for p in res.get("wildcard_starters") or []] or None,
+        wildcard_bench=[_fmt_player(p) for p in res.get("wildcard_bench") or []] or None,
+        wildcard_captain=_fmt_player(wc_cap, is_captain=True) if wc_cap else None,
+        wildcard_total_pts=res.get("wildcard_total_pts"),
     )
 
 

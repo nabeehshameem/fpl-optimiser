@@ -105,6 +105,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "raum":         P.LIKELY,      # Nathaniel Brown in contention for LB slot
 
     # ── England ──────────────────────────────────────────────────────────
+    "saka":         P.LIKELY,      # hamstring late in Arsenal season; expected fit but not nailed
     "mainoo":       P.ROTATION,    # competes with Rice/Bellingham/Foden
     "rogers":       P.ROTATION,    # squad rotation
     "gordon":       P.ROTATION,    # competes with Saka/Palmer
@@ -185,6 +186,8 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── Fantasy data artefacts / confirmed non-squad / poor value ────────
     "tagnaouti":    P.FRINGE,      # Morocco backup GK — Bounou is their clear #1
+    "abunada":      P.FRINGE,      # Qatar GK — Qatar are among the weakest teams; minimal CS/save ceiling
+    "mastil":       P.BENCH,       # Algeria GK — inflated by Jordan MD1 but faces Argentina MD2; poor value
     "dacosta":      P.OUT,         # not in Ecuador's actual WC squad
     "boulbina":     P.OUT,         # Algeria MID — not in WC squad
     "halhal":       P.OUT,         # Morocco DEF fringe — not a reliable starter
@@ -248,6 +251,7 @@ PLAYER_CDM_DISCOUNT: dict[str, float] = {
     "camavinga":    0.45,  # France CM, more box-to-box but still low goal return
     "amrabat":      0.30,  # Morocco DM
     "gravenberch":  0.45,  # Netherlands CM — runner, rarely scores
+    "joão neves": 0.35,  # Portugal CDM — holding role, very low personal goal/assist ceiling
     "goretzka":     0.55,  # Germany box-to-box, some goals but limited
     "mac allister": 0.30,  # Argentina CDM — sits deep, low personal goal/assist ceiling
 }
@@ -336,11 +340,16 @@ def _get_qual_probs(predictor=None) -> dict[str, dict]:
         return {}
 
 
-def _build_fixture_lambdas(dc: dict, matchday: int | None = None) -> dict[str, list[tuple[float, float]]]:
+def _build_fixture_lambdas(
+    dc: dict,
+    matchday: int | None = None,
+    matchdays: list[int] | None = None,
+) -> dict[str, list[tuple[float, float]]]:
     """
     For each WC team compute (lambda_for, lambda_against) per match.
-    matchday=None  → all 3 group matches per team (original behaviour).
-    matchday=1/2/3 → only the fixture(s) in that matchday from the fixtures table.
+    matchdays=[1,2] → fixtures from those specific matchdays (DB lookup).
+    matchday=1/2/3  → single matchday (DB lookup, kept for captain_picks).
+    Neither         → all 3 group matches from WC2026_GROUPS.
     Returns canonical_name -> [(lf, la), ...].
     """
     team_params = dc.get("team_params", {})
@@ -356,15 +365,20 @@ def _build_fixture_lambdas(dc: dict, matchday: int | None = None) -> dict[str, l
 
     result: dict[str, list[tuple[float, float]]] = {}
 
-    if matchday is not None:
+    mds = matchdays if matchdays is not None else ([matchday] if matchday is not None else None)
+    if mds is not None:
         conn = sqlite3.connect(DB_PATH)
-        rows = conn.execute("""
+        rows = conn.execute(
+            f"""
             SELECT ht.name, at.name
             FROM   fixtures f
             JOIN   teams ht ON f.home_team_id = ht.team_id
             JOIN   teams at ON f.away_team_id = at.team_id
-            WHERE  f.matchday = ?
-        """, (matchday,)).fetchall()
+            WHERE  f.matchday IN ({','.join('?' * len(mds))})
+            ORDER  BY f.kickoff_time
+            """,
+            mds,
+        ).fetchall()
         conn.close()
         for home, away in rows:
             hk, ak = _canonical(home), _canonical(away)
@@ -390,14 +404,17 @@ def _project_mc(
     n_sim: int = 50_000,
     qual_probs: dict | None = None,
     matchday: int | None = None,
+    matchdays: list[int] | None = None,
 ) -> list[dict]:
     """
     Monte Carlo projection using actual WC2026 group fixtures.
 
-    matchday=None  → project over all 3 group matches (full-tournament view).
-    matchday=1/2/3 → project only the fixtures played on that matchday.
+    matchdays=[1,2] → project only over those matchdays (e.g. MD1+MD2 squad build).
+    matchday=1/2/3  → single matchday (captain picks / live advice).
+    Neither         → all 3 group matches (full-tournament view).
 
     qual_probs: optional {canonical_team: {qf_pct, ...}} for Qualification Booster.
+    Qual bonus is always included when matchday is None (covers both MD1+MD2 and full views).
     """
     rng = np.random.default_rng(42)
 
@@ -408,8 +425,11 @@ def _project_mc(
     else:
         mean_atk = mean_def = 1.0
 
-    fixture_lambdas = _build_fixture_lambdas(dc, matchday=matchday)
-    n_matches_default = 1 if matchday is not None else 3
+    fixture_lambdas = _build_fixture_lambdas(dc, matchday=matchday, matchdays=matchdays)
+    n_matches_default = (
+        len(matchdays) if matchdays is not None
+        else (1 if matchday is not None else 3)
+    )
     fallback = [(mean_atk * mean_def, mean_atk * mean_def)] * n_matches_default
 
     # Pre-compute per-team average goals-against lambda.
@@ -497,14 +517,16 @@ def _project_mc(
         match_avg = float((appearance + pt_g + pt_a + cs_pts + concede_pts + save_pts + stat_bonus).mean())
 
         # Defensive context discount for GK/DEF from high-conceding teams.
-        # Teams with avg goals-against > 0.75 across their 3 fixtures get a graded
-        # penalty (max 25% for the weakest defensive groups).  This is additional to
-        # what the MC already captures — it penalises variance risk and the tendency
-        # for the Iraq-game spike to over-value defenders from mixed-fixture teams.
+        # GKs get a steeper penalty than DEFs: a GK from a team expected to concede
+        # 2+ goals/game is a bad fantasy pick (no CS, concede penalty stacks) whereas
+        # a DEF on the same team can still contribute goal/assist points.
         if pos in ("GK", "DEF") and matchday is None:
             avg_la = team_avg_la.get(tk, 1.0)
             if avg_la > 0.75:
-                def_ctx = max(0.75, 1.0 - (avg_la - 0.75) * 0.25)
+                if pos == "GK":
+                    def_ctx = max(0.45, 1.0 - (avg_la - 0.75) * 0.55)
+                else:
+                    def_ctx = max(0.75, 1.0 - (avg_la - 0.75) * 0.25)
                 match_avg *= def_ctx
 
         # Host nation advantage: USA/Mexico/Canada get 10% uplift on expected pts.
@@ -604,7 +626,8 @@ def _project_mc(
 
 def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None = None,
              locked_player_ids: list[int] | None = None,
-             locked_starter_ids: list[int] | None = None) -> dict:
+             locked_starter_ids: list[int] | None = None,
+             matchdays: list[int] | None = None) -> dict:
     """
     Select the optimal 15-player squad with explicit starting XI (11) and bench (4).
 
@@ -629,7 +652,7 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
 
     dc         = _load_dc()
     qual_probs = _get_qual_probs(predictor)
-    players    = _project_mc(players, dc, qual_probs=qual_probs)
+    players    = _project_mc(players, dc, qual_probs=qual_probs, matchdays=matchdays)
     n          = len(players)
 
     pts    = np.array([p["projected_pts"] for p in players], dtype=float)
@@ -641,7 +664,7 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
     # Objective: minimise −(sum(s_i*pts_i) + sum(c_i*pts_i))
     # Decompose: x_i gets BENCH_WEIGHT×pts, s_i gets (1−BENCH_WEIGHT)×pts, starter still totals pts.
     # Bench player earns BENCH_WEIGHT×pts, giving the solver an incentive to pick quality live subs.
-    BENCH_WEIGHT = 0.35
+    BENCH_WEIGHT = 0.45
     obj = np.concatenate([-pts * BENCH_WEIGHT, -pts * (1 - BENCH_WEIGHT), -pts])
 
     rows: list[np.ndarray] = []
@@ -733,17 +756,33 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
     starters = [p for p in squad if p["is_starter"]]
     bench    = [p for p in squad if not p["is_starter"]]
 
+    model_trained_at = dc.get("trained_at", None)
+
     out: dict = {
-        "squad":      squad,
-        "starters":   starters,
-        "bench":      bench,
-        "total_pts":  round(sum(p["projected_pts"] for p in starters) + captain["projected_pts"], 1),
-        "total_cost": int(sum(p["price"] for p in squad)),
-        "captain":    captain,
-        "booster":    booster,
+        "squad":            squad,
+        "starters":         starters,
+        "bench":            bench,
+        "total_pts":        round(sum(p["projected_pts"] for p in starters) + captain["projected_pts"], 1),
+        "total_cost":       int(sum(p["price"] for p in squad)),
+        "captain":          captain,
+        "booster":          booster,
+        "model_trained_at": model_trained_at,
     }
 
-    if booster == "12th_man":
+    if booster == "wildcard":
+        # Compute optimal MD3 squad — model recommends saving wildcard for MD3 since
+        # unlimited transfers kick in after the group stage anyway.
+        md3_res = optimise(budget=budget, predictor=predictor, booster=None,
+                           locked_player_ids=None, locked_starter_ids=None, matchdays=[3])
+        out["wildcard_recommendation"] = "Model predicts the best time to use your Wildcard is Matchday 3."
+        out["wildcard_matchday"] = 3
+        out["wildcard_squad"]    = md3_res["squad"]
+        out["wildcard_starters"] = md3_res["starters"]
+        out["wildcard_bench"]    = md3_res["bench"]
+        out["wildcard_captain"]  = md3_res["captain"]
+        out["wildcard_total_pts"] = md3_res["total_pts"]
+
+    elif booster == "12th_man":
         squad_ids = {p["id"] for p in squad}
         # Sort by pts_per_match: the chip applies for one matchday, not the full group stage.
         external  = sorted(
