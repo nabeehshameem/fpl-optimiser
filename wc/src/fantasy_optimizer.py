@@ -103,6 +103,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "leweling":     P.ROTATION,    # competes for wide role
     "lennart karl": P.BENCH,       # Freiburg MID — Germany squad but not guaranteed starter
     "raum":         P.LIKELY,      # Nathaniel Brown in contention for LB slot
+    "undav":        P.ROTATION,    # competes for starting spot behind Havertz (primary #9)
 
     # ── England ──────────────────────────────────────────────────────────
     "saka":         P.LIKELY,      # hamstring late in Arsenal season; expected fit but not nailed
