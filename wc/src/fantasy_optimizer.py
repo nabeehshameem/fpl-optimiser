@@ -107,6 +107,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── England ──────────────────────────────────────────────────────────
     "saka":         P.LIKELY,      # hamstring late in Arsenal season; expected fit but not nailed
+    "reece james":  P.LIKELY,      # recurring knee/hamstring issues through 2024-25 season
     "mainoo":       P.ROTATION,    # competes with Rice/Bellingham/Foden
     "rogers":       P.ROTATION,    # squad rotation
     "gordon":       P.ROTATION,    # competes with Saka/Palmer
