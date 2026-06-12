@@ -572,13 +572,13 @@ class DCPredictor:
         mu_a = atk_a * a_atk_mult * def_h * h_def_mult
 
         # Mismatch boost: weak teams' params are calibrated against weaker opposition
-        # than they face at a WC. When one side is dominant (ratio > 2.0), the stronger
-        # team's xG is slightly inflated — capped at +15% to avoid overreaction.
+        # than they face at a WC. When one side is dominant (ratio > 1.5), the stronger
+        # team's xG is inflated — capped at +35% to allow genuine blowout predictions.
         _ratio = mu_h / max(mu_a, 0.1)
-        if _ratio > 2.0:
-            mu_h *= min(1.15, 1.0 + 0.06 * (_ratio - 2.0))
-        elif _ratio < 0.5:
-            mu_a *= min(1.15, 1.0 + 0.06 * (1.0 / max(_ratio, 0.01) - 2.0))
+        if _ratio > 1.5:
+            mu_h *= min(1.35, 1.0 + 0.20 * (_ratio - 1.5))
+        elif _ratio < 1.0 / 1.5:
+            mu_a *= min(1.35, 1.0 + 0.20 * (1.0 / max(_ratio, 0.01) - 1.5))
 
         goals = np.arange(max_goals + 1)
         mat   = np.outer(poisson.pmf(goals, mu_h), poisson.pmf(goals, mu_a))
@@ -669,10 +669,10 @@ class DCPredictor:
         mu_h = atk_h * def_a * ha
         mu_a = atk_a * def_h
         _ratio = mu_h / max(mu_a, 0.1)
-        if _ratio > 2.0:
-            mu_h *= min(1.15, 1.0 + 0.06 * (_ratio - 2.0))
-        elif _ratio < 0.5:
-            mu_a *= min(1.15, 1.0 + 0.06 * (1.0 / max(_ratio, 0.01) - 2.0))
+        if _ratio > 1.5:
+            mu_h *= min(1.35, 1.0 + 0.20 * (_ratio - 1.5))
+        elif _ratio < 1.0 / 1.5:
+            mu_a *= min(1.35, 1.0 + 0.20 * (1.0 / max(_ratio, 0.01) - 1.5))
         hg = int(rng.poisson(mu_h))
         ag = int(rng.poisson(mu_a))
         # DC low-score correction: accept/reject via tau
