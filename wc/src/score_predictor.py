@@ -340,9 +340,9 @@ class DCPredictor:
             raw_atk = float(np.average(scored_ratios, weights=w))
             raw_def = float(np.average(conceded_ratios, weights=w))
 
-            # Dampen 35% toward 1.0 and cap at ±15%
-            atk_mult = max(0.85, min(1.15, 1.0 + 0.35 * (raw_atk - 1.0)))
-            def_mult = max(0.85, min(1.15, 1.0 + 0.35 * (raw_def - 1.0)))
+            # Dampen 55% toward 1.0 and cap at ±20%
+            atk_mult = max(0.80, min(1.20, 1.0 + 0.55 * (raw_atk - 1.0)))
+            def_mult = max(0.80, min(1.20, 1.0 + 0.55 * (raw_def - 1.0)))
 
             adjustments[team] = (atk_mult, def_mult)
 
@@ -397,7 +397,7 @@ class DCPredictor:
         # Pure ELO lets recent-tournament outliers (Morocco WC2022 run) dominate;
         # pure FIFA rank ignores current form. 55/45 blend captures both.
         # Non-WC teams fit freely as reference points.
-        REG_LAMBDA = 12.0
+        REG_LAMBDA = 7.0
         rank_map   = self._load_team_ranks()   # {canonical: FIFA-rank prior strength}
 
         elo_ratings      = self._compute_elo(all_matches)
