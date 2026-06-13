@@ -843,6 +843,25 @@ class DCPredictor:
         hg_all = rng.poisson(np.tile(mu_h_gm, (n_sim, 1)))  # (n_sim, 72)
         ag_all = rng.poisson(np.tile(mu_a_gm, (n_sim, 1)))  # (n_sim, 72)
 
+        # ── Pin already-played group matches to actual results ────────────────
+        conn = sqlite3.connect(DB_PATH)
+        played_rows = conn.execute(
+            "SELECT home_team, away_team, home_score, away_score FROM match_stats"
+        ).fetchall()
+        conn.close()
+        played_map = {
+            (_canonical(h), _canonical(a)): (int(hs), int(as_))
+            for h, a, hs, as_ in played_rows
+            if hs is not None and as_ is not None
+        }
+        for m in range(M):
+            h_key = all_keys[gm_h[m]]
+            a_key = all_keys[gm_a[m]]
+            if (h_key, a_key) in played_map:
+                hg, ag = played_map[(h_key, a_key)]
+                hg_all[:, m] = hg
+                ag_all[:, m] = ag
+
         # ── Accumulate group standings ────────────────────────────────────────
         pts_arr = np.zeros((n_sim, 12, 4), dtype=np.int32)
         gd_arr  = np.zeros((n_sim, 12, 4), dtype=np.int32)
