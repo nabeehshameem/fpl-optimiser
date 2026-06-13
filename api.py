@@ -62,6 +62,10 @@ _load_error: str | None = None
 _sim_cache: dict[int, tuple[float, list]] = {}
 _SIM_CACHE_TTL = 1800
 
+# ── Captain picks cache (keyed by (top_n, matchday), TTL = 30 min) ───────────
+_captains_cache: dict[tuple, tuple[float, list]] = {}
+_CAPTAINS_CACHE_TTL = 1800
+
 # ── Rate limiter ──────────────────────────────────────────────────────────────
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
@@ -416,8 +420,14 @@ def fantasy_captains(request: Request, top_n: int = 10, matchday: int | None = N
     top_n = min(max(top_n, 1), 20)
     if matchday is not None:
         matchday = max(1, min(3, matchday))
+    cache_key = (top_n, matchday)
+    cached = _captains_cache.get(cache_key)
+    if cached and time.time() - cached[0] < _CAPTAINS_CACHE_TTL:
+        return CaptainsResponse(picks=cached[1])
     picks = _captain_picks(top_n=top_n, predictor=_predictor, matchday=matchday)
-    return CaptainsResponse(picks=[_fmt_player(p) for p in picks])
+    formatted = [_fmt_player(p) for p in picks]
+    _captains_cache[cache_key] = (time.time(), formatted)
+    return CaptainsResponse(picks=formatted)
 
 
 @app.get("/api/wc/fantasy/captains/live", response_model=LiveAdviceResponse)
@@ -550,6 +560,7 @@ def _run_retrain() -> None:
         p.load()
         _predictor = p
         _sim_cache.clear()
+        _captains_cache.clear()
         _retrain_status["last"] = "success"
         _retrain_status["last_time"] = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         _retrain_status["error"] = None
