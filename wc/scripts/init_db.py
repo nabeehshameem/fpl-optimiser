@@ -155,6 +155,60 @@ SCHEMA = [
         neutral    INTEGER DEFAULT 0
     )
     """,
+    # Team-level match statistics for WC2026 (from API-Football)
+    # xg_home/xg_away: expected goals per team. shots_on_target, possession included
+    # for future model enhancements. api_fixture_id links back to API-Football's ID.
+    """
+    CREATE TABLE IF NOT EXISTS match_stats (
+        stat_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        api_fixture_id  INTEGER UNIQUE,
+        match_date      TEXT NOT NULL,
+        home_team       TEXT NOT NULL,
+        away_team       TEXT NOT NULL,
+        home_score      INTEGER,
+        away_score      INTEGER,
+        xg_home         REAL,
+        xg_away         REAL,
+        shots_home      INTEGER,
+        shots_away      INTEGER,
+        shots_on_home   INTEGER,
+        shots_on_away   INTEGER,
+        possession_home INTEGER,
+        possession_away INTEGER,
+        tournament      TEXT DEFAULT 'FIFA World Cup'
+    )
+    """,
+    # Player events for WC2026 (goals, assists, yellow/red cards, substitutions)
+    # Keyed by player name + fixture since we don't have StatsBomb IDs for WC2026 players yet.
+    """
+    CREATE TABLE IF NOT EXISTS match_events (
+        event_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        api_fixture_id  INTEGER NOT NULL,
+        match_date      TEXT NOT NULL,
+        team_name       TEXT NOT NULL,
+        player_name     TEXT NOT NULL,
+        event_type      TEXT NOT NULL,
+        event_detail    TEXT,
+        minute          INTEGER,
+        assist_player   TEXT,
+        UNIQUE (api_fixture_id, player_name, event_type, minute)
+    )
+    """,
+    # Player appearances (minutes played per WC2026 match)
+    # Separate from match_events since appearance data comes from lineups endpoint.
+    """
+    CREATE TABLE IF NOT EXISTS match_lineups (
+        lineup_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        api_fixture_id  INTEGER NOT NULL,
+        match_date      TEXT NOT NULL,
+        team_name       TEXT NOT NULL,
+        player_name     TEXT NOT NULL,
+        position        TEXT,
+        minutes_played  INTEGER DEFAULT 0,
+        is_starter      INTEGER DEFAULT 1,
+        UNIQUE (api_fixture_id, player_name)
+    )
+    """,
 ]
 
 INDEXES = [
@@ -163,6 +217,11 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_fix_md     ON fixtures(matchday)",
     "CREATE INDEX IF NOT EXISTS idx_pred_fmd   ON predictions(fantasy_id, matchday)",
     "CREATE INDEX IF NOT EXISTS idx_rr_date    ON recent_results(match_date)",
+    "CREATE INDEX IF NOT EXISTS idx_ms_fixture ON match_stats(api_fixture_id)",
+    "CREATE INDEX IF NOT EXISTS idx_me_fixture ON match_events(api_fixture_id)",
+    "CREATE INDEX IF NOT EXISTS idx_ml_fixture ON match_lineups(api_fixture_id)",
+    "CREATE INDEX IF NOT EXISTS idx_me_player  ON match_events(player_name)",
+    "CREATE INDEX IF NOT EXISTS idx_ml_player  ON match_lineups(player_name)",
 ]
 
 
