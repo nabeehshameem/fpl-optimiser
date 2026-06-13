@@ -209,6 +209,28 @@ SCHEMA = [
         UNIQUE (api_fixture_id, player_name)
     )
     """,
+    # Computed WC2026 fantasy points per player per match
+    # Derived from match_lineups (minutes, position) + match_events (goals/assists/cards)
+    # + match_stats (goals conceded for CS / conceded-penalty calculation).
+    """
+    CREATE TABLE IF NOT EXISTS wc2026_player_points (
+        points_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        api_fixture_id INTEGER NOT NULL,
+        match_date     TEXT NOT NULL,
+        team_name      TEXT NOT NULL,
+        player_name    TEXT NOT NULL,
+        position       TEXT,
+        minutes        INTEGER DEFAULT 0,
+        goals          INTEGER DEFAULT 0,
+        assists        INTEGER DEFAULT 0,
+        yellow_cards   INTEGER DEFAULT 0,
+        red_cards      INTEGER DEFAULT 0,
+        clean_sheet    INTEGER DEFAULT 0,
+        goals_conceded INTEGER DEFAULT 0,
+        fantasy_pts    REAL DEFAULT 0.0,
+        UNIQUE (api_fixture_id, player_name)
+    )
+    """,
 ]
 
 INDEXES = [
@@ -222,6 +244,9 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_ml_fixture ON match_lineups(api_fixture_id)",
     "CREATE INDEX IF NOT EXISTS idx_me_player  ON match_events(player_name)",
     "CREATE INDEX IF NOT EXISTS idx_ml_player  ON match_lineups(player_name)",
+    "CREATE INDEX IF NOT EXISTS idx_pp_fixture ON wc2026_player_points(api_fixture_id)",
+    "CREATE INDEX IF NOT EXISTS idx_pp_player  ON wc2026_player_points(player_name)",
+    "CREATE INDEX IF NOT EXISTS idx_pp_team    ON wc2026_player_points(team_name)",
 ]
 
 

@@ -109,6 +109,9 @@ TEAM_ALIASES: dict[str, str] = {
     "türkiye":                      "turkey",
     "curacao":                      "curacao",
     "antigua & barbuda":            "antigua and barbuda",
+    # SofaScore name variants
+    "czechia":                      "czech republic",
+    "bosnia & herzegovina":         "bosnia and herzegovina",
 }
 
 
@@ -256,6 +259,22 @@ class DCPredictor:
         conn.close()
         return {_canonical(r[0]): _rank_prior(int(r[1])) for r in rows}
 
+    def _load_match_xg(self) -> dict[tuple, tuple]:
+        """xG from match_stats keyed by (home_canon, away_canon, date). Returns {} on failure."""
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            rows = conn.execute(
+                "SELECT match_date, home_team, away_team, xg_home, xg_away "
+                "FROM match_stats WHERE xg_home IS NOT NULL"
+            ).fetchall()
+            conn.close()
+        except Exception:
+            return {}
+        return {
+            (_canonical(home), _canonical(away), str(d)[:10]): (float(xg_h), float(xg_a))
+            for d, home, away, xg_h, xg_a in rows
+        }
+
     # ── ELO + form ────────────────────────────────────────────────────────────
 
     def _compute_elo(self, all_matches: list[dict]) -> dict[str, float]:
@@ -308,12 +327,19 @@ class DCPredictor:
             key=lambda x: x["match_date"],
         )
 
+        xg_lookup = self._load_match_xg()
+
         # Accumulate per team: list of (actual_scored, exp_scored, actual_conceded, exp_conceded)
         records: dict[str, list[tuple[float, float, float, float]]] = {}
 
         for m in recent:
             h, a = m["home_key"], m["away_key"]
-            hg, ag = float(m["home_goals"]), float(m["away_goals"])
+            # Use xG when available — more reliable form signal than noisy actual goals
+            xg_key = (_canonical(h), _canonical(a), str(m["match_date"])[:10])
+            if xg_key in xg_lookup:
+                hg, ag = xg_lookup[xg_key]
+            else:
+                hg, ag = float(m["home_goals"]), float(m["away_goals"])
 
             atk_h, def_h = self._team_atk_def(h)
             atk_a, def_a = self._team_atk_def(a)
