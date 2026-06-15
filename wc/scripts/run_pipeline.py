@@ -22,31 +22,30 @@ def header(title: str) -> None:
     print(f"\n{'='*55}\n  {title}\n{'='*55}")
 
 
+def _run_script(path: str) -> None:
+    """Run a script via runpy with a clean sys.argv so its argparse doesn't choke."""
+    import runpy
+    saved_argv = sys.argv[:]
+    sys.argv = [path]
+    try:
+        runpy.run_path(path, run_name="__main__")
+    finally:
+        sys.argv = saved_argv
+
+
 def run_ingest() -> int:
     header("Step 1/3 — Ingest match stats")
-    import runpy
-    runpy.run_path(
-        str(PROJECT_ROOT / "wc" / "scripts" / "ingest_match_stats.py"),
-        run_name="__main__",
-    )
+    _run_script(str(PROJECT_ROOT / "wc" / "scripts" / "ingest_match_stats.py"))
 
 
 def run_compute() -> None:
     header("Step 2/3 — Compute fantasy points")
-    import runpy
-    runpy.run_path(
-        str(PROJECT_ROOT / "wc" / "scripts" / "compute_wc2026_points.py"),
-        run_name="__main__",
-    )
+    _run_script(str(PROJECT_ROOT / "wc" / "scripts" / "compute_wc2026_points.py"))
 
 
 def run_retrain() -> None:
     header("Step 3/3 — Retrain DC model")
-    import runpy
-    runpy.run_path(
-        str(PROJECT_ROOT / "wc" / "scripts" / "train_dc.py"),
-        run_name="__main__",
-    )
+    _run_script(str(PROJECT_ROOT / "wc" / "scripts" / "train_dc.py"))
 
 
 def git_push() -> None:
