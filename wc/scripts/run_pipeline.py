@@ -109,9 +109,11 @@ def show_recommendations(matchday: int) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="WC2026 full pipeline")
-    parser.add_argument("--no-push", action="store_true", help="Skip git push")
-    parser.add_argument("--md",      type=int, default=None, help="Show recommendations for matchday N after pipeline")
+    parser.add_argument("--no-push",   action="store_true", help="Skip git push")
+    parser.add_argument("--md",        type=int, default=None, help="Show recommendations for matchday N after pipeline")
     parser.add_argument("--recs-only", action="store_true", help="Skip pipeline, just show recommendations")
+    parser.add_argument("--report",    action="store_true", help="Show batch report after pipeline (results, standings, bracket%, fantasy pts)")
+    parser.add_argument("--since",     default=None, help="Filter report to results since YYYY-MM-DD")
     args = parser.parse_args()
 
     t0 = time.time()
@@ -124,6 +126,10 @@ def main() -> None:
             git_push()
         else:
             print("\n[--no-push] Skipped git push.")
+
+    if args.report or args.since:
+        from wc.scripts.report_batch import run_report
+        run_report(since=args.since, matchday=args.md)
 
     if args.md:
         show_recommendations(args.md)
