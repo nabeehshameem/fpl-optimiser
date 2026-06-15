@@ -317,12 +317,17 @@ class DCPredictor:
         """
         from datetime import timedelta
         cutoff = str(date.today() - timedelta(days=window_days))
-        # Only tier A/B — friendlies are unreliable (squad rotation, low stakes)
+        # Pre-tournament friendlies (last 90 days) are the most relevant signal
+        # even if tier C — include them. Older tier C friendlies remain excluded.
+        recent_cutoff = str(date.today() - timedelta(days=90))
         recent = sorted(
             [
                 m for m in all_matches
                 if m.get("match_date", "") >= cutoff
-                and m.get("tier", "C") in ("A", "B")
+                and (
+                    m.get("tier", "C") in ("A", "B")
+                    or m.get("match_date", "") >= recent_cutoff
+                )
             ],
             key=lambda x: x["match_date"],
         )
