@@ -203,6 +203,34 @@ class DCPredictor:
             })
         return out
 
+    def _load_wc2026_matches(self) -> list[dict]:
+        """WC2026 results from match_stats — highest weight, exact current tournament."""
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            rows = conn.execute("""
+                SELECT match_date, home_team, away_team, home_score, away_score
+                FROM match_stats
+                WHERE home_score IS NOT NULL AND away_score IS NOT NULL
+            """).fetchall()
+            conn.close()
+        except Exception:
+            return []
+        out = []
+        for match_date, home, away, hg, ag in rows:
+            out.append({
+                "home_key":   _canonical(home),
+                "away_key":   _canonical(away),
+                "home_goals": int(hg),
+                "away_goals": int(ag),
+                "weight":     2.5,  # 2.5× WC2022 — current tournament, exact squads
+                "neutral":    True,
+                "home_id":    None,
+                "away_id":    None,
+                "match_date": str(match_date),
+                "tier":       "A",
+            })
+        return out
+
     def _load_recent_matches(self) -> list[dict]:
         """Recent international results from recent_results table."""
         conn = sqlite3.connect(DB_PATH)
@@ -386,9 +414,11 @@ class DCPredictor:
         Fit Dixon-Coles on WC historical + recent international form.
         Returns a dict with fit diagnostics.
         """
-        wc_matches     = self._load_wc_matches()
-        recent_matches = self._load_recent_matches()
-        all_matches    = wc_matches + recent_matches
+        wc_matches      = self._load_wc_matches()
+        wc2026_matches  = self._load_wc2026_matches()
+        recent_matches  = self._load_recent_matches()
+        # WC2026 goes last so form adjustments use it as the most recent signal
+        all_matches     = wc_matches + recent_matches + wc2026_matches
 
         if not all_matches:
             raise RuntimeError(
@@ -525,12 +555,11 @@ class DCPredictor:
         # Compute form adjustments now that DC params are available
         self.form_adjustments = self._compute_form_adjustments(all_matches)
 
-        wc_count     = len(wc_matches)
-        recent_count = len(recent_matches)
         return {
             "n_teams":        n,
-            "n_wc_matches":   wc_count,
-            "n_recent":       recent_count,
+            "n_wc_matches":   len(wc_matches),
+            "n_wc2026":       len(wc2026_matches),
+            "n_recent":       len(recent_matches),
             "n_total":        len(all_matches),
             "home_adv":       round(self.home_adv, 4),
             "rho":            round(self.rho, 4),

@@ -23,18 +23,10 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 DB_PATH = str(PROJECT_ROOT / "wc" / "data" / "wc.db")
 
-TEAM_ALIASES = {
-    "united states": "usa",
-    "czechia": "czech republic",
-    "bosnia & herzegovina": "bosnia and herzegovina",
-    "türkiye": "turkey",
-    "turkiye": "turkey",
-}
-
-
 def _canon(name: str) -> str:
-    n = name.lower().strip()
-    return TEAM_ALIASES.get(n, n)
+    """Delegate to score_predictor's canonical normaliser so all name lookups are consistent."""
+    from wc.src.score_predictor import _canonical
+    return _canonical(name)
 
 
 def _div(title: str) -> None:
@@ -49,58 +41,51 @@ def report_results(predictor, since: str | None = None) -> None:
     _div("RESULTS vs MODEL PREDICTION")
 
     conn = sqlite3.connect(DB_PATH)
-    query = """
-        SELECT ms.match_date, ms.home_team, ms.away_team,
-               ms.home_score, ms.away_score,
-               t1.team_id AS home_id, t2.team_id AS away_id,
-               f.group_id
-        FROM match_stats ms
-        LEFT JOIN teams t1 ON LOWER(t1.name) = LOWER(ms.home_team)
-                           OR LOWER(t1.name) = LOWER(
-                               CASE ms.home_team
-                                 WHEN 'USA' THEN 'United States'
-                                 WHEN 'Türkiye' THEN 'Turkey'
-                                 ELSE ms.home_team END)
-        LEFT JOIN teams t2 ON LOWER(t2.name) = LOWER(ms.away_team)
-                           OR LOWER(t2.name) = LOWER(
-                               CASE ms.away_team
-                                 WHEN 'USA' THEN 'United States'
-                                 WHEN 'Türkiye' THEN 'Turkey'
-                                 ELSE ms.away_team END)
-        LEFT JOIN fixtures f ON f.home_team_id = t1.team_id
-                             AND f.away_team_id = t2.team_id
-        ORDER BY ms.match_date, ms.home_team
-    """
-    if since:
-        query = query.replace("ORDER BY", f"WHERE ms.match_date >= '{since}'\nORDER BY")
 
-    rows = conn.execute(query).fetchall()
+    # Build a canonical-name → team_id map so we handle all API name variants
+    team_id_map: dict[str, int] = {
+        _canon(name): tid
+        for tid, name in conn.execute("SELECT team_id, name FROM teams").fetchall()
+    }
+
+    # Build fixture group lookup: (home_id, away_id) → group_id
+    fixture_group: dict[tuple[int, int], str] = {
+        (h, a): g
+        for h, a, g in conn.execute(
+            "SELECT home_team_id, away_team_id, group_id FROM fixtures"
+        ).fetchall()
+    }
+
+    where = f"WHERE match_date >= '{since}'" if since else ""
+    rows = conn.execute(f"""
+        SELECT match_date, home_team, away_team, home_score, away_score
+        FROM match_stats {where}
+        ORDER BY match_date, home_team
+    """).fetchall()
     conn.close()
 
     print(f"\n  {'Date':>10}  {'Match':^35}  {'Actual':^7}  {'Pred':^7}  {'Correct':^8}  {'Home%':>5}  {'Draw%':>5}  {'Away%':>5}")
     print("  " + "-" * 95)
 
-    for match_date, home, away, hs, as_, home_id, away_id, group_id in rows:
+    for match_date, home, away, hs, as_ in rows:
+        home_id = team_id_map.get(_canon(home))
+        away_id = team_id_map.get(_canon(away))
+        group_id = fixture_group.get((home_id, away_id)) if home_id and away_id else None
+
         try:
             pred = predictor.predict(home_id, away_id, home_advantage=False)
-            top = pred["most_likely"][0]
-            pred_score = f"{top[0]}-{top[1]}"
+            pred_score = f"{round(pred['home_xg'])}-{round(pred['away_xg'])}"
             win_pct  = pred["win_pct"]
             draw_pct = pred["draw_pct"]
             loss_pct = pred["loss_pct"]
 
-            # Did model get the outcome right?
             if hs > as_:
                 actual_outcome = "H"
-                assigned_pct = win_pct
             elif hs == as_:
                 actual_outcome = "D"
-                assigned_pct = draw_pct
             else:
                 actual_outcome = "A"
-                assigned_pct = loss_pct
 
-            # Model's predicted outcome
             if win_pct > draw_pct and win_pct > loss_pct:
                 pred_outcome = "H"
             elif draw_pct >= win_pct and draw_pct >= loss_pct:

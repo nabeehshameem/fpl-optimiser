@@ -1,20 +1,20 @@
 """
 ingest_match_stats.py
-Pull WC2026 match xG, scorers, assists, cards, and lineups from API-Football.
+Pull WC2026 match xG, scorers, assists, cards, and lineups from SportAPI7 (SofaScore data).
 
-Source: API-Football via RapidAPI (free tier: 100 req/day)
-  https://rapidapi.com/api-sports/api/api-football
+Source: SportAPI7 via RapidAPI
+  https://rapidapi.com/fluis.lacasse/api/sportapi7
 
 Setup:
   1. Sign up at https://rapidapi.com (free)
-  2. Subscribe to "API-Football" free plan
+  2. Subscribe to "SportAPI7"
   3. Copy your RapidAPI key
   4. Set env var: RAPIDAPI_KEY=your_key
 
 Usage:
   python wc/scripts/ingest_match_stats.py               # all completed WC2026 matches
   python wc/scripts/ingest_match_stats.py --dry-run     # show what would be fetched
-  python wc/scripts/ingest_match_stats.py --fixture 123 # specific fixture ID
+  python wc/scripts/ingest_match_stats.py --fixture 123 # specific SofaScore event ID
 
 What gets stored:
   match_stats   — xG, shots, possession per match (used by DC model)
@@ -27,6 +27,7 @@ import os
 import sqlite3
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -36,14 +37,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from wc.scripts.init_db import DB_PATH, init_db
 
-API_BASE = "https://api-football-v1.p.rapidapi.com/v3"
-WC_LEAGUE_ID = 1
-WC_SEASON = 2026
+API_BASE = "https://sportapi7.p.rapidapi.com/api/v1"
+API_HOST = "sportapi7.p.rapidapi.com"
 
-# minutes each substituted-on player gets (approximation when exact data unavailable)
-_DEFAULT_SUB_MINUTES = 30
+# FIFA World Cup (men's) unique tournament ID on SofaScore
+WC_TOURNAMENT_ID = 16
 
-# API-Football position codes → our position names
 POSITION_MAP = {
     "G": "GK", "D": "DEF", "M": "MID", "F": "FWD",
     "Goalkeeper": "GK", "Defender": "DEF", "Midfielder": "MID", "Attacker": "FWD",
@@ -53,7 +52,7 @@ POSITION_MAP = {
 def _headers(api_key: str) -> dict:
     return {
         "X-RapidAPI-Key": api_key,
-        "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com",
+        "X-RapidAPI-Host": API_HOST,
     }
 
 
@@ -61,7 +60,7 @@ def _get(endpoint: str, params: dict, api_key: str) -> dict | None:
     url = f"{API_BASE}/{endpoint}"
     resp = requests.get(url, headers=_headers(api_key), params=params, timeout=30)
     if resp.status_code == 429:
-        print("  [rate-limit] API-Football — daily limit hit, try tomorrow.")
+        print("  [rate-limit] SportAPI7 — daily limit hit, try tomorrow.")
         return None
     if not resp.ok:
         print(f"  [error] {resp.status_code}: {resp.text[:200]}")
@@ -69,54 +68,77 @@ def _get(endpoint: str, params: dict, api_key: str) -> dict | None:
     return resp.json()
 
 
-def _get_completed_fixtures(api_key: str) -> list[dict]:
-    """Return all finished WC2026 fixtures from API-Football."""
-    data = _get("fixtures", {"league": WC_LEAGUE_ID, "season": WC_SEASON, "status": "FT"}, api_key)
-    if not data:
-        return []
-    return data.get("response", [])
-
-
-def _get_statistics(fixture_id: int, api_key: str) -> dict | None:
-    data = _get("fixtures/statistics", {"fixture": fixture_id}, api_key)
+def _find_wc2026_season_id(api_key: str) -> int | None:
+    """Find the SofaScore season ID for FIFA World Cup 2026."""
+    data = _get(f"unique-tournament/{WC_TOURNAMENT_ID}/seasons", {}, api_key)
     if not data:
         return None
-    return data.get("response", [])
+    for season in data.get("seasons", []):
+        if "2026" in season.get("name", ""):
+            print(f"  Found season: {season['name']} (id={season['id']})")
+            return season["id"]
+    # Fallback: print available seasons to help diagnose
+    names = [s.get("name") for s in data.get("seasons", [])]
+    print(f"  [warn] No 2026 season found. Available: {names[:8]}")
+    return None
 
 
-def _get_events(fixture_id: int, api_key: str) -> list[dict]:
-    data = _get("fixtures/events", {"fixture": fixture_id}, api_key)
-    if not data:
-        return []
-    return data.get("response", [])
+def _get_completed_fixtures(season_id: int, api_key: str) -> list[dict]:
+    """Return all finished WC2026 fixtures by paginating last-events."""
+    fixtures = []
+    page = 0
+    while True:
+        data = _get(
+            f"unique-tournament/{WC_TOURNAMENT_ID}/season/{season_id}/events/last/{page}",
+            {}, api_key,
+        )
+        if not data:
+            break
+        events = data.get("events", [])
+        if not events:
+            break
+        fixtures.extend(events)
+        if not data.get("hasNextPage", False):
+            break
+        page += 1
+        time.sleep(0.3)
+    return fixtures
 
 
-def _get_lineups(fixture_id: int, api_key: str) -> list[dict]:
-    data = _get("fixtures/lineups", {"fixture": fixture_id}, api_key)
-    if not data:
-        return []
-    return data.get("response", [])
+def _parse_float(val) -> float | None:
+    if val is None:
+        return None
+    try:
+        return float(str(val).rstrip("%").strip())
+    except (ValueError, AttributeError):
+        return None
 
 
-def _already_ingested(conn: sqlite3.Connection, fixture_id: int) -> bool:
+def _parse_int(val) -> int | None:
+    f = _parse_float(val)
+    return int(f) if f is not None else None
+
+
+def _already_ingested(conn: sqlite3.Connection, event_id: int) -> bool:
     row = conn.execute(
-        "SELECT 1 FROM match_stats WHERE api_fixture_id = ?", (fixture_id,)
+        "SELECT 1 FROM match_stats WHERE api_fixture_id = ?", (event_id,)
     ).fetchone()
     return row is not None
 
 
 def _ingest_one(conn: sqlite3.Connection, fixture: dict, api_key: str) -> None:
-    fid = fixture["fixture"]["id"]
-    match_date = fixture["fixture"]["date"][:10]
-    home_team = fixture["teams"]["home"]["name"]
-    away_team = fixture["teams"]["away"]["name"]
-    home_score = fixture["goals"]["home"]
-    away_score = fixture["goals"]["away"]
+    event_id = fixture["id"]
+    ts = fixture.get("startTimestamp", 0)
+    match_date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d") if ts else "unknown"
+    home_team = fixture["homeTeam"]["name"]
+    away_team = fixture["awayTeam"]["name"]
+    home_score = (fixture.get("homeScore") or {}).get("current")
+    away_score = (fixture.get("awayScore") or {}).get("current")
 
     print(f"  {home_team} vs {away_team} ({match_date})...")
 
     # ── Statistics (xG, shots, possession) ──────────────────────────────────
-    stats_resp = _get_statistics(fid, api_key)
+    stats_resp = _get(f"event/{event_id}/statistics", {}, api_key)
     time.sleep(0.3)
 
     xg_home = xg_away = None
@@ -124,45 +146,22 @@ def _ingest_one(conn: sqlite3.Connection, fixture: dict, api_key: str) -> None:
     poss_home = poss_away = None
 
     if stats_resp:
-        for team_stats in stats_resp:
-            team_name = team_stats["team"]["name"]
-            is_home = team_name == home_team
-            for s in team_stats.get("statistics", []):
-                stype = s["type"]
-                val = s["value"]
-                if val is None:
-                    continue
-                # possession comes as "55%" string
-                if isinstance(val, str) and val.endswith("%"):
-                    try:
-                        val = int(val.rstrip("%"))
-                    except ValueError:
-                        val = None
-                elif isinstance(val, str):
-                    try:
-                        val = float(val)
-                    except ValueError:
-                        val = None
-                if stype == "expected_goals":
-                    if is_home:
-                        xg_home = float(val) if val is not None else None
-                    else:
-                        xg_away = float(val) if val is not None else None
-                elif stype == "Total Shots":
-                    if is_home:
-                        shots_home = int(val) if val is not None else None
-                    else:
-                        shots_away = int(val) if val is not None else None
-                elif stype == "Shots on Goal":
-                    if is_home:
-                        shots_on_home = int(val) if val is not None else None
-                    else:
-                        shots_on_away = int(val) if val is not None else None
-                elif stype == "Ball Possession":
-                    if is_home:
-                        poss_home = int(val) if val is not None else None
-                    else:
-                        poss_away = int(val) if val is not None else None
+        for period in stats_resp.get("statistics", []):
+            if period.get("period") != "ALL":
+                continue
+            for group in period.get("groups", []):
+                for item in group.get("statisticsItems", []):
+                    name = item.get("name", "").lower()
+                    h, a = item.get("home"), item.get("away")
+                    if "expected goals" in name or name == "xg":
+                        xg_home, xg_away = _parse_float(h), _parse_float(a)
+                    elif "total shots" in name:
+                        shots_home, shots_away = _parse_int(h), _parse_int(a)
+                    elif "shots on target" in name:
+                        shots_on_home, shots_on_away = _parse_int(h), _parse_int(a)
+                    elif "ball possession" in name:
+                        poss_home = _parse_int(str(h).rstrip("%"))
+                        poss_away = _parse_int(str(a).rstrip("%"))
 
     conn.execute(
         """
@@ -174,7 +173,7 @@ def _ingest_one(conn: sqlite3.Connection, fixture: dict, api_key: str) -> None:
            possession_home, possession_away)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (fid, match_date, home_team, away_team,
+        (event_id, match_date, home_team, away_team,
          home_score, away_score,
          xg_home, xg_away,
          shots_home, shots_away, shots_on_home, shots_on_away,
@@ -184,55 +183,25 @@ def _ingest_one(conn: sqlite3.Connection, fixture: dict, api_key: str) -> None:
     xg_str = f"xG {xg_home:.2f}-{xg_away:.2f}" if xg_home is not None else "xG n/a"
     print(f"    Score {home_score}-{away_score}  {xg_str}")
 
-    # ── Events (goals, assists, cards) ───────────────────────────────────────
-    events = _get_events(fid, api_key)
+    # ── Incidents (goals, cards, substitutions) ──────────────────────────────
+    incidents_resp = _get(f"event/{event_id}/incidents", {}, api_key)
     time.sleep(0.3)
 
-    # Delete stale events for this fixture before re-inserting
-    conn.execute("DELETE FROM match_events WHERE api_fixture_id = ?", (fid,))
+    conn.execute("DELETE FROM match_events WHERE api_fixture_id = ?", (event_id,))
 
     goals = assists = cards = 0
-    for ev in events:
-        etype = ev.get("type", "")
-        detail = ev.get("detail", "")
-        minute = ev.get("time", {}).get("elapsed")
-        team_name = ev.get("team", {}).get("name", "")
-        player_name = (ev.get("player") or {}).get("name", "")
-        assist_name = (ev.get("assist") or {}).get("name")
+    for inc in (incidents_resp or {}).get("incidents", []):
+        inc_type = inc.get("incidentType", "")
+        inc_class = inc.get("incidentClass", "")
+        is_home = inc.get("isHome", True)
+        team_name = home_team if is_home else away_team
+        minute = inc.get("time")
 
-        if not player_name:
-            continue
-
-        # Normalise event type
-        if etype == "Goal":
-            stored_type = "goal"
-            goals += 1
-        elif etype == "Card":
-            if "Yellow" in detail:
-                stored_type = "yellow_card"
-            elif "Red" in detail or "Second Yellow" in detail:
-                stored_type = "red_card"
-            else:
-                stored_type = "card"
-            cards += 1
-        elif etype == "subst":
-            stored_type = "substitution"
-        else:
-            continue
-
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO match_events
-              (api_fixture_id, match_date, team_name, player_name,
-               event_type, event_detail, minute, assist_player)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (fid, match_date, team_name, player_name,
-             stored_type, detail, minute, assist_name),
-        )
-
-        # Record assist as a separate event row
-        if stored_type == "goal" and assist_name:
+        if inc_type == "goal":
+            player_name = (inc.get("player") or {}).get("name", "")
+            assist_name = (inc.get("assist1") or {}).get("name")
+            if not player_name:
+                continue
             conn.execute(
                 """
                 INSERT OR IGNORE INTO match_events
@@ -240,73 +209,95 @@ def _ingest_one(conn: sqlite3.Connection, fixture: dict, api_key: str) -> None:
                    event_type, event_detail, minute, assist_player)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (fid, match_date, team_name, assist_name,
-                 "assist", detail, minute, None),
+                (event_id, match_date, team_name, player_name,
+                 "goal", inc_class, minute, assist_name),
             )
-            assists += 1
+            goals += 1
+            if assist_name:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO match_events
+                      (api_fixture_id, match_date, team_name, player_name,
+                       event_type, event_detail, minute, assist_player)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (event_id, match_date, team_name, assist_name,
+                     "assist", inc_class, minute, None),
+                )
+                assists += 1
+
+        elif inc_type == "card":
+            player_name = (inc.get("player") or {}).get("name", "")
+            if not player_name:
+                continue
+            stored_type = "yellow_card" if inc_class == "yellow" else "red_card"
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO match_events
+                  (api_fixture_id, match_date, team_name, player_name,
+                   event_type, event_detail, minute, assist_player)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (event_id, match_date, team_name, player_name,
+                 stored_type, inc_class, minute, None),
+            )
+            cards += 1
+
+        elif inc_type == "substitution":
+            player_in = (inc.get("playerIn") or {}).get("name")
+            player_out = (inc.get("playerOut") or {}).get("name")
+            if player_out:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO match_events
+                      (api_fixture_id, match_date, team_name, player_name,
+                       event_type, event_detail, minute, assist_player)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (event_id, match_date, team_name, player_out,
+                     "substitution", "out", minute, player_in),
+                )
+            if player_in:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO match_events
+                      (api_fixture_id, match_date, team_name, player_name,
+                       event_type, event_detail, minute, assist_player)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (event_id, match_date, team_name, player_in,
+                     "substitution", "in", minute, player_out),
+                )
 
     print(f"    Events: {goals} goals, {assists} assists, {cards} cards")
 
-    # ── Lineups (minutes played) ─────────────────────────────────────────────
-    lineups = _get_lineups(fid, api_key)
+    # ── Lineups (minutes played come directly from SofaScore player stats) ───
+    lineups_resp = _get(f"event/{event_id}/lineups", {}, api_key)
     time.sleep(0.3)
 
-    conn.execute("DELETE FROM match_lineups WHERE api_fixture_id = ?", (fid,))
+    conn.execute("DELETE FROM match_lineups WHERE api_fixture_id = ?", (event_id,))
 
     total_players = 0
-    for team_lineup in lineups:
-        team_name = team_lineup["team"]["name"]
-
-        # Starters get full 90 minutes (adjusted below if subbed off)
-        starters = {
-            p["player"]["name"]: {
-                "pos": POSITION_MAP.get(p.get("pos", ""), "MID"),
-                "minutes": 90,
-                "is_starter": 1,
-            }
-            for p in team_lineup.get("startXI", [])
-            if p.get("player", {}).get("name")
-        }
-
-        # Substitutes: minutes = 90 - substitution_minute (approx)
-        subs = {}
-        for p in team_lineup.get("substitutes", []):
-            name = (p.get("player") or {}).get("name")
-            if not name:
-                continue
-            subs[name] = {
-                "pos": POSITION_MAP.get(p.get("pos", ""), "MID"),
-                "minutes": 0,
-                "is_starter": 0,
-            }
-
-        # Apply substitution events to adjust minutes
-        team_events = [
-            ev for ev in events
-            if ev.get("type") == "subst"
-            and (ev.get("team") or {}).get("name") == team_name
-        ]
-        for ev in team_events:
-            minute = ev.get("time", {}).get("elapsed", 90)
-            sub_in = (ev.get("assist") or {}).get("name")   # player coming on
-            sub_out = (ev.get("player") or {}).get("name")  # player going off
-            if sub_out and sub_out in starters:
-                starters[sub_out]["minutes"] = minute
-            if sub_in and sub_in in subs:
-                subs[sub_in]["minutes"] = max(1, 90 - minute)
-
-        for name, info in {**starters, **subs}.items():
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO match_lineups
-                  (api_fixture_id, match_date, team_name, player_name,
-                   position, minutes_played, is_starter)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (fid, match_date, team_name, name,
-                 info["pos"], info["minutes"], info["is_starter"]),
-            )
-            total_players += 1
+    if lineups_resp:
+        for side, team_name in [("home", home_team), ("away", away_team)]:
+            for p in (lineups_resp.get(side) or {}).get("players", []):
+                player_name = (p.get("player") or {}).get("name", "")
+                if not player_name:
+                    continue
+                pos = POSITION_MAP.get(p.get("position", ""), "MID")
+                is_starter = 0 if p.get("substitute", False) else 1
+                minutes = (p.get("statistics") or {}).get("minutesPlayed") or 0
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO match_lineups
+                      (api_fixture_id, match_date, team_name, player_name,
+                       position, minutes_played, is_starter)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (event_id, match_date, team_name, player_name,
+                     pos, minutes, is_starter),
+                )
+                total_players += 1
 
     print(f"    Lineups: {total_players} players")
     conn.commit()
@@ -317,16 +308,21 @@ def ingest(api_key: str, dry_run: bool = False, fixture_id: int | None = None) -
     conn = sqlite3.connect(DB_PATH)
 
     if fixture_id:
-        # Fetch single fixture metadata
-        data = _get("fixtures", {"id": fixture_id}, api_key)
-        if not data or not data.get("response"):
-            print(f"[error] Fixture {fixture_id} not found.")
+        data = _get(f"event/{fixture_id}", {}, api_key)
+        if not data or not data.get("event"):
+            print(f"[error] Event {fixture_id} not found.")
             conn.close()
             return
-        fixtures = data["response"]
+        fixtures = [data["event"]]
     else:
-        print("Fetching completed WC2026 fixtures from API-Football...")
-        fixtures = _get_completed_fixtures(api_key)
+        print("Finding WC2026 season on SportAPI7...")
+        season_id = _find_wc2026_season_id(api_key)
+        if not season_id:
+            print("[error] Could not find WC2026 season. Check WC_TOURNAMENT_ID constant.")
+            conn.close()
+            return
+        print("Fetching completed WC2026 fixtures...")
+        fixtures = _get_completed_fixtures(season_id, api_key)
         if not fixtures:
             print("  No completed fixtures found (or API error).")
             conn.close()
@@ -335,15 +331,16 @@ def ingest(api_key: str, dry_run: bool = False, fixture_id: int | None = None) -
 
     new_count = skipped = 0
     for fix in fixtures:
-        fid = fix["fixture"]["id"]
+        fid = fix["id"]
         if not fixture_id and _already_ingested(conn, fid):
             skipped += 1
             continue
         if dry_run:
-            home = fix["teams"]["home"]["name"]
-            away = fix["teams"]["away"]["name"]
-            score = f"{fix['goals']['home']}-{fix['goals']['away']}"
-            print(f"  [dry-run] Would ingest fixture {fid}: {home} vs {away} {score}")
+            home = fix["homeTeam"]["name"]
+            away = fix["awayTeam"]["name"]
+            h_score = (fix.get("homeScore") or {}).get("current", "?")
+            a_score = (fix.get("awayScore") or {}).get("current", "?")
+            print(f"  [dry-run] Would ingest event {fid}: {home} vs {away} {h_score}-{a_score}")
             new_count += 1
             continue
         _ingest_one(conn, fix, api_key)
@@ -357,9 +354,9 @@ def ingest(api_key: str, dry_run: bool = False, fixture_id: int | None = None) -
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Ingest WC2026 match xG, scorers, cards from API-Football")
+    parser = argparse.ArgumentParser(description="Ingest WC2026 match xG, scorers, cards from SportAPI7")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be fetched without writing")
-    parser.add_argument("--fixture", type=int, default=None, help="Ingest a single fixture by API-Football ID")
+    parser.add_argument("--fixture", type=int, default=None, help="Ingest a single event by SofaScore ID")
     args = parser.parse_args()
 
     api_key = os.environ.get("RAPIDAPI_KEY", "")
@@ -367,8 +364,8 @@ def main() -> None:
         print(
             "[ERROR] Set RAPIDAPI_KEY environment variable.\n"
             "  1. Sign up free at https://rapidapi.com\n"
-            "  2. Subscribe to 'API-Football' free plan (100 req/day)\n"
-            "  3. Copy your key from the API-Football dashboard\n"
+            "  2. Subscribe to 'SportAPI7'\n"
+            "  3. Copy your key from the dashboard\n"
             "  4. Run: $env:RAPIDAPI_KEY = 'your_key_here'\n"
             "     then: python wc/scripts/ingest_match_stats.py"
         )

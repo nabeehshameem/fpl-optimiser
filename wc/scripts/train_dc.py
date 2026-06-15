@@ -38,7 +38,8 @@ def main() -> None:
         print(f"[ERROR] {e}")
         sys.exit(1)
 
-    print(f"  WC matches   : {info['n_wc_matches']}")
+    print(f"  WC 2018/22   : {info['n_wc_matches']}")
+    print(f"  WC 2026      : {info['n_wc2026']}  (weight 2.5×)")
     print(f"  Recent form  : {info['n_recent']}")
     print(f"  Total        : {info['n_total']}")
     print(f"  Teams fitted : {info['n_teams']}")
