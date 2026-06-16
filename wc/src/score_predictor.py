@@ -400,8 +400,11 @@ class DCPredictor:
             tier_w    = np.array([r[4] for r in last])
             w         = recency_w * tier_w
 
-            scored_ratios   = np.array([r[0] / max(r[1], 0.1) for r in last])
-            conceded_ratios = np.array([r[2] / max(r[3], 0.1) for r in last])
+            # Cap expected at 2.5 so a sky-high DC baseline against weak opponents
+            # doesn't suppress the form signal for strong teams (e.g. Argentina 5-0
+            # Zambia expected 4.8 → ratio 1.04 vs capped-at-2.5 → ratio 2.0)
+            scored_ratios   = np.array([min(r[0], 6.0) / max(min(r[1], 2.5), 0.1) for r in last])
+            conceded_ratios = np.array([min(r[2], 6.0) / max(min(r[3], 2.5), 0.1) for r in last])
 
             raw_atk = float(np.average(scored_ratios, weights=w))
             raw_def = float(np.average(conceded_ratios, weights=w))
