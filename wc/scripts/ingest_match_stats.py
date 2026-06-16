@@ -123,7 +123,17 @@ def _already_ingested(conn: sqlite3.Connection, event_id: int) -> bool:
     row = conn.execute(
         "SELECT 1 FROM match_stats WHERE api_fixture_id = ?", (event_id,)
     ).fetchone()
-    return row is not None
+    if not row:
+        return False
+    # Also require events and lineups — if those are missing the match was only
+    # partially ingested (hit API rate limit mid-match) and needs to be retried.
+    has_events = conn.execute(
+        "SELECT 1 FROM match_events WHERE api_fixture_id = ? LIMIT 1", (event_id,)
+    ).fetchone()
+    has_lineups = conn.execute(
+        "SELECT 1 FROM match_lineups WHERE api_fixture_id = ? LIMIT 1", (event_id,)
+    ).fetchone()
+    return bool(has_events and has_lineups)
 
 
 def _ingest_one(conn: sqlite3.Connection, fixture: dict, api_key: str) -> None:

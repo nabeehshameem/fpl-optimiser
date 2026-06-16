@@ -362,11 +362,16 @@ class DCPredictor:
 
         xg_lookup = self._load_match_xg()
 
-        # Accumulate per team: list of (actual_scored, exp_scored, actual_conceded, exp_conceded)
-        records: dict[str, list[tuple[float, float, float, float]]] = {}
+        # Tier weights: friendlies count half — they're unreliable pre-tournament prep
+        # (squads rotated, motivations mixed) vs qualifiers/tournaments which are competitive.
+        TIER_WEIGHT = {"A": 1.0, "B": 0.8, "C": 0.5}
+
+        # Accumulate per team: list of (actual_scored, exp_scored, actual_conceded, exp_conceded, tier_weight)
+        records: dict[str, list[tuple[float, float, float, float, float]]] = {}
 
         for m in recent:
             h, a = m["home_key"], m["away_key"]
+            tw = TIER_WEIGHT.get(m.get("tier", "C"), 0.5)
             # Use xG when available — more reliable form signal than noisy actual goals
             xg_key = (_canonical(h), _canonical(a), str(m["match_date"])[:10])
             if xg_key in xg_lookup:
@@ -381,8 +386,8 @@ class DCPredictor:
             exp_h = atk_h * def_a * ha
             exp_a = atk_a * def_h
 
-            records.setdefault(h, []).append((hg, exp_h, ag, exp_a))
-            records.setdefault(a, []).append((ag, exp_a, hg, exp_h))
+            records.setdefault(h, []).append((hg, exp_h, ag, exp_a, tw))
+            records.setdefault(a, []).append((ag, exp_a, hg, exp_h, tw))
 
         adjustments: dict[str, tuple[float, float]] = {}
         for team, team_records in records.items():
@@ -391,7 +396,9 @@ class DCPredictor:
                 continue
 
             n = len(last)
-            w = np.linspace(0.5, 1.0, n)
+            recency_w = np.linspace(0.5, 1.0, n)
+            tier_w    = np.array([r[4] for r in last])
+            w         = recency_w * tier_w
 
             scored_ratios   = np.array([r[0] / max(r[1], 0.1) for r in last])
             conceded_ratios = np.array([r[2] / max(r[3], 0.1) for r in last])
@@ -601,6 +608,7 @@ class DCPredictor:
         home_advantage: bool = False,
         knockout: bool = False,
         max_goals: int = MAX_GOALS,
+        draw_boost: float = 0.0,
     ) -> dict:
         """
         Predict scoreline probabilities for one match.
@@ -650,6 +658,16 @@ class DCPredictor:
         win_pct  = float(np.tril(mat, -1).sum()) * 100
         draw_pct = float(np.diag(mat).sum())      * 100
         loss_pct = float(np.triu(mat, 1).sum())   * 100
+
+        if draw_boost > 0:
+            boost_pts = draw_boost * 100
+            d_new = min(draw_pct + boost_pts, 99.0)
+            excess = d_new - draw_pct
+            ha_total = win_pct + loss_pct
+            if ha_total > 0:
+                win_pct  -= excess * win_pct  / ha_total
+                loss_pct -= excess * loss_pct / ha_total
+            draw_pct = d_new
 
         flat = sorted(
             [(i, j, float(mat[i, j]) * 100)

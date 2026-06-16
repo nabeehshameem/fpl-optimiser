@@ -33,6 +33,42 @@ def _run_script(path: str) -> None:
         sys.argv = saved_argv
 
 
+def check_form_coverage() -> None:
+    header("Pre-flight — Form coverage check")
+    import sqlite3
+    from datetime import date, timedelta
+
+    db = PROJECT_ROOT / "wc" / "data" / "wc.db"
+    conn = sqlite3.connect(str(db))
+    cutoff = str(date.today() - timedelta(days=90))
+
+    wc_teams = conn.execute("""
+        SELECT DISTINCT t.name FROM teams t
+        JOIN fixtures f ON t.team_id = f.home_team_id OR t.team_id = f.away_team_id
+        ORDER BY t.name
+    """).fetchall()
+
+    flagged = []
+    for (name,) in wc_teams:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM recent_results "
+            "WHERE (home_team LIKE ? OR away_team LIKE ?) AND match_date >= ?",
+            (f"%{name}%", f"%{name}%", cutoff),
+        ).fetchone()[0]
+        if count < 3:
+            flagged.append((name, count))
+    conn.close()
+
+    if flagged:
+        print(f"  WARNING: {len(flagged)} WC teams have < 3 matches in the last 90 days:")
+        for name, count in flagged:
+            label = "NO DATA" if count == 0 else f"{count} match{'es' if count != 1 else ''}"
+            print(f"    {name}: {label}")
+        print("  Consider running ingest_recent_form.py to fill gaps.")
+    else:
+        print(f"  All {len(wc_teams)} WC teams have >= 3 matches in last 90 days. OK.")
+
+
 def run_ingest() -> int:
     header("Step 1/3 — Ingest match stats")
     _run_script(str(PROJECT_ROOT / "wc" / "scripts" / "ingest_match_stats.py"))
@@ -118,6 +154,7 @@ def main() -> None:
     t0 = time.time()
 
     if not args.recs_only:
+        check_form_coverage()
         run_ingest()
         run_compute()
         run_retrain()

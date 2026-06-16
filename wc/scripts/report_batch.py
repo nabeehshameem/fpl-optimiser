@@ -48,13 +48,14 @@ def report_results(predictor, since: str | None = None) -> None:
         for tid, name in conn.execute("SELECT team_id, name FROM teams").fetchall()
     }
 
-    # Build fixture group lookup: (home_id, away_id) → group_id
-    fixture_group: dict[tuple[int, int], str] = {
-        (h, a): g
-        for h, a, g in conn.execute(
-            "SELECT home_team_id, away_team_id, group_id FROM fixtures"
+    # Build fixture lookup: (home_id, away_id) → (group_id, matchday)
+    fixture_info: dict[tuple[int, int], tuple[str, int]] = {
+        (h, a): (g, md)
+        for h, a, g, md in conn.execute(
+            "SELECT home_team_id, away_team_id, group_id, matchday FROM fixtures"
         ).fetchall()
     }
+    fixture_group = {k: v[0] for k, v in fixture_info.items()}
 
     where = f"WHERE match_date >= '{since}'" if since else ""
     rows = conn.execute(f"""
@@ -73,7 +74,10 @@ def report_results(predictor, since: str | None = None) -> None:
         group_id = fixture_group.get((home_id, away_id)) if home_id and away_id else None
 
         try:
-            pred = predictor.predict(home_id, away_id, home_advantage=False)
+            info = fixture_info.get((home_id, away_id)) if home_id and away_id else None
+            md_num = info[1] if info else 0
+            draw_boost = 0.10 if md_num == 1 else 0.0
+            pred = predictor.predict(home_id, away_id, home_advantage=False, draw_boost=draw_boost)
             pred_score = f"{round(pred['home_xg'])}-{round(pred['away_xg'])}"
             win_pct  = pred["win_pct"]
             draw_pct = pred["draw_pct"]
