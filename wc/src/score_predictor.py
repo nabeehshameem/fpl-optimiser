@@ -716,7 +716,8 @@ class DCPredictor:
             raise RuntimeError(
                 f"No fixtures for matchday {matchday}. Run ingest_fixtures.py first."
             )
-        return [self.predict(r[0], r[1]) for r in rows]
+        draw_boost = 0.10 if matchday == 1 else 0.0
+        return [self.predict(r[0], r[1], draw_boost=draw_boost) for r in rows]
 
     # ── Tournament simulator (vectorised) ───────────────────────────────────
 

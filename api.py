@@ -185,6 +185,17 @@ def _resolve_team_id(name: str) -> int | None:
     return None
 
 
+def _fixture_matchday(home_id: int, away_id: int) -> int:
+    """Return the matchday number for a fixture, or 0 if not found."""
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        "SELECT matchday FROM fixtures WHERE home_team_id = ? AND away_team_id = ?",
+        (home_id, away_id),
+    ).fetchone()
+    conn.close()
+    return row[0] if row else 0
+
+
 # ── Request / Response models ─────────────────────────────────────────────────
 
 class PredictRequest(BaseModel):
@@ -252,7 +263,9 @@ def predict_match(req: PredictRequest, request: Request) -> PredictResponse:
         raise HTTPException(status_code=404, detail=f"Team not found: '{req.away_team}'")
 
     try:
-        result = predictor.predict(home_id, away_id, home_advantage=req.home_advantage, knockout=req.knockout)
+        md = _fixture_matchday(home_id, away_id)
+        draw_boost = 0.10 if md == 1 else 0.0
+        result = predictor.predict(home_id, away_id, home_advantage=req.home_advantage, knockout=req.knockout, draw_boost=draw_boost)
     except RuntimeError as e:
         logger.exception("predict failed for %s vs %s", req.home_team, req.away_team)
         raise HTTPException(status_code=400, detail="Prediction failed. Check team names and try again.")
