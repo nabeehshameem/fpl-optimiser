@@ -58,6 +58,10 @@ DB_PATH = PROJECT_ROOT / "wc" / "data" / "wc.db"
 _predictor: DCPredictor | None = None
 _load_error: str | None = None
 
+# ── Static lookup caches (built at startup, never change mid-session) ─────────
+_team_id_cache: dict[str, int] = {}       # canonical_name → team_id
+_fixture_md_cache: dict[tuple, int] = {}  # (home_id, away_id) → matchday
+
 # ── Simulate cache (keyed by n_sim, TTL = 30 min) ────────────────────────────
 _sim_cache: dict[int, tuple[float, list]] = {}
 _SIM_CACHE_TTL = 1800
@@ -131,6 +135,15 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"[warn] Subscribers table init failed: {_e}")
 
+    # Build in-memory lookup caches (team IDs + fixture matchdays)
+    _build_lookup_caches()
+
+    # Warm the simulation cache in background so first user request is instant
+    if _predictor is not None:
+        _sim_running.add(10_000)
+        threading.Thread(target=_run_simulation_bg, args=(_predictor, 10_000), daemon=True).start()
+        print("[startup] Warming simulation cache in background…")
+
     # Daily auto-retrain at 06:00 UTC — keeps the model current with latest results
     threading.Thread(target=_daily_retrain_loop, daemon=True).start()
     print("[scheduler] Daily retrain scheduled at 06:00 UTC.")
@@ -164,6 +177,21 @@ app.add_middleware(
 )
 
 
+def _build_lookup_caches() -> None:
+    """Populate team-id and fixture-matchday caches from the DB. Call at startup and after retrain."""
+    global _team_id_cache, _fixture_md_cache
+    conn = sqlite3.connect(DB_PATH)
+    _team_id_cache = {
+        _canonical(name): tid
+        for tid, name in conn.execute("SELECT team_id, name FROM teams").fetchall()
+    }
+    _fixture_md_cache = {
+        (h, a): md
+        for h, a, md in conn.execute("SELECT home_team_id, away_team_id, matchday FROM fixtures").fetchall()
+    }
+    conn.close()
+
+
 def _get_predictor() -> DCPredictor:
     if _predictor is None:
         raise HTTPException(
@@ -174,26 +202,17 @@ def _get_predictor() -> DCPredictor:
 
 
 def _resolve_team_id(name: str) -> int | None:
-    """Canonical-name match against the teams table."""
-    canonical = _canonical(name)
-    conn = sqlite3.connect(DB_PATH)
-    rows = conn.execute("SELECT team_id, name FROM teams").fetchall()
-    conn.close()
-    for tid, tname in rows:
-        if _canonical(tname) == canonical:
-            return tid
-    return None
+    """Canonical-name match against the in-memory team cache."""
+    return _team_id_cache.get(_canonical(name))
 
 
 def _fixture_matchday(home_id: int, away_id: int) -> int:
-    """Return the matchday number for a fixture, or 0 if not found."""
-    conn = sqlite3.connect(DB_PATH)
-    row = conn.execute(
-        "SELECT matchday FROM fixtures WHERE home_team_id = ? AND away_team_id = ?",
-        (home_id, away_id),
-    ).fetchone()
-    conn.close()
-    return row[0] if row else 0
+    """Return the matchday for a fixture, checking both home/away orderings."""
+    return (
+        _fixture_md_cache.get((home_id, away_id))
+        or _fixture_md_cache.get((away_id, home_id))
+        or 0
+    )
 
 
 # ── Request / Response models ─────────────────────────────────────────────────
@@ -475,21 +494,42 @@ class TournamentResponse(BaseModel):
     last_updated: str | None = None
 
 
+_sim_lock = threading.Lock()
+_sim_running: set[int] = set()
+
+
+def _run_simulation_bg(predictor: DCPredictor, n_sim: int) -> None:
+    """Run tournament simulation in background and populate cache."""
+    try:
+        results = predictor.simulate_tournament(n_sim=n_sim)
+        _sim_cache[n_sim] = (time.time(), results)
+    except Exception as e:
+        logger.exception("Background simulation failed (n_sim=%d): %s", n_sim, e)
+    finally:
+        _sim_running.discard(n_sim)
+
+
 @app.get("/api/wc/simulate", response_model=TournamentResponse)
-@limiter.limit("2/minute")
+@limiter.limit("10/minute")
 def simulate_tournament(request: Request, n_sim: int = 10_000):
     """
     Monte Carlo tournament simulation (default 10 000 runs).
     Returns win/final/SF/QF/R32 probabilities for all 48 teams.
     Results reflect the current DC model — retrain after each matchday for live updates.
-    Results are cached for 30 minutes per n_sim value.
+    Results are cached for 30 minutes. First call after cache expiry returns the previous
+    cached result immediately and kicks off a background refresh.
     """
-    from fastapi.responses import Response as _Resp
     n_sim = min(max(n_sim, 1_000), 20_000)
     predictor = _get_predictor()
 
     cached = _sim_cache.get(n_sim)
-    if cached and (time.time() - cached[0]) < _SIM_CACHE_TTL:
+    cache_fresh = cached and (time.time() - cached[0]) < _SIM_CACHE_TTL
+
+    if not cache_fresh and n_sim not in _sim_running:
+        _sim_running.add(n_sim)
+        threading.Thread(target=_run_simulation_bg, args=(predictor, n_sim), daemon=True).start()
+
+    if cached:
         data = TournamentResponse(
             teams=[TournamentTeamOut(**r) for r in cached[1]],
             n_sim=n_sim,
@@ -497,6 +537,9 @@ def simulate_tournament(request: Request, n_sim: int = 10_000):
         )
         return JSONResponse(content=data.model_dump(), headers={"Cache-Control": "no-store"})
 
+    # No cache at all yet — block once to get initial data
+    if n_sim in _sim_running:
+        _sim_running.discard(n_sim)
     results = predictor.simulate_tournament(n_sim=n_sim)
     _sim_cache[n_sim] = (time.time(), results)
     data = TournamentResponse(
@@ -574,6 +617,7 @@ def _run_retrain() -> None:
         _predictor = p
         _sim_cache.clear()
         _captains_cache.clear()
+        _build_lookup_caches()
         _retrain_status["last"] = "success"
         _retrain_status["last_time"] = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         _retrain_status["error"] = None
