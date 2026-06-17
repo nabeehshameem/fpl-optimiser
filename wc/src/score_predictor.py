@@ -112,6 +112,7 @@ TEAM_ALIASES: dict[str, str] = {
     # SofaScore name variants
     "czechia":                      "czech republic",
     "bosnia & herzegovina":         "bosnia and herzegovina",
+    "cabo verde":                   "cape verde islands",
 }
 
 
