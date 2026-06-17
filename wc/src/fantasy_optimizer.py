@@ -133,6 +133,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "neymar":       P.ROTATION,    # injury history, fitness uncertainty at 34
     "casemiro":     P.LIKELY,      # aging, some rotation risk
     "wesley":       P.LIKELY,      # Brazil RB rotation — competes with Vanderson/Danilo
+    "cunha":        P.IMPACT_SUB,  # Matheus Cunha — came off bench MD1 (29 min), not a starter
 
     # ── Norway ───────────────────────────────────────────────────────────
     "sorloth":      P.ROTATION,    # backup striker to Haaland
@@ -200,7 +201,22 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── Iran ─────────────────────────────────────────────────────────────
     "beiranvand":   P.EXPECTED,    # Iran starter GK — noted for completeness
-    "shobeir":      P.IMPACT_SUB,  # Iran — not a nailed starter, expected impact sub
+
+    # ── Egypt ────────────────────────────────────────────────────────────
+    "shobeir":      P.EXPECTED,    # Mostafa Shobeir — Egypt #1 GK, started MD1 vs Belgium (90 min)
+
+    # ── Uruguay ──────────────────────────────────────────────────────────
+    "muslera":      P.EXPECTED,    # confirmed starter MD1 vs Saudi Arabia (90 min)
+    "rochet":       P.BENCH,       # on bench MD1, did not play — Muslera is the #1
+
+    # ── Ecuador ──────────────────────────────────────────────────────────
+    "estupi":       P.BENCH,       # Estupiñán — 0 min MD1 vs Ivory Coast, not getting minutes
+
+    # ── Switzerland ──────────────────────────────────────────────────────
+    "widmer":       P.BENCH,       # Silvan Widmer — named sub, 0 min MD1 vs Canada
+
+    # ── Argentina ────────────────────────────────────────────────────────
+    "molina":       P.IMPACT_SUB,  # Nahuel Molina — came on as sub at HT in MD1 (45 min only)
 }
 
 # Intel not yet verified — applied as max(value, _UNCONFIRMED_FLOOR) so a rumour
