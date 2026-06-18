@@ -126,6 +126,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "laporte":      P.LIKELY,      # rotation risk — Cubarsi pushing hard for his CB spot
 
     # ── France ───────────────────────────────────────────────────────────
+    "dembel":       P.EXPECTED,    # Ousmane Dembélé — started MD1 & MD2, subbed ~85th min
     "cherki":       P.ROTATION,    # young, competes for wide/10 role
     "doué":         P.LIKELY,      # Désiré Doué — rotation
 

@@ -42,6 +42,7 @@ API_HOST = "sportapi7.p.rapidapi.com"
 
 # FIFA World Cup (men's) unique tournament ID on SofaScore
 WC_TOURNAMENT_ID = 16
+WC2026_SEASON_ID = 58210  # saves 1 API call per run
 
 POSITION_MAP = {
     "G": "GK", "D": "DEF", "M": "MID", "F": "FWD",
@@ -325,12 +326,16 @@ def ingest(api_key: str, dry_run: bool = False, fixture_id: int | None = None) -
             return
         fixtures = [data["event"]]
     else:
-        print("Finding WC2026 season on SportAPI7...")
-        season_id = _find_wc2026_season_id(api_key)
-        if not season_id:
-            print("[error] Could not find WC2026 season. Check WC_TOURNAMENT_ID constant.")
-            conn.close()
-            return
+        if WC2026_SEASON_ID:
+            season_id = WC2026_SEASON_ID
+            print(f"Using hardcoded WC2026 season id={season_id}")
+        else:
+            print("Finding WC2026 season on SportAPI7...")
+            season_id = _find_wc2026_season_id(api_key)
+            if not season_id:
+                print("[error] Could not find WC2026 season. Check WC_TOURNAMENT_ID constant.")
+                conn.close()
+                return
         print("Fetching completed WC2026 fixtures...")
         fixtures = _get_completed_fixtures(season_id, api_key)
         if not fixtures:

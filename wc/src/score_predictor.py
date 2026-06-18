@@ -410,9 +410,9 @@ class DCPredictor:
             raw_atk = float(np.average(scored_ratios, weights=w))
             raw_def = float(np.average(conceded_ratios, weights=w))
 
-            # Dampen 55% toward 1.0 and cap at ±20%
-            atk_mult = max(0.80, min(1.20, 1.0 + 0.55 * (raw_atk - 1.0)))
-            def_mult = max(0.80, min(1.20, 1.0 + 0.55 * (raw_def - 1.0)))
+            # Dampen 55% toward 1.0 and cap at ±30%
+            atk_mult = max(0.70, min(1.30, 1.0 + 0.55 * (raw_atk - 1.0)))
+            def_mult = max(0.70, min(1.30, 1.0 + 0.55 * (raw_def - 1.0)))
 
             adjustments[team] = (atk_mult, def_mult)
 
@@ -648,9 +648,15 @@ class DCPredictor:
         # team's xG is inflated — capped at +35% to allow genuine blowout predictions.
         _ratio = mu_h / max(mu_a, 0.1)
         if _ratio > 1.5:
-            mu_h *= min(1.35, 1.0 + 0.20 * (_ratio - 1.5))
+            mu_h *= min(1.50, 1.0 + 0.20 * (_ratio - 1.5))
         elif _ratio < 1.0 / 1.5:
-            mu_a *= min(1.35, 1.0 + 0.20 * (1.0 / max(_ratio, 0.01) - 1.5))
+            mu_a *= min(1.50, 1.0 + 0.20 * (1.0 / max(_ratio, 0.01) - 1.5))
+
+        # Hard ceiling: no team realistically creates >3.5 xG at WC level regardless
+        # of opponent quality. Without this, stacked multipliers (Spain vs Cabo Verde)
+        # inflate to 5-6 xG which is statistically incoherent and poisons retraining.
+        mu_h = min(mu_h, 3.5)
+        mu_a = min(mu_a, 3.5)
 
         goals = np.arange(max_goals + 1)
         mat   = np.outer(poisson.pmf(goals, mu_h), poisson.pmf(goals, mu_a))
@@ -753,9 +759,9 @@ class DCPredictor:
         mu_a = atk_a * def_h
         _ratio = mu_h / max(mu_a, 0.1)
         if _ratio > 1.5:
-            mu_h *= min(1.35, 1.0 + 0.20 * (_ratio - 1.5))
+            mu_h *= min(1.50, 1.0 + 0.20 * (_ratio - 1.5))
         elif _ratio < 1.0 / 1.5:
-            mu_a *= min(1.35, 1.0 + 0.20 * (1.0 / max(_ratio, 0.01) - 1.5))
+            mu_a *= min(1.50, 1.0 + 0.20 * (1.0 / max(_ratio, 0.01) - 1.5))
         hg = int(rng.poisson(mu_h))
         ag = int(rng.poisson(mu_a))
         # DC low-score correction: accept/reject via tau

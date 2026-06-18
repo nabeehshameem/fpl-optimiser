@@ -65,7 +65,7 @@ def report_results(predictor, since: str | None = None) -> None:
     """).fetchall()
     conn.close()
 
-    print(f"\n  {'Date':>10}  {'Match':^35}  {'Actual':^7}  {'Pred':^7}  {'Correct':^8}  {'Home%':>5}  {'Draw%':>5}  {'Away%':>5}")
+    print(f"\n  {'Date':>10}  {'Match':^35}  {'Actual':^7}  {'xG':^9}  {'Correct':^8}  {'Home%':>5}  {'Draw%':>5}  {'Away%':>5}")
     print("  " + "-" * 95)
 
     for match_date, home, away, hs, as_ in rows:
@@ -78,7 +78,7 @@ def report_results(predictor, since: str | None = None) -> None:
             md_num = info[1] if info else 0
             draw_boost = 0.10 if md_num == 1 else 0.0
             pred = predictor.predict(home_id, away_id, home_advantage=False, draw_boost=draw_boost)
-            pred_score = f"{round(pred['home_xg'])}-{round(pred['away_xg'])}"
+            pred_score = f"{pred['home_xg']:.1f}-{pred['away_xg']:.1f}"
             win_pct  = pred["win_pct"]
             draw_pct = pred["draw_pct"]
             loss_pct = pred["loss_pct"]
