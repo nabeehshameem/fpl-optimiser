@@ -930,6 +930,13 @@ class DCPredictor:
                 hg, ag = played_map[(h_key, a_key)]
                 hg_all[:, m] = hg
                 ag_all[:, m] = ag
+            elif (a_key, h_key) in played_map:
+                # Actual fixture had teams in opposite order vs group-list enumeration.
+                # played_map stores (actual_home_goals, actual_away_goals), so swap for
+                # the simulation's perspective where h_key is the simulated "home".
+                actual_home_g, actual_away_g = played_map[(a_key, h_key)]
+                hg_all[:, m] = actual_away_g   # h_key was the actual away team
+                ag_all[:, m] = actual_home_g   # a_key was the actual home team
 
         # ── Accumulate group standings ────────────────────────────────────────
         pts_arr = np.zeros((n_sim, 12, 4), dtype=np.int32)
