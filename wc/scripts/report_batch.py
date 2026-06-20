@@ -153,6 +153,8 @@ def report_group_standings() -> None:
         display = {_canonical(t): t for t in teams}
         stats: dict[str, list[int]] = {k: [0, 0, 0, 0, 0, 0] for k in keys}
         # [pts, gd, gf, w, d, l]
+        h2h: dict[str, dict[str, list[int]]] = {k: {o: [0, 0] for o in keys if o != k} for k in keys}
+        # h2h[k][o] = [pts_earned_vs_o, gd_vs_o]
 
         for i in range(len(keys)):
             for j in range(i + 1, len(keys)):
@@ -165,13 +167,25 @@ def report_group_standings() -> None:
                 stats[h][2] += hg; stats[h][1] += diff; stats[a][2] += ag; stats[a][1] -= diff
                 if diff > 0:
                     stats[h][0] += 3; stats[h][3] += 1; stats[a][5] += 1
+                    h2h[h][a][0] = 3; h2h[a][h][0] = 0
                 elif diff < 0:
                     stats[a][0] += 3; stats[a][3] += 1; stats[h][5] += 1
+                    h2h[h][a][0] = 0; h2h[a][h][0] = 3
                 else:
                     stats[h][0] += 1; stats[h][4] += 1
                     stats[a][0] += 1; stats[a][4] += 1
+                    h2h[h][a][0] = 1; h2h[a][h][0] = 1
+                h2h[h][a][1] = diff; h2h[a][h][1] = -diff
 
-        ranked = sorted(keys, key=lambda k: (stats[k][0], stats[k][1], stats[k][2]), reverse=True)
+        def _sort_key(k: str) -> tuple:
+            pts = stats[k][0]
+            tied = [o for o in keys if o != k and stats[o][0] == pts]
+            return (pts,
+                    sum(h2h[k][o][0] for o in tied),
+                    sum(h2h[k][o][1] for o in tied),
+                    stats[k][1], stats[k][2])
+
+        ranked = sorted(keys, key=_sort_key, reverse=True)
 
         print(f"\n  Group {group_name}")
         print(f"  {'Team':22s}  Pts  W  D  L  GD  GF  Played")

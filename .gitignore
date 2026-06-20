@@ -218,3 +218,9 @@ __marimo__/
 .streamlit/secrets.toml
 
 /data/
+
+# Claude Code memory
+.claude/
+
+# WC scratch databases (wc.db is the canonical DB and is tracked)
+wc/data/wc2026.db
