@@ -942,6 +942,10 @@ class DCPredictor:
         pts_arr = np.zeros((n_sim, 12, 4), dtype=np.int32)
         gd_arr  = np.zeros((n_sim, 12, 4), dtype=np.int32)
         gf_arr  = np.zeros((n_sim, 12, 4), dtype=np.int32)
+        # Pairwise H2H: h2h_pts_arr[s,g,i,j] = pts team-i earned in their game vs team-j.
+        # Each pair plays exactly once, so we assign (not +=).
+        h2h_pts_arr = np.zeros((n_sim, 12, 4, 4), dtype=np.int32)
+        h2h_gd_arr  = np.zeros((n_sim, 12, 4, 4), dtype=np.int32)
 
         for m in range(M):
             g, hp, ap = gm_g_lst[m], gm_hp_lst[m], gm_ap_lst[m]
@@ -954,14 +958,40 @@ class DCPredictor:
             gd_arr[:, g, hp]  += diff;   gd_arr[:, g, ap]  -= diff
             gf_arr[:, g, hp]  += h_goals.astype(np.int32)
             gf_arr[:, g, ap]  += a_goals.astype(np.int32)
+            h2h_pts_arr[:, g, hp, ap] = h_pts
+            h2h_pts_arr[:, g, ap, hp] = a_pts
+            h2h_gd_arr[:, g, hp, ap]  = diff
+            h2h_gd_arr[:, g, ap, hp]  = -diff
 
         del hg_all, ag_all  # free ~60 MB before ranking arrays are built
 
-        # ── Rank teams within each group ──────────────────────────────────────
-        sort_key = (pts_arr.astype(np.int64) * 1_000_000
-                    + gd_arr.astype(np.int64) * 1_000
-                    + gf_arr.astype(np.int64))          # (n_sim, 12, 4)
-        ranks = np.argsort(-sort_key, axis=-1)           # (n_sim, 12, 4)
+        # ── Rank teams within each group (FIFA tiebreaker hierarchy) ─────────
+        # 1. Overall points
+        # 2. H2H points among tied teams only   ← FIFA rule, not GD
+        # 3. H2H GD among tied teams only
+        # 4. Overall GD
+        # 5. Overall GF
+        #
+        # Vectorised H2H: for each team i, mask to only opponents tied on pts,
+        # then sum h2h_pts/gd over those opponents. This is exact for 2-team
+        # ties (most common) and correct for 3-team circular ties that stay
+        # level after H2H pts/GD.
+        pts_i    = pts_arr.astype(np.int64)[:, :, :, np.newaxis]   # (n_sim,12,4,1)
+        pts_j    = pts_arr.astype(np.int64)[:, :, np.newaxis, :]   # (n_sim,12,1,4)
+        tied     = (pts_i == pts_j).astype(np.int32)               # (n_sim,12,4,4)
+
+        h2h_pts_tied = (h2h_pts_arr.astype(np.int64) * tied).sum(axis=-1)  # (n_sim,12,4)
+        h2h_gd_tied  = (h2h_gd_arr.astype(np.int64)  * tied).sum(axis=-1)  # (n_sim,12,4)
+        del h2h_pts_arr, h2h_gd_arr, tied, pts_i, pts_j
+
+        OFFSET = 50   # shift negative GD values to keep sort key positive
+        sort_key = (pts_arr.astype(np.int64) * 100_000_000
+                    + h2h_pts_tied            *  10_000_000
+                    + (h2h_gd_tied + OFFSET)  *     100_000
+                    + (gd_arr.astype(np.int64) + OFFSET) * 1_000
+                    + gf_arr.astype(np.int64))              # (n_sim, 12, 4)
+        del h2h_pts_tied, h2h_gd_tied
+        ranks = np.argsort(-sort_key, axis=-1)              # (n_sim, 12, 4)
 
         group_arrs = [np.array(g, dtype=np.int32) for g in group_lists]
 
@@ -992,7 +1022,7 @@ class DCPredictor:
             [top2_idx.reshape(n_sim, 24), best8_team_idx], axis=1
         )  # (n_sim, 32)
 
-        del pts_arr, gd_arr, gf_arr, sort_key, ranks, top2_idx, third_idx  # free group-stage arrays
+        del pts_arr, gd_arr, gf_arr, sort_key, ranks, top2_idx, third_idx
 
         # ── Count stage qualifications ────────────────────────────────────────
         # WC2026 has 5 knockout rounds: R32(32→16), R16(16→8), QF(8→4), SF(4→2), F(2→1)
