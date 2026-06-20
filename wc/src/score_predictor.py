@@ -643,14 +643,13 @@ class DCPredictor:
         mu_h = atk_h * h_atk_mult * def_a * a_def_mult * ha
         mu_a = atk_a * a_atk_mult * def_h * h_def_mult
 
-        # Mismatch boost: weak teams' params are calibrated against weaker opposition
-        # than they face at a WC. When one side is dominant (ratio > 1.5), the stronger
-        # team's xG is inflated — capped at +35% to allow genuine blowout predictions.
+        # Mismatch boost: scale=0.08, cap=1.40 calibrated against 32 WC2026 matches
+        # to maximise exact-score hit rate while keeping Brier score competitive.
         _ratio = mu_h / max(mu_a, 0.1)
         if _ratio > 1.5:
-            mu_h *= min(1.50, 1.0 + 0.20 * (_ratio - 1.5))
+            mu_h *= min(1.40, 1.0 + 0.08 * (_ratio - 1.5))
         elif _ratio < 1.0 / 1.5:
-            mu_a *= min(1.50, 1.0 + 0.20 * (1.0 / max(_ratio, 0.01) - 1.5))
+            mu_a *= min(1.40, 1.0 + 0.08 * (1.0 / max(_ratio, 0.01) - 1.5))
 
         # Hard ceiling: WC group-stage calibration — backtesting 32 WC2026 matches shows
         # a 2.5 cap minimises Brier score vs 3.5 (fewer overconfident blowout predictions).

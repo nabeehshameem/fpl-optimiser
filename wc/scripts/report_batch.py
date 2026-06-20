@@ -65,10 +65,11 @@ def report_results(predictor, since: str | None = None) -> None:
     """).fetchall()
     conn.close()
 
-    print(f"\n  {'Date':>10}  {'Match':^35}  {'Actual':^7}  {'xG':^9}  {'Correct':^8}  {'Home%':>5}  {'Draw%':>5}  {'Away%':>5}")
-    print("  " + "-" * 95)
+    print(f"\n  {'Date':>10}  {'Match':^35}  {'Actual':^7}  {'Top-3 predicted scores':^28}  {'SC':^3}  {'WDL':^4}  {'Home%':>5}  {'Draw%':>5}  {'Away%':>5}")
+    print("  " + "-" * 110)
 
     results: list[str] = []
+    exact_hits = 0
     for match_date, home, away, hs, as_ in rows:
         home_id = team_id_map.get(_canon(home))
         away_id = team_id_map.get(_canon(away))
@@ -80,10 +81,12 @@ def report_results(predictor, since: str | None = None) -> None:
             draw_boost = 0.15 if md_num == 1 else 0.0
             is_host = _canon(home) in {"usa", "united states", "mexico", "canada"}
             pred = predictor.predict(home_id, away_id, home_advantage=is_host, draw_boost=draw_boost)
-            pred_score = f"{pred['home_xg']:.1f}-{pred['away_xg']:.1f}"
             win_pct  = pred["win_pct"]
             draw_pct = pred["draw_pct"]
             loss_pct = pred["loss_pct"]
+
+            top3 = pred["most_likely"][:3]
+            top3_str = "  ".join(f"{h}-{a}({p:.0f}%)" for h, a, p in top3)
 
             if hs > as_:
                 actual_outcome = "H"
@@ -99,24 +102,32 @@ def report_results(predictor, since: str | None = None) -> None:
             else:
                 pred_outcome = "A"
 
-            correct = "Y" if pred_outcome == actual_outcome else "N"
+            ph, pa, _ = top3[0]
+            exact_hit = ph == hs and pa == as_
+            if exact_hit:
+                exact_hits += 1
+
+            sc_flag  = "Y" if exact_hit else "N"
+            wdl_flag = "Y" if pred_outcome == actual_outcome else "N"
             match_str = f"{home} {hs}-{as_} {away}"
         except Exception:
-            pred_score, win_pct, draw_pct, loss_pct = "?-?", 0, 0, 0
-            correct, match_str = "?", f"{home} {hs}-{as_} {away}"
+            win_pct, draw_pct, loss_pct = 0, 0, 0
+            sc_flag = wdl_flag = "?"
+            top3_str = "?-?"
+            match_str = f"{home} {hs}-{as_} {away}"
 
         gstr = f"[Grp {group_id}]" if group_id else "       "
         print(
-            f"  {match_date}  {gstr} {match_str:<28}  {hs}-{as_}     {pred_score}    "
-            f"  {correct}        {win_pct:>4.1f}%  {draw_pct:>4.1f}%  {loss_pct:>4.1f}%"
+            f"  {match_date}  {gstr} {match_str:<28}  {hs}-{as_}    {top3_str:<28}  {sc_flag}   {wdl_flag}    "
+            f"{win_pct:>4.1f}%  {draw_pct:>4.1f}%  {loss_pct:>4.1f}%"
         )
-        results.append(correct)
+        results.append(wdl_flag)
 
     correct_count = results.count("Y")
     total = len(results)
     if total:
-        print(f"\n  Accuracy: {correct_count}/{total} ({100*correct_count/total:.1f}%)  "
-              f"[outcome W/D/L — correct = most likely outcome matched result]")
+        print(f"\n  Score accuracy: {exact_hits}/{total} ({100*exact_hits/total:.1f}%)  "
+              f"  WDL accuracy: {correct_count}/{total} ({100*correct_count/total:.1f}%)")
 
 
 # ── 2. Live group standings ───────────────────────────────────────────────────
