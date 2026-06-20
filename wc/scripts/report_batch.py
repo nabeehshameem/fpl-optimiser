@@ -68,6 +68,7 @@ def report_results(predictor, since: str | None = None) -> None:
     print(f"\n  {'Date':>10}  {'Match':^35}  {'Actual':^7}  {'xG':^9}  {'Correct':^8}  {'Home%':>5}  {'Draw%':>5}  {'Away%':>5}")
     print("  " + "-" * 95)
 
+    results: list[str] = []
     for match_date, home, away, hs, as_ in rows:
         home_id = team_id_map.get(_canon(home))
         away_id = team_id_map.get(_canon(away))
@@ -108,6 +109,13 @@ def report_results(predictor, since: str | None = None) -> None:
             f"  {match_date}  {gstr} {match_str:<28}  {hs}-{as_}     {pred_score}    "
             f"  {correct}        {win_pct:>4.1f}%  {draw_pct:>4.1f}%  {loss_pct:>4.1f}%"
         )
+        results.append(correct)
+
+    correct_count = results.count("Y")
+    total = len(results)
+    if total:
+        print(f"\n  Accuracy: {correct_count}/{total} ({100*correct_count/total:.1f}%)  "
+              f"[outcome W/D/L — correct = most likely outcome matched result]")
 
 
 # ── 2. Live group standings ───────────────────────────────────────────────────
@@ -233,19 +241,38 @@ def report_fantasy_points(top_n: int = 30) -> None:
 # ── 5. Projected vs actual ───────────────────────────────────────────────────
 
 def report_projected_vs_actual(predictor, matchday: int | None = None) -> None:
-    _div("PROJECTED vs ACTUAL  (fantasy players who played)")
+    from wc.src.fantasy_optimizer import get_projected_players
+
+    # Determine which matchdays have actual data so projection scope matches.
+    conn = sqlite3.connect(DB_PATH)
+    played_fixture_ids = [r[0] for r in conn.execute(
+        "SELECT DISTINCT api_fixture_id FROM wc2026_player_points"
+    ).fetchall()]
+    # Map played fixtures → matchday numbers via the fixtures table (name-match join).
+    md_rows = conn.execute("""
+        SELECT DISTINCT f.matchday
+        FROM fixtures f
+        JOIN teams t1 ON f.home_team_id = t1.team_id
+        JOIN teams t2 ON f.away_team_id = t2.team_id
+        JOIN match_stats ms ON LOWER(t1.name) = LOWER(ms.home_team)
+                           AND LOWER(t2.name) = LOWER(ms.away_team)
+        ORDER BY f.matchday
+    """).fetchall()
+    played_mds = [r[0] for r in md_rows] or [1, 2]
+
+    _div(f"PROJECTED vs ACTUAL  (MD{','.join(str(m) for m in played_mds)} scope)")
 
     from wc.src.fantasy_optimizer import get_projected_players
 
     projected_map: dict[str, float] = {}
     try:
-        for p in get_projected_players(predictor):
+        for p in get_projected_players(predictor, matchdays=played_mds):
             projected_map[p["name"].lower()] = p["projected_pts"]
     except Exception as e:
         print(f"  Could not load projections: {e}")
+        conn.close()
         return
 
-    conn = sqlite3.connect(DB_PATH)
     query = """
         SELECT w.player_name, w.team_name, w.position,
                SUM(w.fantasy_pts) AS actual_pts,

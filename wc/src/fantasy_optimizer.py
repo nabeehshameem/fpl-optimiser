@@ -64,7 +64,7 @@ ASSIST_RATIO = 0.85
 PLAYER_UNAVAILABLE: dict[str, set[int]] = {
     # yamal/williams: not in unavailable — de la Fuente says "could be ready June 15" but start not guaranteed; handled via starter_prob 0.60
     # messi: Grade 1 strain only, expected fully fit for Argentina opener June 16, removed from unavailable
-    "neymar": {1},     # Grade 2 calf (May 17), race for MD1 vs Morocco June 13 — user: maybe back MD2
+    "neymar": {1, 2},  # Did not play MD1 or MD2 — fitness still in doubt for MD3
     "davies": {1},     # ACL (March) + hamstring (May, 3rd injury of season) — MD1 very much in doubt
 }
 
@@ -99,18 +99,19 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── Germany ──────────────────────────────────────────────────────────
     "sané":         P.ROTATION,    # Nagelsmann XI leans on Musiala/Wirtz; not guaranteed starter
+    "musiala":      P.LIKELY,      # 64 min in MD1 (subbed off) — rotation risk vs Wirtz for 60+ min
     "goretzka":     P.IMPACT_SUB,  # deep rotation behind Musiala/Wirtz/Kimmich
     "leweling":     P.ROTATION,    # competes for wide role
     "lennart karl": P.BENCH,       # Freiburg MID — Germany squad but not guaranteed starter
     "raum":         P.LIKELY,      # Nathaniel Brown in contention for LB slot
-    "undav":        P.ROTATION,    # competes for starting spot behind Havertz (primary #9)
+    "undav":        P.IMPACT_SUB,  # confirmed: 26 min in MD1, late super-sub role — efficient but not a starter
 
     # ── England ──────────────────────────────────────────────────────────
     "saka":         P.LIKELY,      # hamstring late in Arsenal season; expected fit but not nailed
     "reece james":  P.LIKELY,      # recurring knee/hamstring issues through 2024-25 season
     "mainoo":       P.ROTATION,    # competes with Rice/Bellingham/Foden
     "rogers":       P.ROTATION,    # squad rotation
-    "gordon":       P.ROTATION,    # competes with Saka/Palmer
+    "gordon":       P.LIKELY,      # 72 min in MD1 — closer to starter than rotation
     "eze":          P.ROTATION,    # competes with Palmer/Foden
     "palmer":       P.LIKELY,      # competes with Eze/Foden
 
@@ -131,10 +132,10 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "doué":         P.LIKELY,      # Désiré Doué — rotation
 
     # ── Brazil ───────────────────────────────────────────────────────────
-    "neymar":       P.ROTATION,    # injury history, fitness uncertainty at 34
-    "casemiro":     P.LIKELY,      # aging, some rotation risk
+    "neymar":       P.BENCH,       # did not play MD1 or MD2 — fitness very uncertain for MD3
+    "casemiro":     P.ROTATION,    # avg 67 min in MD1+MD2 — being rotated off, not guaranteed full game
     "wesley":       P.LIKELY,      # Brazil RB rotation — competes with Vanderson/Danilo
-    "cunha":        P.IMPACT_SUB,  # Matheus Cunha — came off bench MD1 (29 min), not a starter
+    "cunha":        P.IMPACT_SUB,  # 46 min/game avg across MD1+MD2 — efficient sub, 2G in 93 total min
 
     # ── Norway ───────────────────────────────────────────────────────────
     "sorloth":      P.ROTATION,    # backup striker to Haaland
@@ -177,7 +178,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "güler":        P.LIKELY,      # pulled hamstring (April), on track to recover for tournament
 
     # ── Croatia ──────────────────────────────────────────────────────────
-    "modri":        P.EXPECTED,    # cheekbone fracture, shut down for season but confident of recovery
+    "modri":        P.ROTATION,    # 58 min in MD1 — being subbed off, not nailed for full game in MD3
 
     # ── Canada ───────────────────────────────────────────────────────────
     "davies":       P.IMPACT_SUB,  # ACL (March) + hamstring (May), day-by-day rehab
@@ -844,8 +845,17 @@ def captain_picks(top_n: int = 10, predictor=None, matchday: int | None = None) 
 
 
 
-def get_projected_players(predictor=None) -> list[dict]:
-    """All fantasy players with projected points — used to populate the squad builder."""
+def get_projected_players(
+    predictor=None,
+    matchday: int | None = None,
+    matchdays: list[int] | None = None,
+) -> list[dict]:
+    """All fantasy players with projected points — used to populate the squad builder.
+
+    matchday=N      → project single matchday only (e.g. captain advice)
+    matchdays=[1,2] → project over those matchdays only (e.g. projected vs actual)
+    neither         → all 3 group matches (full group-stage view)
+    """
     conn    = sqlite3.connect(DB_PATH)
     players = _load_players(conn)
     conn.close()
@@ -853,6 +863,6 @@ def get_projected_players(predictor=None) -> list[dict]:
         return []
     dc         = _load_dc()
     qual_probs = _get_qual_probs(predictor)
-    players    = _project_mc(players, dc, qual_probs=qual_probs)
+    players    = _project_mc(players, dc, qual_probs=qual_probs, matchday=matchday, matchdays=matchdays)
     players.sort(key=lambda p: p.get("projected_pts", 0.0), reverse=True)
     return players
