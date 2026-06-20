@@ -51,7 +51,7 @@ if _SENTRY_DSN:
     )
 
 from wc.src.score_predictor import DCPredictor, _canonical
-from wc.src.fantasy_optimizer import optimise as _optimise, captain_picks as _captain_picks, live_captain_advice as _live_captain_advice, get_projected_players as _get_projected_players
+from wc.src.fantasy_optimizer import optimise as _optimise, captain_picks as _captain_picks, get_projected_players as _get_projected_players
 
 DB_PATH = PROJECT_ROOT / "wc" / "data" / "wc.db"
 
@@ -369,14 +369,6 @@ class CaptainsResponse(BaseModel):
     picks: list[FantasyPlayerOut]
 
 
-class LiveAdviceResponse(BaseModel):
-    is_live: bool
-    matchday: int
-    played_team_count: int
-    remaining_team_count: int
-    remaining_picks: list[FantasyPlayerOut]
-
-
 def _fmt_player(p: dict, is_captain: bool = False) -> FantasyPlayerOut:
     return FantasyPlayerOut(
         id=p["id"], name=p["name"], team=p["team"], pos=p["pos"],
@@ -461,19 +453,6 @@ def fantasy_captains(request: Request, top_n: int = 10, matchday: int | None = N
     _captains_cache[cache_key] = (time.time(), formatted)
     return CaptainsResponse(picks=formatted)
 
-
-@app.get("/api/wc/fantasy/captains/live", response_model=LiveAdviceResponse)
-@limiter.limit("10/minute")
-def fantasy_captains_live(request: Request, matchday: int = 1):
-    matchday = max(1, min(3, matchday))
-    result = _live_captain_advice(matchday=matchday, predictor=_predictor)
-    return LiveAdviceResponse(
-        is_live=result["is_live"],
-        matchday=result["matchday"],
-        played_team_count=result["played_team_count"],
-        remaining_team_count=result["remaining_team_count"],
-        remaining_picks=[_fmt_player(p) for p in result["remaining_picks"]],
-    )
 
 
 # ── Tournament simulator ──────────────────────────────────────────────────────
