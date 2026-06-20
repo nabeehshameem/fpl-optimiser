@@ -858,6 +858,52 @@ class DCPredictor:
             pairs.append((qualified[i], qualified[n - 1 - i]))
         return pairs
 
+    @staticmethod
+    def _guaranteed_top2(group_keys: list[str], played_map: dict) -> set[int]:
+        """Return positions (0-3) that are mathematically guaranteed to finish top-2.
+
+        Brute-forces all possible remaining game outcomes (3^R combinations where
+        R ≤ 6). Conservative: uses strict pts comparison only (ignores H2H
+        tiebreakers), so a team is only marked guaranteed if they can't be leapfrogged
+        on pure points in any scenario.
+        """
+        from itertools import product as iproduct
+        n = len(group_keys)
+        all_pairs = [(i, j) for i in range(n) for j in range(i + 1, n)]
+
+        base_pts = [0] * n
+        remaining = []
+        for i, j in all_pairs:
+            hi, ai = group_keys[i], group_keys[j]
+            if (hi, ai) in played_map:
+                hg, ag = played_map[(hi, ai)]
+            elif (ai, hi) in played_map:
+                ag, hg = played_map[(ai, hi)]
+            else:
+                remaining.append((i, j))
+                continue
+            diff = hg - ag
+            if diff > 0:   base_pts[i] += 3
+            elif diff < 0: base_pts[j] += 3
+            else:          base_pts[i] += 1; base_pts[j] += 1
+
+        guaranteed = set()
+        for t in range(n):
+            always_top2 = True
+            for outcomes in iproduct(range(3), repeat=len(remaining)):
+                pts = list(base_pts)
+                for k, (i, j) in enumerate(remaining):
+                    o = outcomes[k]
+                    if o == 0:   pts[i] += 3
+                    elif o == 1: pts[i] += 1; pts[j] += 1
+                    else:        pts[j] += 3
+                if sum(1 for u in range(n) if u != t and pts[u] > pts[t]) >= 2:
+                    always_top2 = False
+                    break
+            if always_top2:
+                guaranteed.add(t)
+        return guaranteed
+
     def simulate_tournament(self, n_sim: int = 50_000) -> list[dict]:
         """
         Monte Carlo simulation of the full WC2026 tournament.
@@ -923,6 +969,15 @@ class DCPredictor:
             for h, a, hs, as_ in played_rows
             if hs is not None and as_ is not None
         }
+
+        # Detect teams guaranteed to finish top-2 regardless of remaining results.
+        # These will be locked to 100% r32 after Monte Carlo — facts override predictions.
+        guaranteed_r32: set[int] = set()
+        for g_idx, g_teams in enumerate(self.WC2026_GROUPS.values()):
+            g_keys = [_canonical(t) for t in g_teams]
+            for pos in self._guaranteed_top2(g_keys, played_map):
+                guaranteed_r32.add(key_to_idx[g_keys[pos]])
+
         for m in range(M):
             h_key = all_keys[gm_h[m]]
             a_key = all_keys[gm_a[m]]
@@ -1034,6 +1089,10 @@ class DCPredictor:
         win_counts   = np.zeros(T, dtype=np.int64)
 
         np.add.at(r32_counts, r32_teams.ravel(), 1)
+
+        # Lock mathematically guaranteed qualifiers to exactly 100%.
+        for gidx in guaranteed_r32:
+            r32_counts[gidx] = n_sim
 
         # ── Bracket: seed by DC quality (attack/defense), 1 vs 32, 2 vs 31 … ─
         # This avoids group-letter bias: England/France/Spain/Argentina get top
