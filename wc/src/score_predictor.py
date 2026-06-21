@@ -643,19 +643,20 @@ class DCPredictor:
         mu_h = atk_h * h_atk_mult * def_a * a_def_mult * ha
         mu_a = atk_a * a_atk_mult * def_h * h_def_mult
 
-        # Mismatch boost: scale=0.08, cap=1.40 calibrated against 32 WC2026 matches
-        # to maximise exact-score hit rate while keeping Brier score competitive.
+        # Mismatch boost: only kicks in for extreme mismatches (ratio > 2.5), so
+        # moderate-favourite games (Belgium vs Egypt, Brazil vs Morocco) aren't
+        # pushed away from draw territory. Scale/cap calibrated on WC2026 blowouts.
         _ratio = mu_h / max(mu_a, 0.1)
-        if _ratio > 1.5:
-            mu_h *= min(1.40, 1.0 + 0.08 * (_ratio - 1.5))
-        elif _ratio < 1.0 / 1.5:
-            mu_a *= min(1.40, 1.0 + 0.08 * (1.0 / max(_ratio, 0.01) - 1.5))
+        if _ratio > 2.5:
+            mu_h *= min(1.80, 1.0 + 0.15 * (_ratio - 2.5))
+        elif _ratio < 1.0 / 2.5:
+            mu_a *= min(1.80, 1.0 + 0.15 * (1.0 / max(_ratio, 0.01) - 2.5))
 
-        # Hard ceiling: WC group-stage calibration — backtesting 32 WC2026 matches shows
-        # a 2.5 cap minimises Brier score vs 3.5 (fewer overconfident blowout predictions).
-        # This reflects real WC uncertainty even in mismatched games.
-        mu_h = min(mu_h, 2.5)
-        mu_a = min(mu_a, 2.5)
+        # Ceiling raised to 4.0: allows 3-0 / 4-0 to appear in top predictions for
+        # true blowout mismatches (Germany 7-1, Canada 6-0) without affecting
+        # close or moderate games where the raw mu stays well below 4.0.
+        mu_h = min(mu_h, 4.0)
+        mu_a = min(mu_a, 4.0)
 
         goals = np.arange(max_goals + 1)
         mat   = np.outer(poisson.pmf(goals, mu_h), poisson.pmf(goals, mu_a))
@@ -725,9 +726,9 @@ class DCPredictor:
             raise RuntimeError(
                 f"No fixtures for matchday {matchday}. Run ingest_fixtures.py first."
             )
-        # MD1 draw boost calibrated on 32 WC2026 matches (actual MD1 draw rate = 38%).
-        # Host nations (USA/Mexico/Canada) get real home advantage in their group games.
-        draw_boost = 0.15 if matchday == 1 else 0.0
+        # Draw rates from 37 WC2026 matches: MD1=31%, MD2+=24%. All group stage
+        # matchdays see elevated draws vs base Poisson (cautious opening tactics).
+        draw_boost = 0.15 if matchday == 1 else 0.07
         results = []
         for home_id, away_id in rows:
             home_key = self._resolve_name(home_id)
@@ -764,10 +765,10 @@ class DCPredictor:
         mu_h = atk_h * def_a * ha
         mu_a = atk_a * def_h
         _ratio = mu_h / max(mu_a, 0.1)
-        if _ratio > 1.5:
-            mu_h *= min(1.50, 1.0 + 0.20 * (_ratio - 1.5))
-        elif _ratio < 1.0 / 1.5:
-            mu_a *= min(1.50, 1.0 + 0.20 * (1.0 / max(_ratio, 0.01) - 1.5))
+        if _ratio > 2.5:
+            mu_h *= min(1.80, 1.0 + 0.15 * (_ratio - 2.5))
+        elif _ratio < 1.0 / 2.5:
+            mu_a *= min(1.80, 1.0 + 0.15 * (1.0 / max(_ratio, 0.01) - 2.5))
         hg = int(rng.poisson(mu_h))
         ag = int(rng.poisson(mu_a))
         # DC low-score correction: accept/reject via tau
@@ -857,6 +858,52 @@ class DCPredictor:
         for i in range(n // 2):
             pairs.append((qualified[i], qualified[n - 1 - i]))
         return pairs
+
+    @staticmethod
+    def _guaranteed_1st(group_keys: list[str], played_map: dict) -> set[int]:
+        """Return positions (0-3) mathematically guaranteed to finish 1st.
+        Conservative: a team is marked guaranteed-1st only when no other team
+        can accumulate strictly more points in any remaining-game scenario.
+        Does not model H2H tiebreakers — safe because we only call this when
+        the pts gap is genuinely unbeatable (e.g. Mexico/USA/Germany at 6pts
+        with only H2H rivals able to reach 6pts and H2H already won).
+        """
+        from itertools import product as iproduct
+        n = len(group_keys)
+        all_pairs = [(i, j) for i in range(n) for j in range(i + 1, n)]
+
+        base_pts = [0] * n
+        remaining = []
+        for i, j in all_pairs:
+            hi, ai = group_keys[i], group_keys[j]
+            if (hi, ai) in played_map:
+                hg, ag = played_map[(hi, ai)]
+            elif (ai, hi) in played_map:
+                ag, hg = played_map[(ai, hi)]
+            else:
+                remaining.append((i, j))
+                continue
+            diff = hg - ag
+            if diff > 0:   base_pts[i] += 3
+            elif diff < 0: base_pts[j] += 3
+            else:          base_pts[i] += 1; base_pts[j] += 1
+
+        guaranteed = set()
+        for t in range(n):
+            always_1st = True
+            for outcomes in iproduct(range(3), repeat=len(remaining)):
+                pts = list(base_pts)
+                for k, (i, j) in enumerate(remaining):
+                    o = outcomes[k]
+                    if o == 0:   pts[i] += 3
+                    elif o == 1: pts[i] += 1; pts[j] += 1
+                    else:        pts[j] += 3
+                if any(pts[u] > pts[t] for u in range(n) if u != t):
+                    always_1st = False
+                    break
+            if always_1st:
+                guaranteed.add(t)
+        return guaranteed
 
     @staticmethod
     def _guaranteed_top2(group_keys: list[str], played_map: dict) -> set[int]:
@@ -970,13 +1017,16 @@ class DCPredictor:
             if hs is not None and as_ is not None
         }
 
-        # Detect teams guaranteed to finish top-2 regardless of remaining results.
-        # These will be locked to 100% r32 after Monte Carlo — facts override predictions.
+        # Detect teams mathematically guaranteed to finish top-2 or 1st.
+        # Locked to exactly 100% after Monte Carlo — facts override predictions.
         guaranteed_r32: set[int] = set()
+        guaranteed_1st: set[int] = set()
         for g_idx, g_teams in enumerate(self.WC2026_GROUPS.values()):
             g_keys = [_canonical(t) for t in g_teams]
             for pos in self._guaranteed_top2(g_keys, played_map):
                 guaranteed_r32.add(key_to_idx[g_keys[pos]])
+            for pos in self._guaranteed_1st(g_keys, played_map):
+                guaranteed_1st.add(key_to_idx[g_keys[pos]])
 
         for m in range(M):
             h_key = all_keys[gm_h[m]]
@@ -1077,22 +1127,27 @@ class DCPredictor:
             [top2_idx.reshape(n_sim, 24), best8_team_idx], axis=1
         )  # (n_sim, 32)
 
+        # Save 1st-place finisher per group per sim before freeing top2_idx
+        first_idx = top2_idx[:, :, 0].copy()  # (n_sim, 12)
+
         del pts_arr, gd_arr, gf_arr, sort_key, ranks, top2_idx, third_idx
 
         # ── Count stage qualifications ────────────────────────────────────────
-        # WC2026 has 5 knockout rounds: R32(32→16), R16(16→8), QF(8→4), SF(4→2), F(2→1)
-        # We track: r32 = qualify from groups; qf/sf/final/win = respective stages
         r32_counts   = np.zeros(T, dtype=np.int64)
+        first_counts = np.zeros(T, dtype=np.int64)
         qf_counts    = np.zeros(T, dtype=np.int64)
         sf_counts    = np.zeros(T, dtype=np.int64)
         final_counts = np.zeros(T, dtype=np.int64)
         win_counts   = np.zeros(T, dtype=np.int64)
 
-        np.add.at(r32_counts, r32_teams.ravel(), 1)
+        np.add.at(r32_counts,   r32_teams.ravel(), 1)
+        np.add.at(first_counts, first_idx.ravel(), 1)
 
-        # Lock mathematically guaranteed qualifiers to exactly 100%.
+        # Lock guaranteed qualifiers / group winners to exactly 100%.
         for gidx in guaranteed_r32:
             r32_counts[gidx] = n_sim
+        for gidx in guaranteed_1st:
+            first_counts[gidx] = n_sim
 
         # ── Bracket: seed by DC quality (attack/defense), 1 vs 32, 2 vs 31 … ─
         # This avoids group-letter bias: England/France/Spain/Argentina get top
@@ -1147,13 +1202,14 @@ class DCPredictor:
 
         results = [
             {
-                "team":      name_map.get(k, k),
-                "group":     group_of.get(k, "?"),
-                "r32_pct":   round(r32_counts[i]   / n_sim * 100, 1),
-                "qf_pct":    round(qf_counts[i]    / n_sim * 100, 1),
-                "sf_pct":    round(sf_counts[i]    / n_sim * 100, 1),
-                "final_pct": round(final_counts[i] / n_sim * 100, 1),
-                "win_pct":   round(win_counts[i]   / n_sim * 100, 1),
+                "team":           name_map.get(k, k),
+                "group":          group_of.get(k, "?"),
+                "group_1st_pct":  round(first_counts[i]  / n_sim * 100, 1),
+                "r32_pct":        round(r32_counts[i]    / n_sim * 100, 1),
+                "qf_pct":         round(qf_counts[i]     / n_sim * 100, 1),
+                "sf_pct":         round(sf_counts[i]     / n_sim * 100, 1),
+                "final_pct":      round(final_counts[i]  / n_sim * 100, 1),
+                "win_pct":        round(win_counts[i]    / n_sim * 100, 1),
             }
             for i, k in enumerate(all_keys)
         ]

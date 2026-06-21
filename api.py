@@ -460,6 +460,7 @@ def fantasy_captains(request: Request, top_n: int = 10, matchday: int | None = N
 class TournamentTeamOut(BaseModel):
     team: str
     group: str
+    group_1st_pct: float = 0.0
     r32_pct: float
     qf_pct: float
     sf_pct: float

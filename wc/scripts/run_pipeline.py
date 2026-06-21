@@ -1,11 +1,20 @@
 """
 run_pipeline.py
-One command to refresh all WC2026 data, retrain, and push to Railway.
+One command to refresh all WC2026 data after each batch of match results.
+
+Pipeline (runs automatically in order):
+  1. Ingest match stats from API      (ingest_match_stats.py)
+  2. Compute fantasy points           (compute_wc2026_points.py)
+  3. Retrain Dixon-Coles model        (train_dc.py)
+  4. Show batch report                (standings, bracket %, fantasy pts)
+  5. Commit wc.db + dc_params.json and push to Railway
 
 Usage:
-  python wc/scripts/run_pipeline.py           # ingest + retrain + push
-  python wc/scripts/run_pipeline.py --no-push # skip git push (dry run)
-  python wc/scripts/run_pipeline.py --md 2    # show recommendations for matchday
+  python wc/scripts/run_pipeline.py           # full pipeline + report + push
+  python wc/scripts/run_pipeline.py --no-push # skip git push
+  python wc/scripts/run_pipeline.py --md 3    # also show MD3 recommendations
+  python wc/scripts/run_pipeline.py --since 2026-06-20  # filter report to recent matches
+  python wc/scripts/run_pipeline.py --recs-only --md 3  # skip pipeline, just recommendations
 """
 
 import argparse
@@ -69,19 +78,25 @@ def check_form_coverage() -> None:
         print(f"  All {len(wc_teams)} WC teams have >= 3 matches in last 90 days. OK.")
 
 
-def run_ingest() -> int:
-    header("Step 1/3 — Ingest match stats")
+def run_ingest() -> None:
+    header("Step 1/4 — Ingest match stats")
     _run_script(str(PROJECT_ROOT / "wc" / "scripts" / "ingest_match_stats.py"))
 
 
 def run_compute() -> None:
-    header("Step 2/3 — Compute fantasy points")
+    header("Step 2/4 — Compute fantasy points")
     _run_script(str(PROJECT_ROOT / "wc" / "scripts" / "compute_wc2026_points.py"))
 
 
 def run_retrain() -> None:
-    header("Step 3/3 — Retrain DC model")
+    header("Step 3/4 — Retrain DC model")
     _run_script(str(PROJECT_ROOT / "wc" / "scripts" / "train_dc.py"))
+
+
+def run_report(since: str | None = None, matchday: int | None = None) -> None:
+    header("Step 4/4 — Batch report")
+    from wc.scripts.report_batch import run_report as _report
+    _report(since=since, matchday=matchday)
 
 
 def git_push() -> None:
@@ -143,11 +158,11 @@ def show_recommendations(matchday: int) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="WC2026 full pipeline")
+    parser = argparse.ArgumentParser(description="WC2026 full pipeline — ingest → compute → retrain → report → push")
     parser.add_argument("--no-push",   action="store_true", help="Skip git push")
-    parser.add_argument("--md",        type=int, default=None, help="Show recommendations for matchday N after pipeline")
-    parser.add_argument("--recs-only", action="store_true", help="Skip pipeline, just show recommendations")
-    parser.add_argument("--report",    action="store_true", help="Show batch report after pipeline (results, standings, bracket%, fantasy pts)")
+    parser.add_argument("--no-report", action="store_true", help="Skip batch report")
+    parser.add_argument("--md",        type=int, default=None, help="Also show fantasy recommendations for matchday N")
+    parser.add_argument("--recs-only", action="store_true", help="Skip pipeline, just show recommendations (requires --md)")
     parser.add_argument("--since",     default=None, help="Filter report to results since YYYY-MM-DD")
     args = parser.parse_args()
 
@@ -158,16 +173,16 @@ def main() -> None:
         run_ingest()
         run_compute()
         run_retrain()
+        if not args.no_report:
+            run_report(since=args.since, matchday=args.md)
         if not args.no_push:
             git_push()
         else:
             print("\n[--no-push] Skipped git push.")
 
-    if args.report or args.since:
-        from wc.scripts.report_batch import run_report
-        run_report(since=args.since, matchday=args.md)
-
-    if args.md:
+    if args.recs_only and args.md:
+        show_recommendations(args.md)
+    elif args.md and not args.recs_only:
         show_recommendations(args.md)
 
     elapsed = time.time() - t0
