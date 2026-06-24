@@ -624,8 +624,11 @@ def get_standings(request: Request):
         display = {_canonical(t): t for t in teams}
         ranked, stats = _calc_standings(keys, played_map)
         fixtures = remaining_by_group.get(group_name, [])
-        combos   = list(itertools.product(_OUTCOMES, repeat=len(fixtures)))
-        all_orders = [_calc_standings(keys, played_map, dict(zip(fixtures, c)))[0] for c in combos]
+        if fixtures:
+            combos     = list(itertools.product(_OUTCOMES, repeat=len(fixtures)))
+            all_orders = [_calc_standings(keys, played_map, dict(zip(fixtures, c)))[0] for c in combos]
+        else:
+            all_orders = []
 
         group_list = []
         for pos, tk in enumerate(ranked, 1):
@@ -633,16 +636,21 @@ def get_standings(request: Request):
             if all_orders:
                 all_pos  = [o.index(tk) + 1 for o in all_orders]
                 min_p, max_p = min(all_pos), max(all_pos)
+                pos_locked       = min_p == max_p
+                qualified_locked = max_p <= 2
+                top2_locked_out  = min_p > 2
             else:
-                min_p = max_p = pos
+                pos_locked       = False
+                qualified_locked = pos <= 2
+                top2_locked_out  = pos > 2
             group_list.append(TeamStandingOut(
                 team=display[tk],
                 pos=pos,
                 pts=s[0],
                 gd=s[1],
-                pos_locked=min_p == max_p,
-                qualified_locked=max_p <= 2,
-                top2_locked_out=min_p > 2,
+                pos_locked=pos_locked,
+                qualified_locked=qualified_locked,
+                top2_locked_out=top2_locked_out,
             ))
         groups_out[group_name] = group_list
 
