@@ -12,6 +12,7 @@ Requires a trained DC model and populated DB:
 """
 
 import datetime as _dt
+import itertools
 import logging
 import os
 import sqlite3
@@ -528,6 +529,124 @@ def simulate_tournament(request: Request, n_sim: int = 10_000):
         last_updated=_retrain_status.get("last_time"),
     )
     return JSONResponse(content=data.model_dump(), headers={"Cache-Control": "no-store"})
+
+
+# ── Group standings + lock status ────────────────────────────────────────────
+
+class TeamStandingOut(BaseModel):
+    team: str
+    pos: int
+    pts: int
+    gd: int
+    pos_locked: bool
+    qualified_locked: bool
+    top2_locked_out: bool
+
+class StandingsResponse(BaseModel):
+    groups: dict[str, list[TeamStandingOut]]
+
+
+def _calc_standings(keys: list, played_map: dict, extra: dict | None = None):
+    """Return (ranked_keys, stats) where stats[k]=[pts,gd,gf,w,d,l]."""
+    all_res = {**played_map, **(extra or {})}
+    stats = {k: [0, 0, 0, 0, 0, 0] for k in keys}
+    h2h   = {k: {o: [0, 0] for o in keys if o != k} for k in keys}
+    for i in range(len(keys)):
+        for j in range(i + 1, len(keys)):
+            h, a = keys[i], keys[j]
+            pair = all_res.get((h, a)) or all_res.get((a, h))
+            if pair is None:
+                continue
+            hg, ag = pair if (h, a) in all_res else (pair[1], pair[0])
+            diff = hg - ag
+            stats[h][2] += hg; stats[h][1] += diff
+            stats[a][2] += ag; stats[a][1] -= diff
+            if diff > 0:
+                stats[h][0] += 3; stats[h][3] += 1; stats[a][5] += 1
+                h2h[h][a][0] = 3; h2h[a][h][0] = 0
+            elif diff < 0:
+                stats[a][0] += 3; stats[a][3] += 1; stats[h][5] += 1
+                h2h[h][a][0] = 0; h2h[a][h][0] = 3
+            else:
+                stats[h][0] += 1; stats[h][4] += 1
+                stats[a][0] += 1; stats[a][4] += 1
+                h2h[h][a][0] = 1; h2h[a][h][0] = 1
+            h2h[h][a][1] = diff; h2h[a][h][1] = -diff
+    def sk(k):
+        pts  = stats[k][0]
+        tied = [o for o in keys if o != k and stats[o][0] == pts]
+        return (pts, sum(h2h[k][o][0] for o in tied), sum(h2h[k][o][1] for o in tied), stats[k][1], stats[k][2])
+    return sorted(keys, key=sk, reverse=True), stats
+
+
+@app.get("/api/wc/standings", response_model=StandingsResponse)
+@limiter.limit("30/minute")
+def get_standings(request: Request):
+    """
+    Current group standings in live order with mathematical lock status.
+    Enumerates all 9 possible MD3 outcomes per group (H/D/A for each fixture)
+    to determine which positions are mathematically fixed.
+    """
+    WC2026_GROUPS = DCPredictor.WC2026_GROUPS
+    conn = sqlite3.connect(str(DB_PATH))
+    played = conn.execute(
+        "SELECT home_team, away_team, home_score, away_score FROM match_stats"
+    ).fetchall()
+    remaining_rows = conn.execute("""
+        SELECT f.group_id, t1.name, t2.name
+        FROM fixtures f
+        JOIN teams t1 ON f.home_team_id = t1.team_id
+        JOIN teams t2 ON f.away_team_id = t2.team_id
+        WHERE f.matchday = 3
+          AND NOT EXISTS (
+              SELECT 1 FROM match_stats ms
+              WHERE LOWER(ms.home_team) = LOWER(t1.name)
+                AND LOWER(ms.away_team) = LOWER(t2.name)
+          )
+    """).fetchall()
+    conn.close()
+
+    played_map: dict = {}
+    for h, a, hs, as_ in played:
+        played_map[(_canonical(h), _canonical(a))] = (int(hs), int(as_))
+
+    remaining_by_group: dict = {}
+    for group_id, home_name, away_name in remaining_rows:
+        remaining_by_group.setdefault(group_id, []).append(
+            (_canonical(home_name), _canonical(away_name))
+        )
+
+    _OUTCOMES = [(1, 0), (0, 0), (0, 1)]
+    groups_out: dict[str, list[TeamStandingOut]] = {}
+
+    for group_name, teams in WC2026_GROUPS.items():
+        keys    = [_canonical(t) for t in teams]
+        display = {_canonical(t): t for t in teams}
+        ranked, stats = _calc_standings(keys, played_map)
+        fixtures = remaining_by_group.get(group_name, [])
+        combos   = list(itertools.product(_OUTCOMES, repeat=len(fixtures)))
+        all_orders = [_calc_standings(keys, played_map, dict(zip(fixtures, c)))[0] for c in combos]
+
+        group_list = []
+        for pos, tk in enumerate(ranked, 1):
+            s = stats[tk]
+            if all_orders:
+                all_pos  = [o.index(tk) + 1 for o in all_orders]
+                min_p, max_p = min(all_pos), max(all_pos)
+            else:
+                min_p = max_p = pos
+            group_list.append(TeamStandingOut(
+                team=display[tk],
+                pos=pos,
+                pts=s[0],
+                gd=s[1],
+                pos_locked=min_p == max_p,
+                qualified_locked=max_p <= 2,
+                top2_locked_out=min_p > 2,
+            ))
+        groups_out[group_name] = group_list
+
+    return StandingsResponse(groups=groups_out)
 
 
 # ── Email notifications ───────────────────────────────────────────────────────
