@@ -35,6 +35,133 @@ def _div(title: str) -> None:
     print(f"{'-'*60}")
 
 
+def _calc_group_standings(
+    keys: list[str],
+    played_map: dict[tuple[str, str], tuple[int, int]],
+    extra: dict[tuple[str, str], tuple[int, int]] | None = None,
+) -> tuple[list[str], dict[str, list[int]]]:
+    """Return (ranked_keys, stats) where stats[k] = [pts, gd, gf, w, d, l]."""
+    all_results = {**played_map, **(extra or {})}
+    stats: dict[str, list[int]] = {k: [0, 0, 0, 0, 0, 0] for k in keys}
+    h2h: dict[str, dict[str, list[int]]] = {
+        k: {o: [0, 0] for o in keys if o != k} for k in keys
+    }
+
+    for i in range(len(keys)):
+        for j in range(i + 1, len(keys)):
+            h, a = keys[i], keys[j]
+            pair = all_results.get((h, a)) or all_results.get((a, h))
+            if pair is None:
+                continue
+            hg, ag = pair if (h, a) in all_results else (pair[1], pair[0])
+            diff = hg - ag
+            stats[h][2] += hg; stats[h][1] += diff
+            stats[a][2] += ag; stats[a][1] -= diff
+            if diff > 0:
+                stats[h][0] += 3; stats[h][3] += 1; stats[a][5] += 1
+                h2h[h][a][0] = 3; h2h[a][h][0] = 0
+            elif diff < 0:
+                stats[a][0] += 3; stats[a][3] += 1; stats[h][5] += 1
+                h2h[h][a][0] = 0; h2h[a][h][0] = 3
+            else:
+                stats[h][0] += 1; stats[h][4] += 1
+                stats[a][0] += 1; stats[a][4] += 1
+                h2h[h][a][0] = 1; h2h[a][h][0] = 1
+            h2h[h][a][1] = diff; h2h[a][h][1] = -diff
+
+    def sort_key(k: str) -> tuple:
+        pts = stats[k][0]
+        tied = [o for o in keys if o != k and stats[o][0] == pts]
+        return (pts, sum(h2h[k][o][0] for o in tied), sum(h2h[k][o][1] for o in tied), stats[k][1], stats[k][2])
+
+    return sorted(keys, key=sort_key, reverse=True), stats
+
+
+def _get_group_locks() -> dict[str, list[dict]]:
+    """
+    Return {group: [team_dict, ...]} in current standings order.
+    Enumerates all 9 possible MD3 outcomes (H/D/A for each of the 2 games per group)
+    to determine if a team's position is mathematically locked.
+
+    Each dict keys: key, display_name, pos, pts, gd, pos_locked, qualified_locked, top2_locked_out.
+    pos_locked: exact group position is the same in every possible MD3 outcome.
+    qualified_locked: always finishes top 2 regardless of results.
+    top2_locked_out: cannot finish top 2 in any possible outcome.
+    """
+    import itertools
+    from wc.src.score_predictor import DCPredictor, _canonical
+    WC2026_GROUPS = DCPredictor.WC2026_GROUPS
+
+    conn = sqlite3.connect(DB_PATH)
+    played = conn.execute(
+        "SELECT home_team, away_team, home_score, away_score FROM match_stats"
+    ).fetchall()
+    remaining_rows = conn.execute("""
+        SELECT f.group_id, t1.name, t2.name
+        FROM fixtures f
+        JOIN teams t1 ON f.home_team_id = t1.team_id
+        JOIN teams t2 ON f.away_team_id = t2.team_id
+        WHERE f.matchday = 3
+          AND NOT EXISTS (
+              SELECT 1 FROM match_stats ms
+              WHERE LOWER(ms.home_team) = LOWER(t1.name)
+                AND LOWER(ms.away_team) = LOWER(t2.name)
+          )
+    """).fetchall()
+    conn.close()
+
+    played_map: dict[tuple[str, str], tuple[int, int]] = {}
+    for h, a, hs, as_ in played:
+        played_map[(_canonical(h), _canonical(a))] = (int(hs), int(as_))
+
+    remaining_by_group: dict[str, list[tuple[str, str]]] = {}
+    for group_id, home_name, away_name in remaining_rows:
+        remaining_by_group.setdefault(group_id, []).append(
+            (_canonical(home_name), _canonical(away_name))
+        )
+
+    _OUTCOMES = [(1, 0), (0, 0), (0, 1)]  # H win, draw, A win
+
+    result: dict[str, list[dict]] = {}
+
+    for group_name, teams in WC2026_GROUPS.items():
+        keys = [_canonical(t) for t in teams]
+        display = {_canonical(t): t for t in teams}
+
+        ranked, stats = _calc_group_standings(keys, played_map)
+        fixtures = remaining_by_group.get(group_name, [])
+
+        combos = list(itertools.product(_OUTCOMES, repeat=len(fixtures)))
+        all_orders: list[list[str]] = [
+            _calc_group_standings(keys, played_map, dict(zip(fixtures, combo)))[0]
+            for combo in combos
+        ]
+
+        group_list = []
+        for pos, team_key in enumerate(ranked, 1):
+            s = stats[team_key]
+            if all_orders:
+                all_positions = [order.index(team_key) + 1 for order in all_orders]
+                min_pos, max_pos = min(all_positions), max(all_positions)
+            else:
+                min_pos = max_pos = pos
+
+            group_list.append({
+                "key": team_key,
+                "display_name": display[team_key],
+                "pos": pos,
+                "pts": s[0],
+                "gd": s[1],
+                "pos_locked": min_pos == max_pos,
+                "qualified_locked": max_pos <= 2,
+                "top2_locked_out": min_pos > 2,
+            })
+
+        result[group_name] = group_list
+
+    return result
+
+
 # ── 1. Results vs prediction ──────────────────────────────────────────────────
 
 def report_results(predictor, since: str | None = None) -> None:
@@ -146,46 +273,12 @@ def report_group_standings() -> None:
 
     played_map: dict[tuple[str, str], tuple[int, int]] = {}
     for h, a, hs, as_ in played:
-        played_map[(_canon(h), _canon(a))] = (int(hs), int(as_))
+        played_map[(_canonical(h), _canonical(a))] = (int(hs), int(as_))
 
     for group_name, teams in WC2026_GROUPS.items():
         keys = [_canonical(t) for t in teams]
         display = {_canonical(t): t for t in teams}
-        stats: dict[str, list[int]] = {k: [0, 0, 0, 0, 0, 0] for k in keys}
-        # [pts, gd, gf, w, d, l]
-        h2h: dict[str, dict[str, list[int]]] = {k: {o: [0, 0] for o in keys if o != k} for k in keys}
-        # h2h[k][o] = [pts_earned_vs_o, gd_vs_o]
-
-        for i in range(len(keys)):
-            for j in range(i + 1, len(keys)):
-                h, a = keys[i], keys[j]
-                result = played_map.get((h, a)) or played_map.get((a, h))
-                if result is None:
-                    continue
-                hg, ag = result if (h, a) in played_map else (result[1], result[0])
-                diff = hg - ag
-                stats[h][2] += hg; stats[h][1] += diff; stats[a][2] += ag; stats[a][1] -= diff
-                if diff > 0:
-                    stats[h][0] += 3; stats[h][3] += 1; stats[a][5] += 1
-                    h2h[h][a][0] = 3; h2h[a][h][0] = 0
-                elif diff < 0:
-                    stats[a][0] += 3; stats[a][3] += 1; stats[h][5] += 1
-                    h2h[h][a][0] = 0; h2h[a][h][0] = 3
-                else:
-                    stats[h][0] += 1; stats[h][4] += 1
-                    stats[a][0] += 1; stats[a][4] += 1
-                    h2h[h][a][0] = 1; h2h[a][h][0] = 1
-                h2h[h][a][1] = diff; h2h[a][h][1] = -diff
-
-        def _sort_key(k: str) -> tuple:
-            pts = stats[k][0]
-            tied = [o for o in keys if o != k and stats[o][0] == pts]
-            return (pts,
-                    sum(h2h[k][o][0] for o in tied),
-                    sum(h2h[k][o][1] for o in tied),
-                    stats[k][1], stats[k][2])
-
-        ranked = sorted(keys, key=_sort_key, reverse=True)
+        ranked, stats = _calc_group_standings(keys, played_map)
 
         print(f"\n  Group {group_name}")
         print(f"  {'Team':22s}  Pts  W  D  L  GD  GF  Played")
@@ -203,31 +296,47 @@ def report_group_standings() -> None:
 def report_bracket(predictor) -> None:
     _div("BRACKET ADVANCEMENT %  (50k simulations)")
 
-    results = predictor.simulate_tournament(n_sim=50_000)
+    sim_results = predictor.simulate_tournament(n_sim=50_000)
 
-    WC2026_GROUPS = predictor.WC2026_GROUPS
-    group_of = {
-        t.lower(): g
-        for g, teams in WC2026_GROUPS.items()
-        for t in teams
-    }
+    from wc.src.score_predictor import _canonical
+    sim_map = {_canonical(r["team"]): r for r in sim_results}
 
-    by_group: dict[str, list] = {}
-    for r in results:
-        g = r.get("group", "?")
-        by_group.setdefault(g, []).append(r)
+    standings = _get_group_locks()
 
-    print(f"\n  {'Team':22s}  Grp  R32%   QF%   SF%  Final%   Win%")
-    print("  " + "-" * 65)
+    print(f"\n  {'Pos':>4}  {'Team':22s}  {'Pts':>3}  {'GD':>3}  {'R32%':>5}  {'QF%':>4}  {'SF%':>4}  {'Final%':>6}  {'Win%':>5}")
+    print("  " + "-" * 74)
+    print("  (* pos locked   Q qualified locked   X can't finish top-2   ? open)")
 
-    for g in sorted(by_group.keys()):
-        for r in by_group[g]:
+    for group_name in sorted(standings.keys()):
+        print(f"\n  Group {group_name}")
+        for team_info in standings[group_name]:
+            pos        = team_info["pos"]
+            key        = team_info["key"]
+            name       = team_info["display_name"]
+            pts        = team_info["pts"]
+            gd         = team_info["gd"]
+
+            if team_info["pos_locked"]:
+                pos_str = f"{pos}*"
+            elif team_info["qualified_locked"]:
+                pos_str = f"{pos}Q"
+            elif team_info["top2_locked_out"]:
+                pos_str = f"{pos}X"
+            else:
+                pos_str = f"{pos}?"
+
+            sim = sim_map.get(key, {})
+            r32 = sim.get("r32_pct", 0)
+            qf  = sim.get("qf_pct", 0)
+            sf  = sim.get("sf_pct", 0)
+            fin = sim.get("final_pct", 0)
+            win = sim.get("win_pct", 0)
+
+            gd_str = f"{gd:+d}" if gd != 0 else "  0"
             print(
-                f"  {r['team']:22s}  {r['group']:>3}  "
-                f"{r['r32_pct']:>5.1f}  {r['qf_pct']:>5.1f}  "
-                f"{r['sf_pct']:>4.1f}  {r['final_pct']:>5.1f}  {r['win_pct']:>5.1f}"
+                f"  {pos_str:>4}  {name:22s}  {pts:>3}  {gd_str:>3}  "
+                f"{r32:>5.1f}  {qf:>4.1f}  {sf:>4.1f}  {fin:>6.1f}  {win:>5.1f}"
             )
-        print()
 
 
 # ── 4. Fantasy points leaderboard ────────────────────────────────────────────

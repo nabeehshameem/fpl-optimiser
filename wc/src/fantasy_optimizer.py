@@ -64,8 +64,19 @@ ASSIST_RATIO = 0.85
 PLAYER_UNAVAILABLE: dict[str, set[int]] = {
     # yamal/williams: not in unavailable — de la Fuente says "could be ready June 15" but start not guaranteed; handled via starter_prob 0.60
     # messi: Grade 1 strain only, expected fully fit for Argentina opener June 16, removed from unavailable
-    "neymar": {1, 2},  # Did not play MD1 or MD2 — fitness still in doubt for MD3
-    "davies": {1},     # ACL (March) + hamstring (May, 3rd injury of season) — MD1 very much in doubt
+    "neymar":   {1, 2},     # Did not play MD1 or MD2 — fitness still in doubt for MD3
+    "davies":   {1},        # ACL (March) + hamstring (May, 3rd injury of season) — MD1 very much in doubt
+    "raphinha":    {3},      # injured, out until knockouts — unavailable MD3
+    "di lollo":    {3},      # Lautaro Di Lollo — Argentina fringe, won't play MD3 rotation game
+    # Argentina MD3 rotation vs Jordan (eliminated) — exclude non-Messi ARG players
+    "lautaro":     {3},      # Lautaro Martínez — Argentina rotating, won't start vs Jordan
+    "enzo fern":   {3},      # Enzo Fernández — Argentina MD3 rotation
+    "senesi":      {3},      # Marcos Senesi — Argentina MD3 rotation
+    "lisandro":    {3},      # Lisandro Martínez — Argentina MD3 rotation
+    "alvarez":     {3},      # Julián Álvarez — Argentina MD3 rotation
+    "mac allister":{3},      # Mac Allister — Argentina MD3 rotation
+    "de paul":     {3},      # Rodrigo De Paul — Argentina MD3 rotation
+    "molina":      {3},      # Nahuel Molina — Argentina MD3 rotation
 }
 
 # Named starter probability tiers — use these instead of raw floats.
@@ -88,27 +99,36 @@ _UNCONFIRMED_FLOOR = P.LIKELY
 # Use P.XXX tier constants — never raw floats.
 PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Argentina ────────────────────────────────────────────────────────
-    "messi":        P.EXPECTED,    # Grade 1 strain — expected fully fit, guaranteed starter when healthy
+    "messi":        P.LIKELY,      # Argentina confirmed 1st, vs Jordan (eliminated) — rotation/rest expected
+    "lautaro":      P.ROTATION,    # Argentina rotating vs Jordan — Álvarez/Soulé likely to start
+    "enzo fern":    P.ROTATION,    # Argentina MD3 rotation expected
     "soul":         P.IMPACT_SUB,  # Soulé — young, not yet a regular starter
     "lo celso":     P.BENCH,       # squad rotational player
     "barco":        P.BENCH,       # fringe squad
     "buend":        P.IMPACT_SUB,  # competes with De Paul / Mac Allister
     "romero":       P.BENCH,       # partially torn MCL (mid-April), World Cup in jeopardy
     "otamendi":     P.BENCH,       # 3rd-choice CB behind Romero and L. Martínez
+    "lisandro":     P.ROTATION,    # L. Martínez — Argentina rotating vs Jordan, may be rested
     "nico paz":     P.BENCH,       # won't get minutes over Mac Allister / Enzo / De Paul
 
     # ── Germany ──────────────────────────────────────────────────────────
     "sané":         P.ROTATION,    # Nagelsmann XI leans on Musiala/Wirtz; not guaranteed starter
-    "musiala":      P.LIKELY,      # 64 min in MD1 (subbed off) — rotation risk vs Wirtz for 60+ min
+    "musiala":      P.ROTATION,    # Germany confirmed 1st — expected to rotate vs Ecuador away (MD3)
+    "havertz":      P.ROTATION,    # Germany MD3 rotation — Undav/Füllkrug pressing for start
+    "wirtz":        P.LIKELY,      # too important to fully rest, slight rotation discount
     "goretzka":     P.IMPACT_SUB,  # deep rotation behind Musiala/Wirtz/Kimmich
     "leweling":     P.ROTATION,    # competes for wide role
     "lennart karl": P.BENCH,       # Freiburg MID — Germany squad but not guaranteed starter
     "raum":         P.LIKELY,      # Nathaniel Brown in contention for LB slot
-    "undav":        P.IMPACT_SUB,  # confirmed: 26 min in MD1, late super-sub role — efficient but not a starter
+    "undav":        P.LIKELY,      # Germany MD3 rotation = likely to start vs Ecuador
 
     # ── England ──────────────────────────────────────────────────────────
     "saka":         P.LIKELY,      # hamstring late in Arsenal season; expected fit but not nailed
     "reece james":  P.LIKELY,      # recurring knee/hamstring issues through 2024-25 season
+    "kane":         P.LIKELY,      # England confirmed, vs Panama (eliminated) — possible rotation/rest
+    "bellingham":   P.LIKELY,      # England MD3 rotation vs Panama — Southgate may give fringe players minutes
+    "o'reilly":     P.LIKELY,      # Nico O'Reilly — young England player, probably starts vs Panama
+    "pickford":     P.NAILED,      # England #1 GK, confirmed starter
     "mainoo":       P.ROTATION,    # competes with Rice/Bellingham/Foden
     "rogers":       P.ROTATION,    # squad rotation
     "gordon":       P.LIKELY,      # 72 min in MD1 — closer to starter than rotation
@@ -167,6 +187,9 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "koopmeiners":  P.LIKELY,      # competes with Gravenberch/Reijnders
     "madueke":      P.ROTATION,    # wide rotation
     "schouten":     P.ROTATION,    # DM rotation
+    "gakpo":        P.ROTATION,    # Netherlands confirmed, vs Tunisia (eliminated) — rotation expected
+    "mem":          P.BENCH,       # Memphis Depay — NL will rotate vs Tunisia; likely benched
+    "malen":        P.ROTATION,    # NL rotation — Tunisia dead rubber
 
     # ── Ghana ────────────────────────────────────────────────────────────
     "kudus":        P.BENCH,       # quad injury Jan + hamstring setback Apr, WC participation in doubt
@@ -219,6 +242,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── Argentina ────────────────────────────────────────────────────────
     "molina":       P.IMPACT_SUB,  # Nahuel Molina — came on as sub at HT in MD1 (45 min only)
+    "di lollo":     P.FRINGE,      # Lautaro Di Lollo — Argentina fringe DEF, won't play MD3 rotation game
 }
 
 # Intel not yet verified — applied as max(value, _UNCONFIRMED_FLOOR) so a rumour
@@ -296,6 +320,37 @@ WC2026_GROUPS: dict[str, list[str]] = {
     "J": ["Argentina",     "Austria",      "Algeria",               "Jordan"],
     "K": ["Portugal",      "Colombia",     "Uzbekistan",            "DR Congo"],
     "L": ["England",       "Croatia",      "Panama",                "Ghana"],
+}
+
+# MD3 rotation: teams confirmed 1st vs eliminated opponent — squad rotation expected.
+# Applied to players WITHOUT an individual PLAYER_STARTER_PROB override (avoids double-penalty).
+# Keys are canonical team names (post-_canonical()).
+_MD3_ROTATION_TEAMS: dict[str, float] = {
+    "argentina":  0.68,   # vs Jordan (eliminated) — HIGH rotation, Scaloni will rest stars
+    "usa":        0.72,   # vs Turkey — HIGH rotation, Berhalter managing minutes
+    "mexico":     0.70,   # vs Czech Republic — confirmed 1st, heavy rotation expected
+    "netherlands":0.80,   # vs Tunisia (eliminated) — some rotation; key midfielders likely play
+    "germany":    0.88,   # vs Ecuador (needs result) — low rotation; Germany wants momentum
+    # England removed: tied with Ghana on 4pts, need to win vs Panama to secure 1st
+}
+
+# MD3 competitive motivation: teams in must-win / seeding-critical games play full strength
+# and are more motivated → slight pts uplift vs DC model baseline.
+_MD3_COMPETITIVE_BONUS: dict[str, float] = {
+    "france":    1.08,   # vs Norway — Group I decider, must-win for 1st seed
+    "norway":    1.08,   # vs France — must win to go through / grab 1st
+    "portugal":  1.06,   # vs Colombia — Group K decider
+    "colombia":  1.06,   # vs Portugal — seeding crucial for knockout draw
+    "belgium":   1.05,   # vs New Zealand — Belgium fighting for top spot
+    "brazil":    1.05,   # competitive Group C game
+    "spain":     1.05,   # vs Uruguay — competitive Group H game
+    "japan":     1.05,   # vs Netherlands — Japan fighting for survival / seeding
+    "morocco":   1.04,   # competitive Group C game
+    "croatia":   1.04,   # vs Ghana — competitive Group L decider
+    "ivory coast":1.04,  # vs Germany — fighting for R32 spot
+    "ghana":      1.06,  # vs Croatia — tied with England on 4pts, fighting for Group L 1st
+    "croatia":    1.06,  # vs Ghana — 3pts, need win to guarantee R32 qualification
+    "england":    1.04,  # vs Panama — need win to secure 1st vs Ghana on GD
 }
 
 
@@ -637,6 +692,15 @@ def _project_mc(
                 projected *= auto_prob
                 match_avg *= auto_prob
 
+        # MD3-specific team-level adjustments (only when projecting MD3 in isolation)
+        if matchdays == [3] or matchday == 3:
+            if explicit_prob is None:
+                # Rotation penalty for confirmed-1st teams — applies only to players
+                # without an individual override (avoids double-penalising named stars)
+                projected *= _MD3_ROTATION_TEAMS.get(tk, 1.0)
+            # Competitive motivation bonus — all players benefit equally
+            projected *= _MD3_COMPETITIVE_BONUS.get(tk, 1.0)
+
         p["projected_pts"] = round(projected, 2)
         p["pts_per_match"] = round(match_avg / max(n_m, 1), 2)
         p["qual_bonus"]    = round(qual_bonus, 2)
@@ -684,7 +748,7 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
     # Objective: minimise −(sum(s_i*pts_i) + sum(c_i*pts_i))
     # Decompose: x_i gets BENCH_WEIGHT×pts, s_i gets (1−BENCH_WEIGHT)×pts, starter still totals pts.
     # Bench player earns BENCH_WEIGHT×pts, giving the solver an incentive to pick quality live subs.
-    BENCH_WEIGHT = 0.45
+    BENCH_WEIGHT = 0.60
     obj = np.concatenate([-pts * BENCH_WEIGHT, -pts * (1 - BENCH_WEIGHT), -pts])
 
     rows: list[np.ndarray] = []
