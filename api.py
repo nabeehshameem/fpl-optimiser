@@ -620,34 +620,23 @@ def get_standings(request: Request):
         keys    = [_canonical(t) for t in teams]
         display = {_canonical(t): t for t in teams}
         ranked, stats = _calc_standings(keys, played_map)
-        fixtures = remaining_by_group.get(group_name, [])
-        if fixtures:
-            combos     = list(itertools.product(_OUTCOMES, repeat=len(fixtures)))
-            all_orders = [_calc_standings(keys, played_map, dict(zip(fixtures, c)))[0] for c in combos]
-        else:
-            all_orders = []
+        fixtures   = remaining_by_group.get(group_name, [])
+        combos     = list(itertools.product(_OUTCOMES, repeat=len(fixtures)))
+        all_orders = [_calc_standings(keys, played_map, dict(zip(fixtures, c)))[0] for c in combos]
 
         group_list = []
         for pos, tk in enumerate(ranked, 1):
             s = stats[tk]
-            if all_orders:
-                all_pos  = [o.index(tk) + 1 for o in all_orders]
-                min_p, max_p = min(all_pos), max(all_pos)
-                pos_locked       = min_p == max_p
-                qualified_locked = max_p <= 2
-                top2_locked_out  = min_p > 2
-            else:
-                pos_locked       = False
-                qualified_locked = pos <= 2
-                top2_locked_out  = pos > 2
+            all_pos  = [o.index(tk) + 1 for o in all_orders]
+            min_p, max_p = min(all_pos), max(all_pos)
             group_list.append(TeamStandingOut(
                 team=display[tk],
                 pos=pos,
                 pts=s[0],
                 gd=s[1],
-                pos_locked=pos_locked,
-                qualified_locked=qualified_locked,
-                top2_locked_out=top2_locked_out,
+                pos_locked=min_p == max_p,
+                qualified_locked=max_p <= 2,
+                top2_locked_out=min_p > 2,
             ))
         groups_out[group_name] = group_list
 
