@@ -223,7 +223,7 @@ class DCPredictor:
                 "away_key":   _canonical(away),
                 "home_goals": int(hg),
                 "away_goals": int(ag),
-                "weight":     2.5,  # 2.5× WC2022 — current tournament, exact squads
+                "weight":     4.0,  # 4× WC2022 — current tournament, exact squads, most relevant signal
                 "neutral":    True,
                 "home_id":    None,
                 "away_id":    None,
@@ -612,7 +612,7 @@ class DCPredictor:
         home_advantage: bool = False,
         knockout: bool = False,
         max_goals: int = MAX_GOALS,
-        draw_boost: float = 0.0,
+        draw_boost: float = 0.05,
     ) -> dict:
         """
         Predict scoreline probabilities for one match.
@@ -643,20 +643,8 @@ class DCPredictor:
         mu_h = atk_h * h_atk_mult * def_a * a_def_mult * ha
         mu_a = atk_a * a_atk_mult * def_h * h_def_mult
 
-        # Mismatch boost: only kicks in for extreme mismatches (ratio > 2.5), so
-        # moderate-favourite games (Belgium vs Egypt, Brazil vs Morocco) aren't
-        # pushed away from draw territory. Scale/cap calibrated on WC2026 blowouts.
-        _ratio = mu_h / max(mu_a, 0.1)
-        if _ratio > 2.5:
-            mu_h *= min(1.80, 1.0 + 0.15 * (_ratio - 2.5))
-        elif _ratio < 1.0 / 2.5:
-            mu_a *= min(1.80, 1.0 + 0.15 * (1.0 / max(_ratio, 0.01) - 2.5))
-
-        # Ceiling raised to 4.0: allows 3-0 / 4-0 to appear in top predictions for
-        # true blowout mismatches (Germany 7-1, Canada 6-0) without affecting
-        # close or moderate games where the raw mu stays well below 4.0.
-        mu_h = min(mu_h, 4.0)
-        mu_a = min(mu_a, 4.0)
+        mu_h = min(mu_h, 5.0)
+        mu_a = min(mu_a, 5.0)
 
         goals = np.arange(max_goals + 1)
         mat   = np.outer(poisson.pmf(goals, mu_h), poisson.pmf(goals, mu_a))
@@ -726,14 +714,11 @@ class DCPredictor:
             raise RuntimeError(
                 f"No fixtures for matchday {matchday}. Run ingest_fixtures.py first."
             )
-        # Draw rates from 37 WC2026 matches: MD1=31%, MD2+=24%. All group stage
-        # matchdays see elevated draws vs base Poisson (cautious opening tactics).
-        draw_boost = 0.15 if matchday == 1 else 0.07
         results = []
         for home_id, away_id in rows:
             home_key = self._resolve_name(home_id)
             is_host = home_key in {"usa", "mexico", "canada"}
-            results.append(self.predict(home_id, away_id, home_advantage=is_host, draw_boost=draw_boost))
+            results.append(self.predict(home_id, away_id, home_advantage=is_host))
         return results
 
     # ── Tournament simulator (vectorised) ───────────────────────────────────
@@ -764,11 +749,6 @@ class DCPredictor:
         ha = self.home_adv if home_advantage else 1.0
         mu_h = atk_h * def_a * ha
         mu_a = atk_a * def_h
-        _ratio = mu_h / max(mu_a, 0.1)
-        if _ratio > 2.5:
-            mu_h *= min(1.80, 1.0 + 0.15 * (_ratio - 2.5))
-        elif _ratio < 1.0 / 2.5:
-            mu_a *= min(1.80, 1.0 + 0.15 * (1.0 / max(_ratio, 0.01) - 2.5))
         hg = int(rng.poisson(mu_h))
         ag = int(rng.poisson(mu_a))
         # DC low-score correction: accept/reject via tau
