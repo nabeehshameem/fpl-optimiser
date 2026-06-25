@@ -96,27 +96,11 @@ def _get_group_locks() -> dict[str, list[dict]]:
     played = conn.execute(
         "SELECT home_team, away_team, home_score, away_score FROM match_stats"
     ).fetchall()
-    md3_fixtures = conn.execute("""
-        SELECT f.group_id, t1.name, t2.name
-        FROM fixtures f
-        JOIN teams t1 ON f.home_team_id = t1.team_id
-        JOIN teams t2 ON f.away_team_id = t2.team_id
-        WHERE f.matchday = 3
-    """).fetchall()
     conn.close()
 
     played_map: dict[tuple[str, str], tuple[int, int]] = {}
     for h, a, hs, as_ in played:
         played_map[(_canonical(h), _canonical(a))] = (int(hs), int(as_))
-
-    # Use Python-side filtering so _canonical() resolves name variants (e.g.
-    # "Czechia" vs "Czech Republic") and home/away reversals between match_stats
-    # and the fixtures table are both handled correctly.
-    remaining_by_group: dict[str, list[tuple[str, str]]] = {}
-    for group_id, home_name, away_name in md3_fixtures:
-        hk, ak = _canonical(home_name), _canonical(away_name)
-        if (hk, ak) not in played_map and (ak, hk) not in played_map:
-            remaining_by_group.setdefault(group_id, []).append((hk, ak))
 
     _OUTCOMES = [(1, 0), (0, 0), (0, 1)]  # H win, draw, A win
 
@@ -127,7 +111,13 @@ def _get_group_locks() -> dict[str, list[dict]]:
         display = {_canonical(t): t for t in teams}
 
         ranked, stats = _calc_group_standings(keys, played_map)
-        fixtures = remaining_by_group.get(group_name, [])
+        # Derive unplayed pairs from played_map — avoids stale fixtures table.
+        fixtures = [
+            (keys[i], keys[j])
+            for i in range(len(keys))
+            for j in range(i + 1, len(keys))
+            if (keys[i], keys[j]) not in played_map and (keys[j], keys[i]) not in played_map
+        ]
 
         combos = list(itertools.product(_OUTCOMES, repeat=len(fixtures)))
         all_orders: list[list[str]] = [

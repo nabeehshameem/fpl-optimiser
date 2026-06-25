@@ -592,26 +592,11 @@ def get_standings(request: Request):
     played = conn.execute(
         "SELECT home_team, away_team, home_score, away_score FROM match_stats"
     ).fetchall()
-    md3_fixtures = conn.execute("""
-        SELECT f.group_id, t1.name, t2.name
-        FROM fixtures f
-        JOIN teams t1 ON f.home_team_id = t1.team_id
-        JOIN teams t2 ON f.away_team_id = t2.team_id
-        WHERE f.matchday = 3
-    """).fetchall()
     conn.close()
 
     played_map: dict = {}
     for h, a, hs, as_ in played:
         played_map[(_canonical(h), _canonical(a))] = (int(hs), int(as_))
-
-    # Python-side filtering so _canonical() handles name variants (e.g. "Czechia"
-    # vs "Czech Republic") and home/away reversals between match_stats and fixtures.
-    remaining_by_group: dict = {}
-    for group_id, home_name, away_name in md3_fixtures:
-        hk, ak = _canonical(home_name), _canonical(away_name)
-        if (hk, ak) not in played_map and (ak, hk) not in played_map:
-            remaining_by_group.setdefault(group_id, []).append((hk, ak))
 
     _OUTCOMES = [(1, 0), (0, 0), (0, 1)]
     groups_out: dict[str, list[TeamStandingOut]] = {}
@@ -620,7 +605,13 @@ def get_standings(request: Request):
         keys    = [_canonical(t) for t in teams]
         display = {_canonical(t): t for t in teams}
         ranked, stats = _calc_standings(keys, played_map)
-        fixtures   = remaining_by_group.get(group_name, [])
+        # Derive unplayed pairs directly from played_map — avoids stale fixtures table.
+        fixtures = [
+            (keys[i], keys[j])
+            for i in range(len(keys))
+            for j in range(i + 1, len(keys))
+            if (keys[i], keys[j]) not in played_map and (keys[j], keys[i]) not in played_map
+        ]
         combos     = list(itertools.product(_OUTCOMES, repeat=len(fixtures)))
         all_orders = [_calc_standings(keys, played_map, dict(zip(fixtures, c)))[0] for c in combos]
 
@@ -641,44 +632,6 @@ def get_standings(request: Request):
         groups_out[group_name] = group_list
 
     return StandingsResponse(groups=groups_out)
-
-
-@app.get("/api/wc/standings/debug")
-def get_standings_debug(request: Request):
-    """Temporary debug: dump raw remaining-fixture detection state."""
-    conn = sqlite3.connect(str(DB_PATH))
-    played = conn.execute(
-        "SELECT home_team, away_team, home_score, away_score FROM match_stats"
-    ).fetchall()
-    md3_fixtures = conn.execute("""
-        SELECT f.group_id, t1.name, t2.name
-        FROM fixtures f
-        JOIN teams t1 ON f.home_team_id = t1.team_id
-        JOIN teams t2 ON f.away_team_id = t2.team_id
-        WHERE f.matchday = 3
-    """).fetchall()
-    conn.close()
-
-    played_map: dict = {}
-    for h, a, hs, as_ in played:
-        played_map[(_canonical(h), _canonical(a))] = (int(hs), int(as_))
-
-    remaining_by_group: dict = {}
-    for group_id, home_name, away_name in md3_fixtures:
-        hk, ak = _canonical(home_name), _canonical(away_name)
-        if (hk, ak) not in played_map and (ak, hk) not in played_map:
-            remaining_by_group.setdefault(group_id, []).append((hk, ak))
-
-    played_keys = [f"{h}v{a}" for (h, a) in played_map]
-    md3_raw = [{"group": g, "home": h, "away": a, "hk": _canonical(h), "ak": _canonical(a)} for g, h, a in md3_fixtures]
-    remaining_flat = {g: [f"{h}v{a}" for h, a in pairs] for g, pairs in remaining_by_group.items()}
-    return {
-        "match_stats_count": len(played),
-        "md3_fixtures_count": len(md3_fixtures),
-        "md3_fixtures": md3_raw,
-        "played_keys_sample": played_keys[:30],
-        "remaining_by_group": remaining_flat,
-    }
 
 
 # ── Email notifications ───────────────────────────────────────────────────────
