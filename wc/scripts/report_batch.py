@@ -96,17 +96,12 @@ def _get_group_locks() -> dict[str, list[dict]]:
     played = conn.execute(
         "SELECT home_team, away_team, home_score, away_score FROM match_stats"
     ).fetchall()
-    remaining_rows = conn.execute("""
+    md3_fixtures = conn.execute("""
         SELECT f.group_id, t1.name, t2.name
         FROM fixtures f
         JOIN teams t1 ON f.home_team_id = t1.team_id
         JOIN teams t2 ON f.away_team_id = t2.team_id
         WHERE f.matchday = 3
-          AND NOT EXISTS (
-              SELECT 1 FROM match_stats ms
-              WHERE LOWER(ms.home_team) = LOWER(t1.name)
-                AND LOWER(ms.away_team) = LOWER(t2.name)
-          )
     """).fetchall()
     conn.close()
 
@@ -114,11 +109,14 @@ def _get_group_locks() -> dict[str, list[dict]]:
     for h, a, hs, as_ in played:
         played_map[(_canonical(h), _canonical(a))] = (int(hs), int(as_))
 
+    # Use Python-side filtering so _canonical() resolves name variants (e.g.
+    # "Czechia" vs "Czech Republic") and home/away reversals between match_stats
+    # and the fixtures table are both handled correctly.
     remaining_by_group: dict[str, list[tuple[str, str]]] = {}
-    for group_id, home_name, away_name in remaining_rows:
-        remaining_by_group.setdefault(group_id, []).append(
-            (_canonical(home_name), _canonical(away_name))
-        )
+    for group_id, home_name, away_name in md3_fixtures:
+        hk, ak = _canonical(home_name), _canonical(away_name)
+        if (hk, ak) not in played_map and (ak, hk) not in played_map:
+            remaining_by_group.setdefault(group_id, []).append((hk, ak))
 
     _OUTCOMES = [(1, 0), (0, 0), (0, 1)]  # H win, draw, A win
 
@@ -200,7 +198,7 @@ def report_results(predictor, since: str | None = None) -> None:
     for match_date, home, away, hs, as_ in rows:
         home_id = team_id_map.get(_canon(home))
         away_id = team_id_map.get(_canon(away))
-        group_id = fixture_group.get((home_id, away_id)) if home_id and away_id else None
+        group_id = (fixture_group.get((home_id, away_id)) or fixture_group.get((away_id, home_id))) if home_id and away_id else None
 
         try:
             info = fixture_info.get((home_id, away_id)) if home_id and away_id else None
