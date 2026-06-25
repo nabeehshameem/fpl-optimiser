@@ -67,6 +67,7 @@ PLAYER_UNAVAILABLE: dict[str, set[int]] = {
     "neymar":   {1, 2},     # Did not play MD1 or MD2 — fitness still in doubt for MD3
     "davies":   {1},        # ACL (March) + hamstring (May, 3rd injury of season) — MD1 very much in doubt
     "raphinha":    {3},      # injured, out until knockouts — unavailable MD3
+    "kubo":        {3},      # T. Kubo — sidelined with injury, out MD3
     "di lollo":    {3},      # Lautaro Di Lollo — Argentina fringe, won't play MD3 rotation game
     # Argentina MD3 rotation vs Jordan (eliminated) — exclude non-Messi ARG players
     "lautaro":     {3},      # Lautaro Martínez — Argentina rotating, won't start vs Jordan
