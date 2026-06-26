@@ -61,23 +61,9 @@ ASSIST_RATIO = 0.85
 # Players confirmed unavailable for specific matchdays.
 # Keys are lowercase substrings of the player name; values are sets of MD numbers missed.
 # Update as injury/suspension news changes before each matchday.
+# Group stage complete — cleared all MD1-3 rotation/injury entries.
+# Add knockout-stage unavailability here as news emerges (e.g. "kubo": {4, 5}).
 PLAYER_UNAVAILABLE: dict[str, set[int]] = {
-    # yamal/williams: not in unavailable — de la Fuente says "could be ready June 15" but start not guaranteed; handled via starter_prob 0.60
-    # messi: Grade 1 strain only, expected fully fit for Argentina opener June 16, removed from unavailable
-    "neymar":   {1, 2},     # Did not play MD1 or MD2 — fitness still in doubt for MD3
-    "davies":   {1},        # ACL (March) + hamstring (May, 3rd injury of season) — MD1 very much in doubt
-    "raphinha":    {3},      # injured, out until knockouts — unavailable MD3
-    "kubo":        {3},      # T. Kubo — sidelined with injury, out MD3
-    "di lollo":    {3},      # Lautaro Di Lollo — Argentina fringe, won't play MD3 rotation game
-    # Argentina MD3 rotation vs Jordan (eliminated) — exclude non-Messi ARG players
-    "lautaro":     {3},      # Lautaro Martínez — Argentina rotating, won't start vs Jordan
-    "enzo fern":   {3},      # Enzo Fernández — Argentina MD3 rotation
-    "senesi":      {3},      # Marcos Senesi — Argentina MD3 rotation
-    "lisandro":    {3},      # Lisandro Martínez — Argentina MD3 rotation
-    "alvarez":     {3},      # Julián Álvarez — Argentina MD3 rotation
-    "mac allister":{3},      # Mac Allister — Argentina MD3 rotation
-    "de paul":     {3},      # Rodrigo De Paul — Argentina MD3 rotation
-    "molina":      {3},      # Nahuel Molina — Argentina MD3 rotation
 }
 
 # Named starter probability tiers — use these instead of raw floats.
@@ -113,26 +99,26 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "nico paz":     P.BENCH,       # won't get minutes over Mac Allister / Enzo / De Paul
 
     # ── Germany ──────────────────────────────────────────────────────────
-    "sané":         P.ROTATION,    # Nagelsmann XI leans on Musiala/Wirtz; not guaranteed starter
-    "musiala":      P.ROTATION,    # Germany confirmed 1st — expected to rotate vs Ecuador away (MD3)
-    "havertz":      P.ROTATION,    # Germany MD3 rotation — Undav/Füllkrug pressing for start
-    "wirtz":        P.LIKELY,      # too important to fully rest, slight rotation discount
+    "sané":         P.ROTATION,    # competes for wide role vs Gnabry/Müller
+    "musiala":      P.EXPECTED,    # key Germany playmaker, starts every knockout game
+    "havertz":      P.EXPECTED,    # back to #9 role in knockouts after MD3 rotation
+    "wirtz":        P.EXPECTED,    # Germany's most important attacker in knockouts
     "goretzka":     P.IMPACT_SUB,  # deep rotation behind Musiala/Wirtz/Kimmich
     "leweling":     P.ROTATION,    # competes for wide role
     "lennart karl": P.BENCH,       # Freiburg MID — Germany squad but not guaranteed starter
-    "raum":         P.LIKELY,      # Nathaniel Brown in contention for LB slot
-    "undav":        P.LIKELY,      # Germany MD3 rotation = likely to start vs Ecuador
+    "raum":         P.LIKELY,      # Nathan Brown in contention for LB slot
+    "undav":        P.ROTATION,    # was MD3 starter but Havertz likely returns for knockouts
 
     # ── England ──────────────────────────────────────────────────────────
-    "saka":         P.LIKELY,      # hamstring late in Arsenal season; expected fit but not nailed
-    "reece james":  P.LIKELY,      # recurring knee/hamstring issues through 2024-25 season
-    "kane":         P.LIKELY,      # England confirmed, vs Panama (eliminated) — possible rotation/rest
-    "bellingham":   P.LIKELY,      # England MD3 rotation vs Panama — Southgate may give fringe players minutes
-    "o'reilly":     P.LIKELY,      # Nico O'Reilly — young England player, probably starts vs Panama
-    "pickford":     P.NAILED,      # England #1 GK, confirmed starter
-    "mainoo":       P.ROTATION,    # competes with Rice/Bellingham/Foden
-    "rogers":       P.ROTATION,    # squad rotation
-    "gordon":       P.LIKELY,      # 72 min in MD1 — closer to starter than rotation
+    "saka":         P.EXPECTED,    # hamstring recovered; likely starter in knockouts
+    "reece james":  P.LIKELY,      # recurring knee/hamstring issues — fitness managed
+    "kane":         P.EXPECTED,    # England #9, starts every knockout game
+    "bellingham":   P.NAILED,      # England's best player, nailed in knockouts
+    "o'reilly":     P.BENCH,       # played vs Panama dead rubber, won't start knockouts
+    "pickford":     P.NAILED,      # England #1 GK
+    "mainoo":       P.ROTATION,    # competes with Rice/Bellingham
+    "rogers":       P.BENCH,       # fringe squad player
+    "gordon":       P.LIKELY,      # competing for wide role
     "eze":          P.ROTATION,    # competes with Palmer/Foden
     "palmer":       P.LIKELY,      # competes with Eze/Foden
 
@@ -156,7 +142,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "neymar":       P.BENCH,       # did not play MD1 or MD2 — fitness very uncertain for MD3
     "casemiro":     P.ROTATION,    # avg 67 min in MD1+MD2 — being rotated off, not guaranteed full game
     "wesley":       P.LIKELY,      # Brazil RB rotation — competes with Vanderson/Danilo
-    "cunha":        P.IMPACT_SUB,  # 46 min/game avg across MD1+MD2 — efficient sub, 2G in 93 total min
+    "cunha":        P.ROTATION,    # 3G in group stage in limited mins — pushing for knockout starts
 
     # ── Norway ───────────────────────────────────────────────────────────
     "sorloth":      P.ROTATION,    # backup striker to Haaland
@@ -188,9 +174,9 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "koopmeiners":  P.LIKELY,      # competes with Gravenberch/Reijnders
     "madueke":      P.ROTATION,    # wide rotation
     "schouten":     P.ROTATION,    # DM rotation
-    "gakpo":        P.ROTATION,    # Netherlands confirmed, vs Tunisia (eliminated) — rotation expected
-    "mem":          P.BENCH,       # Memphis Depay — NL will rotate vs Tunisia; likely benched
-    "malen":        P.ROTATION,    # NL rotation — Tunisia dead rubber
+    "gakpo":        P.EXPECTED,    # key Netherlands attacker for knockouts (was rotated in dead-rubber MD3)
+    "mem":          P.ROTATION,    # Memphis Depay — squad rotation, impact role in knockouts
+    "malen":        P.LIKELY,      # key winger, knockouts starter after MD3 rotation
 
     # ── Ghana ────────────────────────────────────────────────────────────
     "kudus":        P.BENCH,       # quad injury Jan + hamstring setback Apr, WC participation in doubt
@@ -202,7 +188,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "güler":        P.LIKELY,      # pulled hamstring (April), on track to recover for tournament
 
     # ── Croatia ──────────────────────────────────────────────────────────
-    "modri":        P.ROTATION,    # 58 min in MD1 — being subbed off, not nailed for full game in MD3
+    "modri":        P.EXPECTED,    # Modrić — Croatia's captain, starts every knockout game
 
     # ── Canada ───────────────────────────────────────────────────────────
     "davies":       P.IMPACT_SUB,  # ACL (March) + hamstring (May), day-by-day rehab
@@ -539,7 +525,8 @@ def _project_mc(
             matches = fallback
         gf = np.stack([rng.poisson(lf, n_sim) for lf, _  in matches], axis=1)
         ga = np.stack([rng.poisson(la, n_sim) for _,  la in matches], axis=1)
-        team_sims[tk] = (gf, ga)
+        la_arr = np.array([la for _, la in matches], dtype=np.float32)
+        team_sims[tk] = (gf, ga, la_arr)
 
     for p in players:
         tk  = _canonical(p["team"])
@@ -556,11 +543,12 @@ def _project_mc(
                 break
 
         if tk in team_sims:
-            gf_arr, ga_arr = team_sims[tk]
+            gf_arr, ga_arr, la_vals = team_sims[tk]
         else:
             lam    = mean_atk * mean_def
             gf_arr = np.stack([rng.poisson(lam, n_sim)] * n_matches_default, axis=1)
             ga_arr = np.stack([rng.poisson(lam, n_sim)] * n_matches_default, axis=1)
+            la_vals = np.full(n_matches_default, lam, dtype=np.float32)
 
         n_m = gf_arr.shape[1]  # actual matches for this team in the scope
 
@@ -580,9 +568,14 @@ def _project_mc(
         # Assist contribution
         pt_a = gf_total * ASSIST_RATIO * ASSIST_SHARE.get(pos, 0.1) * sf * PT_ASSIST
 
-        # Saves (GK only)
+        # Saves (GK only): estimate shots on target = la * 2 per match.
+        # Saves = shots - goals, clamped to 0. This gives non-zero save pts
+        # during clean sheets (GKs still make saves even in 0-0 games).
         if pos == "GK":
-            save_pts = (ga_arr.sum(axis=1) * 2.0 / 3.0).astype(np.float32) * PT_SAVE3
+            exp_saves = np.maximum(
+                0.0, la_vals[np.newaxis, :] * 2.0 - ga_arr.astype(np.float32)
+            )
+            save_pts = (exp_saves / 3.0 * PT_SAVE3).sum(axis=1)
         else:
             save_pts = 0.0
 

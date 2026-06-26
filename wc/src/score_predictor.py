@@ -612,7 +612,7 @@ class DCPredictor:
         home_advantage: bool = False,
         knockout: bool = False,
         max_goals: int = MAX_GOALS,
-        draw_boost: float = 0.05,
+        draw_boost: float = 0.10,
     ) -> dict:
         """
         Predict scoreline probabilities for one match.
@@ -643,8 +643,17 @@ class DCPredictor:
         mu_h = atk_h * h_atk_mult * def_a * a_def_mult * ha
         mu_a = atk_a * a_atk_mult * def_h * h_def_mult
 
-        mu_h = min(mu_h, 5.0)
-        mu_a = min(mu_a, 5.0)
+        mu_h = min(mu_h, 6.0)
+        mu_a = min(mu_a, 6.0)
+
+        # Heavy-favourite dampening: when one team's expected goals > 2.5× the
+        # other's, organised defending suppresses scorelines more than Poisson
+        # implies (Spain 0-0 Cabo Verde, Ecuador 0-0 Curaçao etc.)
+        _ratio = mu_h / max(mu_a, 0.01)
+        if _ratio > 2.5:
+            mu_h *= 0.90
+        elif _ratio < 1.0 / 2.5:
+            mu_a *= 0.90
 
         goals = np.arange(max_goals + 1)
         mat   = np.outer(poisson.pmf(goals, mu_h), poisson.pmf(goals, mu_a))
@@ -749,6 +758,11 @@ class DCPredictor:
         ha = self.home_adv if home_advantage else 1.0
         mu_h = atk_h * def_a * ha
         mu_a = atk_a * def_h
+        _ratio = mu_h / max(mu_a, 0.01)
+        if _ratio > 2.5:
+            mu_h *= 0.90
+        elif _ratio < 1.0 / 2.5:
+            mu_a *= 0.90
         hg = int(rng.poisson(mu_h))
         ag = int(rng.poisson(mu_a))
         # DC low-score correction: accept/reject via tau
