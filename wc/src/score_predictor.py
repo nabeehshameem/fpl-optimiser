@@ -1154,18 +1154,47 @@ class DCPredictor:
         for gidx in guaranteed_1st:
             first_counts[gidx] = n_sim
 
-        # ── Bracket: seed by DC quality (attack/defense), 1 vs 32, 2 vs 31 … ─
-        # This avoids group-letter bias: England/France/Spain/Argentina get top
-        # seeds based on actual model strength, not their group position.
-        quality     = atk_arr / def_arr                          # (T,) strength proxy
-        r32_quality = quality[r32_teams]                         # (n_sim, 32)
-        seed_order  = np.argsort(-r32_quality, axis=-1)          # (n_sim, 32) desc
-        seeded      = r32_teams[np.arange(n_sim)[:, None], seed_order]  # (n_sim, 32)
-
-        bracket_order = []
-        for i in range(16):
-            bracket_order.extend([i, 31 - i])
-        current = seeded[:, bracket_order]  # (n_sim, 32)
+        # ── Bracket: use confirmed fixtures when group stage is complete ─────
+        all_group_matches_played = all(
+            (all_keys[gm_h[m]], all_keys[gm_a[m]]) in played_map
+            or (all_keys[gm_a[m]], all_keys[gm_h[m]]) in played_map
+            for m in range(M)
+        )
+        if all_group_matches_played:
+            # All 32 teams confirmed — use the official drawn R32 fixtures so
+            # each team's path probabilities reflect their actual opponent.
+            _r32_order = [
+                "South Africa",          "Canada",
+                "Netherlands",           "Morocco",
+                "Germany",               "Paraguay",
+                "France",                "Sweden",
+                "Portugal",              "Croatia",
+                "Spain",                 "Austria",
+                "United States",         "Bosnia and Herzegovina",
+                "Belgium",               "Senegal",
+                "Brazil",                "Japan",
+                "Ivory Coast",           "Norway",
+                "Mexico",                "Ecuador",
+                "England",               "DR Congo",
+                "Argentina",             "Cape Verde",
+                "Australia",             "Egypt",
+                "Switzerland",           "Algeria",
+                "Colombia",              "Ghana",
+            ]
+            bracket_idx = np.array(
+                [key_to_idx[_canonical(t)] for t in _r32_order], dtype=np.int32
+            )
+            current = np.tile(bracket_idx, (n_sim, 1))  # (n_sim, 32)
+        else:
+            # Group stage in progress — seed by DC quality (1 vs 32, 2 vs 31…)
+            quality     = atk_arr / def_arr
+            r32_quality = quality[r32_teams]
+            seed_order  = np.argsort(-r32_quality, axis=-1)
+            seeded      = r32_teams[np.arange(n_sim)[:, None], seed_order]
+            bracket_order = []
+            for i in range(16):
+                bracket_order.extend([i, 31 - i])
+            current = seeded[:, bracket_order]
 
         # ── Simulate 5 knockout rounds (vectorised per-round) ─────────────────
         # R32 (32→16): r16_counts tracks who won R32 and plays in R16
