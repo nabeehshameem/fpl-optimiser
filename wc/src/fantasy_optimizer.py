@@ -58,6 +58,14 @@ GOAL_SHARE   = {"GK": 0.01, "DEF": 0.07, "MID": 0.30, "FWD": 0.62}
 ASSIST_SHARE = {"GK": 0.01, "DEF": 0.12, "MID": 0.50, "FWD": 0.37}
 ASSIST_RATIO = 0.85
 
+# Players excluded from squad selection entirely.
+# Use for non-squad members, players with 0 chance of featuring, or data artefacts
+# that would otherwise waste a cap slot or budget on the bench.
+# Keys are lowercase substrings of the player name.
+PLAYER_EXCLUDED: frozenset[str] = frozenset({
+    "di lollo",   # Lautaro Di Lollo — fringe ARG DEF, won't feature; was wasting Argentina cap slot
+})
+
 # Players confirmed unavailable for specific matchdays.
 # Keys are lowercase substrings of the player name; values are sets of MD numbers missed.
 PLAYER_UNAVAILABLE: dict[str, set[int]] = {
@@ -92,7 +100,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Argentina ────────────────────────────────────────────────────────
     "messi":        P.EXPECTED,    # nailed knockout starter — group stage rotation was dead rubber vs Jordan
     "senesi":       P.BENCH,       # not expected to start for Argentina in knockouts
-    "lautaro":      P.EXPECTED,    # Argentina #9 in knockouts — group rotation vs Jordan was misleading
+    "lautaro mart": P.EXPECTED,    # Lautaro Martínez — Argentina #9 in knockouts
     "enzo fern":    P.LIKELY,      # key Argentina CM in knockouts — MD3 rotation no longer relevant
     "soul":         P.IMPACT_SUB,  # Soulé — young, not yet a regular starter
     "lo celso":     P.BENCH,       # squad rotational player
@@ -758,6 +766,11 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
 
     if not players:
         raise RuntimeError("No fantasy players in DB. Run: python wc/scripts/seed_fantasy_players.py")
+
+    players = [
+        p for p in players
+        if not any(ex in p["name"].lower() for ex in PLAYER_EXCLUDED)
+    ]
 
     dc         = _load_dc()
     qual_probs = _get_qual_probs(predictor)
