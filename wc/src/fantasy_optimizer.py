@@ -40,7 +40,7 @@ DB_PATH      = PROJECT_ROOT / "data" / "wc.db"
 MODEL_PATH   = PROJECT_ROOT / "models" / "dc_params.json"
 
 SQUAD_RULES    = {"GK": 2, "DEF": 5, "MID": 5, "FWD": 3}
-BUDGET_DEFAULT = 1000  # $100.0m
+BUDGET_DEFAULT = 1050  # $105.0m (increased for knockout phase)
 
 # WC Fantasy 2026 scoring
 PT_APPEARANCE = 1.8   # expected pts/match: 1pt any app + ~0.8 chance of 60+ min bonus
@@ -60,10 +60,14 @@ ASSIST_RATIO = 0.85
 
 # Players confirmed unavailable for specific matchdays.
 # Keys are lowercase substrings of the player name; values are sets of MD numbers missed.
-# Update as injury/suspension news changes before each matchday.
-# Group stage complete — cleared all MD1-3 rotation/injury entries.
-# Add knockout-stage unavailability here as news emerges (e.g. "kubo": {4, 5}).
 PLAYER_UNAVAILABLE: dict[str, set[int]] = {
+}
+
+# Players who miss specific knockout rounds due to injury.
+# Values are sets of qual_probs keys to EXCLUDE from the e_ko_matches sum.
+# Example: "raphinha": {"r32_pct"} → Raphinha skips R32, projected from R16 onward.
+PLAYER_KO_SKIP_ROUNDS: dict[str, set[str]] = {
+    "raphinha": {"r32_pct"},  # ankle injury; expected return R16/QF
 }
 
 # Named starter probability tiers — use these instead of raw floats.
@@ -132,6 +136,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "ferran":       P.IMPACT_SUB,  # super sub behind Williams/Yamal/Oyarzabal, rarely starts
     "cubar":        P.LIKELY,      # Cubarsi — competes with Laporte/García for CB slot
     "laporte":      P.LIKELY,      # rotation risk — Cubarsi pushing hard for his CB spot
+    "llorente":     P.IMPACT_SUB,  # competes with Porro for Spain RB/wing slot; only one starts
 
     # ── France ───────────────────────────────────────────────────────────
     "dembel":       P.EXPECTED,    # Ousmane Dembélé — started MD1 & MD2, subbed ~85th min
@@ -139,10 +144,11 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "doué":         P.LIKELY,      # Désiré Doué — rotation
 
     # ── Brazil ───────────────────────────────────────────────────────────
-    "neymar":       P.BENCH,       # did not play MD1 or MD2 — fitness very uncertain for MD3
-    "casemiro":     P.ROTATION,    # avg 67 min in MD1+MD2 — being rotated off, not guaranteed full game
-    "wesley":       P.LIKELY,      # Brazil RB rotation — competes with Vanderson/Danilo
-    "cunha":        P.ROTATION,    # 3G in group stage in limited mins — pushing for knockout starts
+    "neymar":        P.BENCH,       # did not play MD1 or MD2 — fitness very uncertain for MD3
+    "casemiro":      P.ROTATION,    # avg 67 min in MD1+MD2 — being rotated off, not guaranteed full game
+    "wesley":        P.LIKELY,      # Brazil RB rotation — competes with Vanderson/Danilo
+    "cunha":         P.ROTATION,    # 3G in group stage in limited mins — pushing for knockout starts
+    "igor thiago":   P.BENCH,       # minimal game time in MD2+MD3; not a genuine knockout starter
 
     # ── Norway ───────────────────────────────────────────────────────────
     "sorloth":      P.ROTATION,    # backup striker to Haaland
@@ -614,10 +620,14 @@ def _project_mc(
         if qual_probs and matchday is None:
             qp = qual_probs.get(tk, {})
             if "r16_pct" in qp:
-                e_ko_matches = (
-                    qp.get("r32_pct",   0.0) + qp.get("r16_pct",  0.0) +
-                    qp.get("qf_pct",    0.0) + qp.get("sf_pct",   0.0) +
-                    qp.get("final_pct", 0.0)
+                skip_rounds: set[str] = set()
+                for ko_key, skipped in PLAYER_KO_SKIP_ROUNDS.items():
+                    if ko_key in name_lower:
+                        skip_rounds = skipped
+                        break
+                _KO_ROUND_KEYS = ("r32_pct", "r16_pct", "qf_pct", "sf_pct", "final_pct")
+                e_ko_matches = sum(
+                    qp.get(r, 0.0) for r in _KO_ROUND_KEYS if r not in skip_rounds
                 ) / 100.0
                 projected = (match_avg / max(n_m, 1)) * 0.82 * e_ko_matches
             else:
