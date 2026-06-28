@@ -90,20 +90,21 @@ _UNCONFIRMED_FLOOR = P.LIKELY
 # Use P.XXX tier constants — never raw floats.
 PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Argentina ────────────────────────────────────────────────────────
-    "messi":        P.LIKELY,      # Argentina confirmed 1st, vs Jordan (eliminated) — rotation/rest expected
-    "lautaro":      P.ROTATION,    # Argentina rotating vs Jordan — Álvarez/Soulé likely to start
-    "enzo fern":    P.ROTATION,    # Argentina MD3 rotation expected
+    "messi":        P.EXPECTED,    # nailed knockout starter — group stage rotation was dead rubber vs Jordan
+    "senesi":       P.BENCH,       # not expected to start for Argentina in knockouts
+    "lautaro":      P.EXPECTED,    # Argentina #9 in knockouts — group rotation vs Jordan was misleading
+    "enzo fern":    P.LIKELY,      # key Argentina CM in knockouts — MD3 rotation no longer relevant
     "soul":         P.IMPACT_SUB,  # Soulé — young, not yet a regular starter
     "lo celso":     P.BENCH,       # squad rotational player
     "barco":        P.BENCH,       # fringe squad
     "buend":        P.IMPACT_SUB,  # competes with De Paul / Mac Allister
     "romero":       P.BENCH,       # partially torn MCL (mid-April), World Cup in jeopardy
     "otamendi":     P.BENCH,       # 3rd-choice CB behind Romero and L. Martínez
-    "lisandro":     P.ROTATION,    # L. Martínez — Argentina rotating vs Jordan, may be rested
+    "lisandro":     P.EXPECTED,    # L. Martínez — Argentina first-choice CB in knockouts
     "nico paz":     P.BENCH,       # won't get minutes over Mac Allister / Enzo / De Paul
 
     # ── Germany ──────────────────────────────────────────────────────────
-    "sané":         P.ROTATION,    # competes for wide role vs Gnabry/Müller
+    "sané":         P.ROTATION,    # competes for wide role with Wirtz/Leweling
     "musiala":      P.EXPECTED,    # key Germany playmaker, starts every knockout game
     "havertz":      P.EXPECTED,    # back to #9 role in knockouts after MD3 rotation
     "wirtz":        P.EXPECTED,    # Germany's most important attacker in knockouts
@@ -136,7 +137,8 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "ferran":       P.IMPACT_SUB,  # super sub behind Williams/Yamal/Oyarzabal, rarely starts
     "cubar":        P.LIKELY,      # Cubarsi — competes with Laporte/García for CB slot
     "laporte":      P.LIKELY,      # rotation risk — Cubarsi pushing hard for his CB spot
-    "llorente":     P.IMPACT_SUB,  # competes with Porro for Spain RB/wing slot; only one starts
+    "llorente":     P.LIKELY,      # expected to start over Porro at Spain RB/wing
+    "porro":        P.BENCH,       # Llorente preferred ahead of him in knockouts
 
     # ── France ───────────────────────────────────────────────────────────
     "dembel":       P.EXPECTED,    # Ousmane Dembélé — started MD1 & MD2, subbed ~85th min
@@ -180,7 +182,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "koopmeiners":  P.LIKELY,      # competes with Gravenberch/Reijnders
     "madueke":      P.ROTATION,    # wide rotation
     "schouten":     P.ROTATION,    # DM rotation
-    "gakpo":        P.EXPECTED,    # key Netherlands attacker for knockouts (was rotated in dead-rubber MD3)
+    "gakpo":        P.LIKELY,      # starts but faces Morocco R32 — strong defence, discounted ceiling
     "mem":          P.ROTATION,    # Memphis Depay — squad rotation, impact role in knockouts
     "malen":        P.LIKELY,      # key winger, knockouts starter after MD3 rotation
 
@@ -235,7 +237,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── Argentina ────────────────────────────────────────────────────────
     "molina":       P.IMPACT_SUB,  # Nahuel Molina — came on as sub at HT in MD1 (45 min only)
-    "di lollo":     P.FRINGE,      # Lautaro Di Lollo — Argentina fringe DEF, won't play MD3 rotation game
+    "di lollo":     P.OUT,          # Lautaro Di Lollo — won't feature in knockouts; blocks Argentina cap
 }
 
 # Intel not yet verified — applied as max(value, _UNCONFIRMED_FLOOR) so a rumour
