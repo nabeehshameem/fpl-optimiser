@@ -391,6 +391,8 @@ def _get_qual_probs(predictor=None) -> dict[str, dict]:
         results = predictor.simulate_tournament(n_sim=10_000)
         return {
             _canonical(r["team"]): {
+                "r32_pct":   r["r32_pct"],
+                "r16_pct":   r["r16_pct"],
                 "qf_pct":    r["qf_pct"],
                 "sf_pct":    r["sf_pct"],
                 "final_pct": r["final_pct"],
@@ -536,6 +538,12 @@ def _project_mc(
         # Price-based star factor: $4.5m -> 0.7, $10.5m -> 1.4
         sf = 0.7 + (max(45, min(105, p["price"])) - 45) / 60.0 * 0.7
 
+        # Premium forward discount: group-stage audit showed FWDs priced £8.5m+
+        # systematically underperformed (Mbappé -32.7, Haaland -28.9, Kane -20.1,
+        # Lautaro -22.1). High-profile FWDs face tighter marking and rotation pressure.
+        if pos == "FWD" and p["price"] >= 85:
+            sf *= 0.60
+
         # CDM/holding-MID discount: reduces goal/assist projection for defensive mids
         for cdm_key, cdm_disc in PLAYER_CDM_DISCOUNT.items():
             if cdm_key in name_lower:
@@ -602,24 +610,13 @@ def _project_mc(
         if p["team"] in HOST_NATIONS:
             match_avg *= HOST_ADVANTAGE
 
-        # Qualification Booster (only meaningful for full-tournament view)
-        qual_bonus = 0.0
-        if qual_probs and matchday is None:
-            qp = qual_probs.get(tk, {})
-            qual_bonus = 2.0 * qp.get("qf_pct", 0.0) / 100.0
-
         # Set-piece / penalty taker bonus (scaled to actual match count)
         for sp_key, sp_bonus in PLAYER_SETPIECE_BONUS.items():
             if sp_key in name_lower:
                 match_avg += sp_bonus * (n_m / 3)
                 break
 
-        # Scouting bonus: WC Fantasy awards +2pts per matchday where a player scores
-        # >4pts AND has <5% ownership.  This rewards genuine differential picks.
-        # GK/DEF: P(>4pts per match) ≈ P(clean sheet) since 5 CS pts > 4-pt threshold.
-        # MID/FWD: P(>4pts) requires a personal goal/assist; divide position-group
-        #   share by squad-size to get per-player lambda (avoids overstating P for
-        #   forwards on strong teams who share goals across the squad).
+        # Scouting bonus: +2pts per match where player scores >4pts AND <5% ownership
         if p.get("ownership", 0.0) < 5.0:
             if pos in ("GK", "DEF"):
                 p_qualify = (ga_arr == 0).astype(np.float32).mean(axis=0)
@@ -633,7 +630,23 @@ def _project_mc(
                 p_qualify = 1 - np.exp(-lam_ga)
             match_avg += float(p_qualify.sum()) * 2.0
 
-        projected = match_avg + qual_bonus
+        # Knockout-stage projection: scale per-match rate by expected rounds played.
+        # Activated when qual_probs contains r16_pct (i.e. group stage is complete).
+        # KO_DIFFICULTY = 0.82: knockout opponents are top-32 quality, harder than
+        # the mixed-strength group opponents simulated above.
+        if qual_probs and matchday is None:
+            qp = qual_probs.get(tk, {})
+            if "r16_pct" in qp:
+                e_ko_matches = (
+                    qp.get("r32_pct",   0.0) + qp.get("r16_pct",  0.0) +
+                    qp.get("qf_pct",    0.0) + qp.get("sf_pct",   0.0) +
+                    qp.get("final_pct", 0.0)
+                ) / 100.0
+                projected = (match_avg / max(n_m, 1)) * 0.82 * e_ko_matches
+            else:
+                projected = match_avg + 2.0 * qp.get("qf_pct", 0.0) / 100.0
+        else:
+            projected = match_avg
 
         # Injury discount: scale down by available matches
         for inj_key, missed_mds in PLAYER_UNAVAILABLE.items():
@@ -697,7 +710,7 @@ def _project_mc(
 
         p["projected_pts"] = round(projected, 2)
         p["pts_per_match"] = round(match_avg / max(n_m, 1), 2)
-        p["qual_bonus"]    = round(qual_bonus, 2)
+        p["qual_bonus"]    = 0.0
 
     return players
 

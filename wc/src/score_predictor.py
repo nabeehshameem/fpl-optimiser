@@ -647,13 +647,14 @@ class DCPredictor:
         mu_a = min(mu_a, 6.0)
 
         # Heavy-favourite dampening: when one team's expected goals > 2.5× the
-        # other's, organised defending suppresses scorelines more than Poisson
-        # implies (Spain 0-0 Cabo Verde, Ecuador 0-0 Curaçao etc.)
+        # other's, organised defending slightly suppresses the favourite's output.
+        # Reduced from 0.90→0.95: group-stage data showed high-scoring blowouts
+        # (Netherlands 5-1, Senegal 5-0) were systematically underpredicted.
         _ratio = mu_h / max(mu_a, 0.01)
         if _ratio > 2.5:
-            mu_h *= 0.90
+            mu_h *= 0.95
         elif _ratio < 1.0 / 2.5:
-            mu_a *= 0.90
+            mu_a *= 0.95
 
         goals = np.arange(max_goals + 1)
         mat   = np.outer(poisson.pmf(goals, mu_h), poisson.pmf(goals, mu_a))
@@ -667,7 +668,14 @@ class DCPredictor:
         loss_pct = float(np.triu(mat, 1).sum())   * 100
 
         if draw_boost > 0:
-            boost_pts = draw_boost * 100
+            # Scale up boost when one side is a clear favourite: group-stage audit
+            # showed H→D was the dominant miss pattern (Belgium/Iran, Ecuador/Curaçao,
+            # Japan/Sweden, England/Ghana, Uruguay/Cape Verde all drew despite model
+            # backing the favourite at 50-73%).
+            effective_boost = draw_boost
+            if win_pct > 55 or loss_pct > 55:
+                effective_boost = draw_boost + 0.08
+            boost_pts = effective_boost * 100
             d_new = min(draw_pct + boost_pts, 99.0)
             excess = d_new - draw_pct
             ha_total = win_pct + loss_pct
@@ -756,13 +764,15 @@ class DCPredictor:
         atk_h, def_h = self._team_atk_def(home_key)
         atk_a, def_a = self._team_atk_def(away_key)
         ha = self.home_adv if home_advantage else 1.0
-        mu_h = atk_h * def_a * ha
-        mu_a = atk_a * def_h
+        h_atk_mult, h_def_mult = self.form_adjustments.get(home_key, (1.0, 1.0))
+        a_atk_mult, a_def_mult = self.form_adjustments.get(away_key, (1.0, 1.0))
+        mu_h = atk_h * h_atk_mult * def_a * a_def_mult * ha
+        mu_a = atk_a * a_atk_mult * def_h * h_def_mult
         _ratio = mu_h / max(mu_a, 0.01)
         if _ratio > 2.5:
-            mu_h *= 0.90
+            mu_h *= 0.95
         elif _ratio < 1.0 / 2.5:
-            mu_a *= 0.90
+            mu_a *= 0.95
         hg = int(rng.poisson(mu_h))
         ag = int(rng.poisson(mu_a))
         # DC low-score correction: accept/reject via tau
@@ -1129,6 +1139,7 @@ class DCPredictor:
         # ── Count stage qualifications ────────────────────────────────────────
         r32_counts   = np.zeros(T, dtype=np.int64)
         first_counts = np.zeros(T, dtype=np.int64)
+        r16_counts   = np.zeros(T, dtype=np.int64)
         qf_counts    = np.zeros(T, dtype=np.int64)
         sf_counts    = np.zeros(T, dtype=np.int64)
         final_counts = np.zeros(T, dtype=np.int64)
@@ -1157,9 +1168,9 @@ class DCPredictor:
         current = seeded[:, bracket_order]  # (n_sim, 32)
 
         # ── Simulate 5 knockout rounds (vectorised per-round) ─────────────────
-        # R32 (32→16): skip counting — r32_pct already tracks group qualification
+        # R32 (32→16): r16_counts tracks who won R32 and plays in R16
         # R16 (16→8): qf_pct; QF (8→4): sf_pct; SF (4→2): final_pct; F (2→1): win_pct
-        for cnt_arr in (None, qf_counts, sf_counts, final_counts, win_counts):
+        for cnt_arr in (r16_counts, qf_counts, sf_counts, final_counts, win_counts):
             h_mat = current[:, 0::2]  # (n_sim, n_matches) home teams
             a_mat = current[:, 1::2]  # (n_sim, n_matches) away teams
 
@@ -1200,6 +1211,7 @@ class DCPredictor:
                 "group":          group_of.get(k, "?"),
                 "group_1st_pct":  round(first_counts[i]  / n_sim * 100, 1),
                 "r32_pct":        round(r32_counts[i]    / n_sim * 100, 1),
+                "r16_pct":        round(r16_counts[i]    / n_sim * 100, 1),
                 "qf_pct":         round(qf_counts[i]     / n_sim * 100, 1),
                 "sf_pct":         round(sf_counts[i]     / n_sim * 100, 1),
                 "final_pct":      round(final_counts[i]  / n_sim * 100, 1),
