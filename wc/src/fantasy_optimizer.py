@@ -309,36 +309,9 @@ WC2026_GROUPS: dict[str, list[str]] = {
     "L": ["England",       "Croatia",      "Panama",                "Ghana"],
 }
 
-# MD3 rotation: teams confirmed 1st vs eliminated opponent — squad rotation expected.
-# Applied to players WITHOUT an individual PLAYER_STARTER_PROB override (avoids double-penalty).
-# Keys are canonical team names (post-_canonical()).
-_MD3_ROTATION_TEAMS: dict[str, float] = {
-    "argentina":  0.68,   # vs Jordan (eliminated) — HIGH rotation, Scaloni will rest stars
-    "usa":        0.72,   # vs Turkey — HIGH rotation, Berhalter managing minutes
-    "mexico":     0.70,   # vs Czech Republic — confirmed 1st, heavy rotation expected
-    "netherlands":0.80,   # vs Tunisia (eliminated) — some rotation; key midfielders likely play
-    "germany":    0.88,   # vs Ecuador (needs result) — low rotation; Germany wants momentum
-    # England removed: tied with Ghana on 4pts, need to win vs Panama to secure 1st
-}
-
-# MD3 competitive motivation: teams in must-win / seeding-critical games play full strength
-# and are more motivated → slight pts uplift vs DC model baseline.
-_MD3_COMPETITIVE_BONUS: dict[str, float] = {
-    "france":    1.08,   # vs Norway — Group I decider, must-win for 1st seed
-    "norway":    1.08,   # vs France — must win to go through / grab 1st
-    "portugal":  1.06,   # vs Colombia — Group K decider
-    "colombia":  1.06,   # vs Portugal — seeding crucial for knockout draw
-    "belgium":   1.05,   # vs New Zealand — Belgium fighting for top spot
-    "brazil":    1.05,   # competitive Group C game
-    "spain":     1.05,   # vs Uruguay — competitive Group H game
-    "japan":     1.05,   # vs Netherlands — Japan fighting for survival / seeding
-    "morocco":   1.04,   # competitive Group C game
-    "croatia":   1.04,   # vs Ghana — competitive Group L decider
-    "ivory coast":1.04,  # vs Germany — fighting for R32 spot
-    "ghana":      1.06,  # vs Croatia — tied with England on 4pts, fighting for Group L 1st
-    "croatia":    1.06,  # vs Ghana — 3pts, need win to guarantee R32 qualification
-    "england":    1.04,  # vs Panama — need win to secure 1st vs Ghana on GD
-}
+# Group stage complete — MD3 rotation and competitive bonus dicts cleared.
+_MD3_ROTATION_TEAMS: dict[str, float] = {}
+_MD3_COMPETITIVE_BONUS: dict[str, float] = {}
 
 
 def _canonical(name: str) -> str:
@@ -565,9 +538,13 @@ def _project_mc(
 
         # Concede penalty: -1 per goal beyond the first (GK/DEF only)
         if pos in ("GK", "DEF"):
-            concede_pts = np.maximum(0, ga_arr - 1).astype(np.float32).sum(axis=1) * PT_CONCEDE
+            concede_arr = np.maximum(0, ga_arr - 1).astype(np.float32)
+            concede_pts = concede_arr.sum(axis=1) * PT_CONCEDE
+            # Expected concede penalty saved per projected period (positive = pts saved)
+            _raw_concede_saved = float(concede_arr.mean())  # goals beyond 1st, per match avg
         else:
             concede_pts = 0.0
+            _raw_concede_saved = 0.0
 
         # Goal contribution
         gf_total = gf_arr.sum(axis=1).astype(np.float32)
@@ -710,7 +687,36 @@ def _project_mc(
 
         p["projected_pts"] = round(projected, 2)
         p["pts_per_match"] = round(match_avg / max(n_m, 1), 2)
-        p["qual_bonus"]    = 0.0
+
+        # Qual bonus: expected +2 pts from Qualification Booster chip for next R32 match.
+        # r16_pct = P(team wins their R32 match and advances to R16).
+        if qual_probs and matchday is None:
+            qp = qual_probs.get(tk, {})
+            r16_p = qp.get("r16_pct", 0.0) / 100.0
+            p["qual_bonus"] = round(2.0 * r16_p, 2)
+        else:
+            p["qual_bonus"] = 0.0
+
+        # Concede saved: expected pts recovered if CS Shield negates concede penalty.
+        # Scaled by knockout difficulty and starter probability (same as projected_pts).
+        if pos in ("GK", "DEF") and _raw_concede_saved > 0:
+            if qual_probs and matchday is None:
+                qp = qual_probs.get(tk, {})
+                if "r16_pct" in qp:
+                    e_ko = (qp.get("r32_pct", 0.0) + qp.get("r16_pct", 0.0) +
+                            qp.get("qf_pct", 0.0) + qp.get("sf_pct", 0.0) +
+                            qp.get("final_pct", 0.0)) / 100.0
+                    saved = _raw_concede_saved * 0.82 * e_ko
+                else:
+                    saved = _raw_concede_saved * n_m
+            else:
+                saved = _raw_concede_saved * n_m
+            # Apply same starter-prob discount as projected_pts
+            if explicit_prob is not None:
+                saved *= explicit_prob
+            p["concede_saved"] = round(saved, 2)
+        else:
+            p["concede_saved"] = 0.0
 
     return players
 
@@ -860,20 +866,7 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
         "model_trained_at": model_trained_at,
     }
 
-    if booster == "wildcard":
-        # Compute optimal MD3 squad — model recommends saving wildcard for MD3 since
-        # unlimited transfers kick in after the group stage anyway.
-        md3_res = optimise(budget=budget, predictor=predictor, booster=None,
-                           locked_player_ids=None, locked_starter_ids=None, matchdays=[3])
-        out["wildcard_recommendation"] = "Model predicts the best time to use your Wildcard is Matchday 3."
-        out["wildcard_matchday"] = 3
-        out["wildcard_squad"]    = md3_res["squad"]
-        out["wildcard_starters"] = md3_res["starters"]
-        out["wildcard_bench"]    = md3_res["bench"]
-        out["wildcard_captain"]  = md3_res["captain"]
-        out["wildcard_total_pts"] = md3_res["total_pts"]
-
-    elif booster == "12th_man":
+    if booster == "12th_man":
         squad_ids = {p["id"] for p in squad}
         # Sort by pts_per_match: the chip applies for one matchday, not the full group stage.
         external  = sorted(
@@ -897,6 +890,15 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
             for p in starters
         ]
         out["qual_booster_total"] = round(sum(p.get("qual_bonus", 0.0) for p in starters), 2)
+
+    elif booster == "clean_sheet_shield":
+        gk_def = [p for p in starters if p["pos"] in ("GK", "DEF")]
+        out["cs_shield_breakdown"] = [
+            {"name": p["name"], "team": p["team"], "pos": p["pos"],
+             "concede_saved": p.get("concede_saved", 0.0)}
+            for p in sorted(gk_def, key=lambda x: x.get("concede_saved", 0.0), reverse=True)
+        ]
+        out["cs_shield_total"] = round(sum(p.get("concede_saved", 0.0) for p in gk_def), 2)
 
     return out
 

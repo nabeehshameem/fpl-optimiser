@@ -14,6 +14,7 @@ Requires a trained DC model and populated DB:
 import datetime as _dt
 import itertools
 import logging
+import math as _math
 import os
 import sqlite3
 import subprocess
@@ -222,13 +223,19 @@ class PredictRequest(BaseModel):
     home_team: str = Field(..., min_length=1, max_length=100)
     away_team: str = Field(..., min_length=1, max_length=100)
     home_advantage: bool = False
-    knockout: bool = False
 
 
 class ScoreLine(BaseModel):
     home_goals: int
     away_goals: int
     probability_pct: float
+
+
+class ScorerOut(BaseModel):
+    name: str
+    pos: str
+    price_m: float
+    first_scorer_pct: float
 
 
 class PredictResponse(BaseModel):
@@ -241,11 +248,49 @@ class PredictResponse(BaseModel):
     draw_pct: float
     loss_pct: float
     most_likely: list[ScoreLine]
-    ko_win_pct: float | None = None
-    ko_loss_pct: float | None = None
+    home_first_pct: float = 0.0
+    away_first_pct: float = 0.0
+    no_goal_pct: float = 0.0
+    home_scorers: list[ScorerOut] = Field(default_factory=list)
+    away_scorers: list[ScorerOut] = Field(default_factory=list)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
+_GOAL_SHARE_OUTFIELD = {"DEF": 0.07, "MID": 0.30, "FWD": 0.62}
+
+
+def _compute_first_scorers(team_id: int, team_xg: float, total_xg: float, top_n: int = 4) -> list[dict]:
+    """Return top-N most likely first scorers for a team given match xG totals."""
+    if total_xg <= 0 or team_xg <= 0 or team_id is None:
+        return []
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute("""
+        SELECT fp.name, fp.position, fp.price
+        FROM fantasy_players fp
+        WHERE fp.team_id = ? AND fp.position IN ('FWD', 'MID', 'DEF') AND fp.price > 0
+        ORDER BY fp.ownership DESC
+    """, [team_id]).fetchall()
+    conn.close()
+    if not rows:
+        return []
+    entries = []
+    for name, pos, price in rows:
+        sf = 0.7 + (max(45, min(105, price)) - 45) / 60.0 * 0.7
+        lam = _GOAL_SHARE_OUTFIELD.get(pos, 0.0) * sf
+        entries.append((name, pos, price, lam))
+    total_lam = sum(e[3] for e in entries)
+    if total_lam <= 0:
+        return []
+    p_goal = (1.0 - _math.exp(-total_xg)) * 100.0
+    scorers = []
+    for name, pos, price, raw_lam in entries:
+        player_xg = team_xg * (raw_lam / total_lam)
+        first_pct = round((player_xg / total_xg) * p_goal, 1)
+        scorers.append(ScorerOut(name=name, pos=pos, price_m=round(price / 10.0, 1), first_scorer_pct=first_pct))
+    scorers.sort(key=lambda x: x.first_scorer_pct, reverse=True)
+    return scorers[:top_n]
+
 
 @app.get("/health")
 def health():
@@ -285,16 +330,24 @@ def predict_match(req: PredictRequest, request: Request) -> PredictResponse:
     try:
         md = _fixture_matchday(home_id, away_id)
         draw_boost = 0.10 if md == 1 else 0.0
-        result = predictor.predict(home_id, away_id, home_advantage=req.home_advantage, knockout=req.knockout, draw_boost=draw_boost)
+        result = predictor.predict(home_id, away_id, home_advantage=req.home_advantage, draw_boost=draw_boost)
     except RuntimeError as e:
         logger.exception("predict failed for %s vs %s", req.home_team, req.away_team)
         raise HTTPException(status_code=400, detail="Prediction failed. Check team names and try again.")
 
+    home_xg = result["home_xg"]
+    away_xg = result["away_xg"]
+    total_xg = home_xg + away_xg
+    p_no_goal = round(_math.exp(-total_xg) * 100.0, 1) if total_xg > 0 else 100.0
+    p_goal = 100.0 - p_no_goal
+    home_first_pct = round((home_xg / total_xg) * p_goal, 1) if total_xg > 0 else 0.0
+    away_first_pct = round((away_xg / total_xg) * p_goal, 1) if total_xg > 0 else 0.0
+
     return PredictResponse(
         home_name=result["home_name"],
         away_name=result["away_name"],
-        home_xg=result["home_xg"],
-        away_xg=result["away_xg"],
+        home_xg=home_xg,
+        away_xg=away_xg,
         predicted_score=f"{result['most_likely'][0][0]}-{result['most_likely'][0][1]}",
         win_pct=result["win_pct"],
         draw_pct=result["draw_pct"],
@@ -303,8 +356,11 @@ def predict_match(req: PredictRequest, request: Request) -> PredictResponse:
             ScoreLine(home_goals=h, away_goals=a, probability_pct=p)
             for h, a, p in result["most_likely"]
         ],
-        ko_win_pct=result.get("ko_win_pct"),
-        ko_loss_pct=result.get("ko_loss_pct"),
+        home_first_pct=home_first_pct,
+        away_first_pct=away_first_pct,
+        no_goal_pct=p_no_goal,
+        home_scorers=_compute_first_scorers(home_id, home_xg, total_xg),
+        away_scorers=_compute_first_scorers(away_id, away_xg, total_xg),
     )
 
 
@@ -325,10 +381,10 @@ class FantasyPlayerOut(BaseModel):
 
 class OptimiseRequest(BaseModel):
     budget: int = Field(default=1000, ge=500, le=1500)  # $50m–$150m in $0.1m units
-    booster: Optional[Literal["wildcard", "12th_man", "max_captain", "qualification_booster"]] = None
+    booster: Optional[Literal["12th_man", "max_captain", "qualification_booster", "clean_sheet_shield"]] = None
     locked_player_ids: list[int] = Field(default_factory=list)
     locked_starter_ids: list[int] = Field(default_factory=list)
-    matchdays: Optional[list[int]] = Field(default=None, description="Matchdays to optimise for, e.g. [1,2]. None = full group stage.")
+    matchdays: Optional[list[int]] = Field(default=None, description="Matchdays to optimise for. None = knockout projection mode.")
 
 
 class PlayersResponse(BaseModel):
@@ -340,6 +396,13 @@ class QualBonusEntry(BaseModel):
     team: str
     pos: str
     qual_bonus: float
+
+
+class CSShieldEntry(BaseModel):
+    name: str
+    team: str
+    pos: str
+    concede_saved: float
 
 
 class OptimiseResponse(BaseModel):
@@ -357,13 +420,8 @@ class OptimiseResponse(BaseModel):
     expected_max_cap_pts: Optional[float] = None
     qual_booster_breakdown: Optional[list[QualBonusEntry]] = None
     qual_booster_total: Optional[float] = None
-    wildcard_recommendation: Optional[str] = None
-    wildcard_matchday: Optional[int] = None
-    wildcard_squad: Optional[list[FantasyPlayerOut]] = None
-    wildcard_starters: Optional[list[FantasyPlayerOut]] = None
-    wildcard_bench: Optional[list[FantasyPlayerOut]] = None
-    wildcard_captain: Optional[FantasyPlayerOut] = None
-    wildcard_total_pts: Optional[float] = None
+    cs_shield_breakdown: Optional[list[CSShieldEntry]] = None
+    cs_shield_total: Optional[float] = None
 
 
 class CaptainsResponse(BaseModel):
@@ -400,8 +458,8 @@ def fantasy_optimise(req: OptimiseRequest, request: Request):
     twelfth_man = _fmt_player(res["twelfth_man"]) if res.get("twelfth_man") else None
     max_cap_candidates = [_fmt_player(p) for p in res.get("max_cap_candidates") or []]
 
-    wc_cap = res.get("wildcard_captain")
-    wc_cap_id = wc_cap["id"] if wc_cap else None
+    cs_raw = res.get("cs_shield_breakdown") or []
+    cs_shield = [CSShieldEntry(name=e["name"], team=e["team"], pos=e["pos"], concede_saved=e["concede_saved"]) for e in cs_raw] or None
 
     return OptimiseResponse(
         squad=squad,
@@ -418,13 +476,8 @@ def fantasy_optimise(req: OptimiseRequest, request: Request):
         expected_max_cap_pts=res.get("expected_max_cap_pts"),
         qual_booster_breakdown=res.get("qual_booster_breakdown"),
         qual_booster_total=res.get("qual_booster_total"),
-        wildcard_recommendation=res.get("wildcard_recommendation"),
-        wildcard_matchday=res.get("wildcard_matchday"),
-        wildcard_squad=[_fmt_player(p, is_captain=(p["id"] == wc_cap_id)) for p in res.get("wildcard_squad") or []] or None,
-        wildcard_starters=[_fmt_player(p, is_captain=(p["id"] == wc_cap_id)) for p in res.get("wildcard_starters") or []] or None,
-        wildcard_bench=[_fmt_player(p) for p in res.get("wildcard_bench") or []] or None,
-        wildcard_captain=_fmt_player(wc_cap, is_captain=True) if wc_cap else None,
-        wildcard_total_pts=res.get("wildcard_total_pts"),
+        cs_shield_breakdown=cs_shield,
+        cs_shield_total=res.get("cs_shield_total"),
     )
 
 
