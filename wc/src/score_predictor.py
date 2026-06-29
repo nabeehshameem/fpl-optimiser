@@ -1222,6 +1222,25 @@ class DCPredictor:
                 ag[draw] += et_a
 
             winners = np.where(hg > ag, h_mat, a_mat)  # (n_sim, n_matches)
+
+            # Pin played knockout results: when all sims agree on the participants
+            # (i.e. both teams are known/confirmed), override with actual result.
+            # Penalty shootouts stored as equal scores are left as simulated (~50/50).
+            n_matches = h_mat.shape[1]
+            for mi in range(n_matches):
+                h0, a0 = int(h_mat[0, mi]), int(a_mat[0, mi])
+                if not (np.all(h_mat[:, mi] == h0) and np.all(a_mat[:, mi] == a0)):
+                    continue  # different sims disagree on participants — skip
+                h_key, a_key = all_keys[h0], all_keys[a0]
+                if (h_key, a_key) in played_map:
+                    hg_r, ag_r = played_map[(h_key, a_key)]
+                    if hg_r != ag_r:
+                        winners[:, mi] = h0 if hg_r > ag_r else a0
+                elif (a_key, h_key) in played_map:
+                    ag_r, hg_r = played_map[(a_key, h_key)]
+                    if hg_r != ag_r:
+                        winners[:, mi] = a0 if ag_r > hg_r else h0
+
             if cnt_arr is not None:
                 np.add.at(cnt_arr, winners.ravel(), 1)
             current = winners  # advance; shape halves each round
