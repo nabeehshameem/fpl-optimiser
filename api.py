@@ -266,18 +266,21 @@ def _compute_first_scorers(team_id: int, team_xg: float, total_xg: float, top_n:
         return []
     conn = sqlite3.connect(DB_PATH)
     rows = conn.execute("""
-        SELECT fp.name, fp.position, fp.price
+        SELECT fp.name, fp.position, fp.price,
+               COALESCE(AVG(ml.minutes_played), 0) AS avg_mins
         FROM fantasy_players fp
+        LEFT JOIN match_lineups ml ON ml.player_name = fp.name
+            AND ml.team_name = (SELECT name FROM teams WHERE team_id = ?)
         WHERE fp.team_id = ? AND fp.position IN ('FWD', 'MID', 'DEF') AND fp.price > 0
-        ORDER BY fp.ownership DESC
-    """, [team_id]).fetchall()
+        GROUP BY fp.name, fp.position, fp.price
+    """, [team_id, team_id]).fetchall()
     conn.close()
     if not rows:
         return []
     entries = []
-    for name, pos, price in rows:
-        sf = 0.7 + (max(45, min(105, price)) - 45) / 60.0 * 0.7
-        lam = _GOAL_SHARE_OUTFIELD.get(pos, 0.0) * sf
+    for name, pos, price, avg_mins in rows:
+        pt = min(avg_mins / 90.0, 1.0)
+        lam = _GOAL_SHARE_OUTFIELD.get(pos, 0.0) * pt
         entries.append((name, pos, price, lam))
     total_lam = sum(e[3] for e in entries)
     if total_lam <= 0:
