@@ -98,6 +98,7 @@ _UNCONFIRMED_FLOOR = P.LIKELY
 # Use P.XXX tier constants — never raw floats.
 PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Argentina ────────────────────────────────────────────────────────
+    "emiliano mart": P.NAILED,     # Emiliano Martínez — Argentina #1 GK, 28pts in group stage
     "messi":        P.EXPECTED,    # nailed knockout starter — group stage rotation was dead rubber vs Jordan
     "senesi":       P.BENCH,       # not expected to start for Argentina in knockouts
     "lautaro mart": P.EXPECTED,    # Lautaro Martínez — Argentina #9 in knockouts
@@ -111,16 +112,16 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "lisandro":     P.EXPECTED,    # L. Martínez — Argentina first-choice CB in knockouts
     "nico paz":     P.BENCH,       # won't get minutes over Mac Allister / Enzo / De Paul
 
-    # ── Germany ──────────────────────────────────────────────────────────
-    "sané":         P.ROTATION,    # competes for wide role with Wirtz/Leweling
-    "musiala":      P.EXPECTED,    # key Germany playmaker, starts every knockout game
-    "havertz":      P.EXPECTED,    # back to #9 role in knockouts after MD3 rotation
-    "wirtz":        P.EXPECTED,    # Germany's most important attacker in knockouts
-    "goretzka":     P.IMPACT_SUB,  # deep rotation behind Musiala/Wirtz/Kimmich
-    "leweling":     P.ROTATION,    # competes for wide role
-    "lennart karl": P.BENCH,       # Freiburg MID — Germany squad but not guaranteed starter
-    "raum":         P.LIKELY,      # Nathan Brown in contention for LB slot
-    "undav":        P.ROTATION,    # was MD3 starter but Havertz likely returns for knockouts
+    # ── Germany (ELIMINATED in R32 — lost 4-5 to Paraguay) ───────────────
+    "sané":         P.OUT,         # Germany eliminated in R32 vs Paraguay
+    "musiala":      P.OUT,         # Germany eliminated in R32 vs Paraguay
+    "havertz":      P.OUT,         # Germany eliminated in R32 vs Paraguay
+    "wirtz":        P.OUT,         # Germany eliminated in R32 vs Paraguay
+    "goretzka":     P.OUT,         # Germany eliminated in R32 vs Paraguay
+    "leweling":     P.OUT,         # Germany eliminated in R32 vs Paraguay
+    "lennart karl": P.OUT,         # Germany eliminated in R32 vs Paraguay
+    "raum":         P.OUT,         # Germany eliminated in R32 vs Paraguay
+    "undav":        P.OUT,         # Germany eliminated in R32 vs Paraguay
 
     # ── England ──────────────────────────────────────────────────────────
     "saka":         P.EXPECTED,    # hamstring recovered; likely starter in knockouts
@@ -160,10 +161,14 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "cunha":         P.ROTATION,    # 3G in group stage in limited mins — pushing for knockout starts
     "igor thiago":   P.BENCH,       # minimal game time in MD2+MD3; not a genuine knockout starter
 
-    # ── Norway ───────────────────────────────────────────────────────────
+    # ── Norway (R16 — beat Ivory Coast 2-1 in R32) ───────────────────────
     "sorloth":      P.ROTATION,    # backup striker to Haaland
-    "stig":         P.IMPACT_SUB,  # L. Østigård — Norway 3rd in group; tough France/Senegal fixtures
-    "nusa":         P.ROTATION,    # young, rotation with Ødegaard/Aursnes
+    "stig":         P.LIKELY,      # L. Østigård — Norway advanced from R32; solid CB
+    "nusa":         P.ROTATION,    # young, rotation with Ødegaard
+
+    # ── Sweden (ELIMINATED in R32 — lost 0-3 to France) ──────────────────
+    "isak":         P.OUT,         # Alexander Isak — Sweden eliminated vs France
+    "gyök":         P.OUT,         # Viktor Gyökeres — Sweden eliminated vs France
 
     # ── Portugal ─────────────────────────────────────────────────────────
     "ronaldo":      P.LIKELY,      # 41 years old in 2026; still likely starts but rotation risk
@@ -182,29 +187,29 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Australia ────────────────────────────────────────────────────────
     "beach":        P.BENCH,       # Patrick Beach — backup GK behind Ryan/Vukovic
 
-    # ── New Zealand ───────────────────────────────────────────────────────
-    "o. sail":      P.LIKELY,      # NZ #1 GK — save bonus vs Belgium overstated; model discount applied
+    # ── New Zealand (ELIMINATED — Group G 4th place) ─────────────────────
+    "o. sail":      P.OUT,         # NZ eliminated in group stage
 
-    # ── Netherlands ──────────────────────────────────────────────────────
-    "timber":       P.BENCH,       # groin injury, no game since March 14 — fitness uncertain
-    "koopmeiners":  P.LIKELY,      # competes with Gravenberch/Reijnders
-    "madueke":      P.ROTATION,    # wide rotation
-    "schouten":     P.ROTATION,    # DM rotation
-    "gakpo":        P.LIKELY,      # starts but faces Morocco R32 — strong defence, discounted ceiling
-    "mem":          P.ROTATION,    # Memphis Depay — squad rotation, impact role in knockouts
-    "malen":        P.LIKELY,      # key winger, knockouts starter after MD3 rotation
+    # ── Netherlands (ELIMINATED in R32 — lost 3-4 to Morocco) ────────────
+    "timber":       P.OUT,         # Netherlands eliminated in R32 vs Morocco
+    "koopmeiners":  P.OUT,         # Netherlands eliminated in R32 vs Morocco
+    "madueke":      P.OUT,         # Netherlands eliminated in R32 vs Morocco
+    "schouten":     P.OUT,         # Netherlands eliminated in R32 vs Morocco
+    "gakpo":        P.OUT,         # Netherlands eliminated in R32 vs Morocco
+    "mem":          P.OUT,         # Netherlands eliminated in R32 vs Morocco
+    "malen":        P.OUT,         # Netherlands eliminated in R32 vs Morocco
 
-    # ── Ghana ────────────────────────────────────────────────────────────
-    "kudus":        P.BENCH,       # quad injury Jan + hamstring setback Apr, WC participation in doubt
+    # ── Ghana (ELIMINATED — Group L 3rd place, did not advance) ──────────
+    "kudus":        P.OUT,         # Ghana eliminated in group stage
 
-    # ── Morocco ──────────────────────────────────────────────────────────
-    "hakimi":       P.EXPECTED,    # hamstring (PSG CL semi), expected to recover in time
+    # ── Morocco (R16 — beat Netherlands 4-3 in R32) ───────────────────────
+    "hakimi":       P.EXPECTED,    # advancing — nailed Morocco RB starter
 
-    # ── Turkey ───────────────────────────────────────────────────────────
-    "güler":        P.LIKELY,      # pulled hamstring (April), on track to recover for tournament
+    # ── Turkey (ELIMINATED — Group D 4th place) ───────────────────────────
+    "güler":        P.OUT,         # Turkey eliminated in group stage
 
-    # ── Croatia ──────────────────────────────────────────────────────────
-    "modri":        P.EXPECTED,    # Modrić — Croatia's captain, starts every knockout game
+    # ── Croatia (ELIMINATED — Group L 2nd → R32 TBD) ─────────────────────
+    "modri":        P.EXPECTED,    # Croatia in R32 — captain, starts every game
 
     # ── Canada ───────────────────────────────────────────────────────────
     "davies":       P.IMPACT_SUB,  # ACL (March) + hamstring (May), day-by-day rehab
@@ -227,25 +232,35 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "sucic":        P.FRINGE,      # Petar Sučić (Croatia MID) — low ownership, fringe pick
     "vuskovic":     P.FRINGE,      # Luka Vusković (Croatia DEF) — low ownership, fringe pick
 
-    # ── Iran ─────────────────────────────────────────────────────────────
-    "beiranvand":   P.EXPECTED,    # Iran starter GK — noted for completeness
+    # ── Iran (ELIMINATED — Group G 3rd place, did not advance) ──────────
+    "beiranvand":   P.OUT,         # Iran eliminated in group stage
 
-    # ── Egypt ────────────────────────────────────────────────────────────
-    "shobeir":      P.EXPECTED,    # Mostafa Shobeir — Egypt #1 GK, started MD1 vs Belgium (90 min)
+    # ── Egypt (R16 — Group G 2nd place, advancing) ───────────────────────
+    "shobeir":      P.EXPECTED,    # Mostafa Shobeir — Egypt #1 GK, still in tournament
 
-    # ── Uruguay ──────────────────────────────────────────────────────────
-    "muslera":      P.EXPECTED,    # confirmed starter MD1 vs Saudi Arabia (90 min)
-    "rochet":       P.BENCH,       # on bench MD1, did not play — Muslera is the #1
+    # ── Uruguay (ELIMINATED — Group H 3rd place, did not advance) ────────
+    "muslera":      P.OUT,         # Uruguay eliminated in group stage
+    "rochet":       P.OUT,         # Uruguay eliminated in group stage
 
-    # ── Ecuador ──────────────────────────────────────────────────────────
-    "estupi":       P.BENCH,       # Estupiñán — 0 min MD1 vs Ivory Coast, not getting minutes
+    # ── Ecuador (ELIMINATED in R32 — lost 0-2 to Mexico) ─────────────────
+    "estupi":       P.OUT,         # Ecuador eliminated in R32 vs Mexico
+    "caicedo":      P.OUT,         # Moisés Caicedo — Ecuador eliminated in R32 vs Mexico
+    "plata":        P.OUT,         # Ecuador eliminated in R32 vs Mexico
+    "ibarra":       P.OUT,         # Ecuador eliminated in R32 vs Mexico
+
+    # ── Ivory Coast (ELIMINATED in R32 — lost 1-2 to Norway) ─────────────
+    "pépé":         P.OUT,         # Nicolas Pépé — Ivory Coast eliminated vs Norway
+    "sangare":      P.OUT,         # Ibrahim Sangaré — Ivory Coast eliminated vs Norway
+
+    # ── Japan (ELIMINATED in R32 — lost 1-2 to Brazil) ───────────────────
+    "ueda":         P.OUT,         # Ayase Ueda — Japan eliminated vs Brazil
 
     # ── Switzerland ──────────────────────────────────────────────────────
     "widmer":       P.BENCH,       # Silvan Widmer — named sub, 0 min MD1 vs Canada
 
     # ── Argentina ────────────────────────────────────────────────────────
     "molina":       P.IMPACT_SUB,  # Nahuel Molina — came on as sub at HT in MD1 (45 min only)
-    "di lollo":     P.OUT,          # Lautaro Di Lollo — won't feature in knockouts; blocks Argentina cap
+    "di lollo":     P.OUT,         # Lautaro Di Lollo — won't feature in knockouts; blocks Argentina cap
 }
 
 # Intel not yet verified — applied as max(value, _UNCONFIRMED_FLOOR) so a rumour
