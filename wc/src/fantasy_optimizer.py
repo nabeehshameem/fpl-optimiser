@@ -123,10 +123,10 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "raum":         P.OUT,         # Germany eliminated in R32 vs Paraguay
     "undav":        P.OUT,         # Germany eliminated in R32 vs Paraguay
 
-    # ── England ──────────────────────────────────────────────────────────
+    # ── England (R16 — beat DR Congo 2-1 in R32) ────────────────────────
     "saka":         P.EXPECTED,    # hamstring recovered; likely starter in knockouts
     "reece james":  P.LIKELY,      # recurring knee/hamstring issues — fitness managed
-    "kane":         P.EXPECTED,    # England #9, starts every knockout game
+    "kane":         P.NAILED,      # 5 goals in tournament — nailed England #9
     "bellingham":   P.NAILED,      # England's best player, nailed in knockouts
     "o'reilly":     P.BENCH,       # played vs Panama dead rubber, won't start knockouts
     "pickford":     P.NAILED,      # England #1 GK
@@ -173,13 +173,14 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Portugal ─────────────────────────────────────────────────────────
     "ronaldo":      P.LIKELY,      # 41 years old in 2026; still likely starts but rotation risk
 
-    # ── Belgium ──────────────────────────────────────────────────────────
+    # ── Belgium (R16 — beat Senegal 3-2 in R32, won on xG luck 1.74 vs 3.58) ──
     "lammens":      P.BENCH,       # Belgium #2 GK — Courtois is clear starter when fit
     "penders":      P.FRINGE,      # Belgium #3 GK
     "tielemans":    P.LIKELY,      # rotates in Belgium's evolving midfield
     "witsel":       P.IMPACT_SUB,  # 36 years old in 2026, squad veteran, not guaranteed XI
     "lukaku":       P.IMPACT_SUB,  # De Ketelaere expected to start as #9; Lukaku impact sub
     "de cuyper":    P.LIKELY,      # some competition for Belgium LB slot
+    "trossard":     P.EXPECTED,    # Leandro Trossard — 2G 1A vs Senegal, nailing starting spot
 
     # ── Mexico ───────────────────────────────────────────────────────────
     "brian guti":   P.ROTATION,    # Brian Gutiérrez — heavy competition for starting spot
@@ -254,6 +255,18 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── Japan (ELIMINATED in R32 — lost 1-2 to Brazil) ───────────────────
     "ueda":         P.OUT,         # Ayase Ueda — Japan eliminated vs Brazil
+
+    # ── Senegal (ELIMINATED in R32 — lost 2-3 to Belgium) ────────────────
+    "sarr":         P.OUT,         # Ismaïla Sarr — 29pts but Senegal eliminated vs Belgium
+    "mané":         P.OUT,         # Sadio Mané — Senegal eliminated vs Belgium
+    "pape gueye":   P.OUT,         # Pape Gueye — Senegal eliminated vs Belgium
+    "diatta":       P.OUT,         # Krepin Diatta — Senegal eliminated vs Belgium
+
+    # ── DR Congo (ELIMINATED in R32 — lost 1-2 to England) ───────────────
+    "wissa":        P.OUT,         # Yoane Wissa — DR Congo eliminated vs England
+
+    # ── Bosnia (ELIMINATED in R32 — lost 0-2 to USA) ─────────────────────
+    # (no high-profile PLAYER_STARTER_PROB entries for Bosnia)
 
     # ── Switzerland ──────────────────────────────────────────────────────
     "widmer":       P.BENCH,       # Silvan Widmer — named sub, 0 min MD1 vs Canada
