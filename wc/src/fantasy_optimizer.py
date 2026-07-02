@@ -102,6 +102,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "messi":        P.EXPECTED,    # nailed knockout starter — group stage rotation was dead rubber vs Jordan
     "senesi":       P.BENCH,       # not expected to start for Argentina in knockouts
     "lautaro mart": P.EXPECTED,    # Lautaro Martínez — Argentina #9 in knockouts
+    "julián álv":   P.IMPACT_SUB,  # Julián Álvarez — 4pt actual vs 26pt proj; not starting over Lautaro
     "enzo fern":    P.LIKELY,      # key Argentina CM in knockouts — MD3 rotation no longer relevant
     "soul":         P.IMPACT_SUB,  # Soulé — young, not yet a regular starter
     "lo celso":     P.BENCH,       # squad rotational player
@@ -151,11 +152,15 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── France ───────────────────────────────────────────────────────────
     "dembel":       P.EXPECTED,    # Ousmane Dembélé — started MD1 & MD2, subbed ~85th min
-    "cherki":       P.ROTATION,    # young, competes for wide/10 role
-    "doué":         P.LIKELY,      # Désiré Doué — rotation
+    "thuram":       P.BENCH,       # Marcus Thuram — barely played (1pt actual vs 35pt proj); not starting
+    "cherki":       P.IMPACT_SUB,  # Rayan Cherki — 4pt actual vs 26pt proj; clearly not starting
+    "doué":         P.IMPACT_SUB,  # Désiré Doué — 11pt actual vs 31pt proj; impact sub not starter
+    "mateta":       P.BENCH,       # Jean-Philippe Mateta — 2pt actual vs 24pt proj; squad depth
+    "tchouam":      P.ROTATION,    # Aurélien Tchouaméni — 9pt actual vs 30pt proj; rotated/benched
 
     # ── Brazil ───────────────────────────────────────────────────────────
     "neymar":        P.BENCH,       # did not play MD1 or MD2 — fitness very uncertain for MD3
+    "endrick":       P.BENCH,       # 3pt actual vs 27pt proj — not starting; squad depth behind Vinícius/Cunha
     "casemiro":      P.ROTATION,    # avg 67 min in MD1+MD2 — being rotated off, not guaranteed full game
     "wesley":        P.LIKELY,      # Brazil RB rotation — competes with Vanderson/Danilo
     "cunha":         P.ROTATION,    # 3G in group stage in limited mins — pushing for knockout starts
@@ -179,6 +184,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "tielemans":    P.LIKELY,      # rotates in Belgium's evolving midfield
     "witsel":       P.IMPACT_SUB,  # 36 years old in 2026, squad veteran, not guaranteed XI
     "lukaku":       P.IMPACT_SUB,  # De Ketelaere expected to start as #9; Lukaku impact sub
+    "doku":         P.ROTATION,    # Jérémy Doku — 4pt actual vs 24pt proj; rotation/impact sub
     "de cuyper":    P.LIKELY,      # some competition for Belgium LB slot
     "trossard":     P.EXPECTED,    # Leandro Trossard — 2G 1A vs Senegal, nailing starting spot
 
