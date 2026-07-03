@@ -215,8 +215,9 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Turkey (ELIMINATED — Group D 4th place) ───────────────────────────
     "güler":        P.OUT,         # Turkey eliminated in group stage
 
-    # ── Croatia (ELIMINATED — Group L 2nd → R32 TBD) ─────────────────────
-    "modri":        P.EXPECTED,    # Croatia in R32 — captain, starts every game
+    # ── Croatia (ELIMINATED in R16 — lost 1-2 to Portugal) ──────────────
+    "modri":        P.OUT,         # Modric — Croatia eliminated vs Portugal
+    "baturina":     P.OUT,         # Martin Baturina — Croatia eliminated vs Portugal
 
     # ── Canada ───────────────────────────────────────────────────────────
     "davies":       P.IMPACT_SUB,  # ACL (March) + hamstring (May), day-by-day rehab
@@ -274,7 +275,17 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Bosnia (ELIMINATED in R32 — lost 0-2 to USA) ─────────────────────
     # (no high-profile PLAYER_STARTER_PROB entries for Bosnia)
 
+    # ── Austria (ELIMINATED in R16 — lost 0-3 to Spain) ─────────────────
+    "sabitz":       P.OUT,         # Marcel Sabitzer — Austria eliminated vs Spain
+    "laimer":       P.OUT,         # Konrad Laimer — Austria eliminated vs Spain
+    "alaba":        P.OUT,         # David Alaba — Austria eliminated vs Spain
+
+    # ── Algeria (ELIMINATED in R16 — lost 0-2 to Switzerland) ────────────
+    "mahrez":       P.OUT,         # Riyad Mahrez — Algeria eliminated vs Switzerland
+    "gouiri":       P.OUT,         # Amine Gouiri — Algeria eliminated vs Switzerland
+
     # ── Switzerland ──────────────────────────────────────────────────────
+    "manzambi":     P.NAILED,      # Johan Manzambi — 28pts (3G 2A), nailed QF starter
     "widmer":       P.BENCH,       # Silvan Widmer — named sub, 0 min MD1 vs Canada
 
     # ── Argentina ────────────────────────────────────────────────────────
