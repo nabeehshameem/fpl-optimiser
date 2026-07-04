@@ -193,9 +193,11 @@ def report_results(predictor, since: str | None = None) -> None:
         try:
             info = fixture_info.get((home_id, away_id)) if home_id and away_id else None
             md_num = info[1] if info else 0
-            draw_boost = 0.12 if md_num == 1 else 0.07
+            is_knockout = md_num == 0
+            draw_boost = 0.12 if md_num == 1 else (0.10 if is_knockout else 0.07)
             is_host = _canon(home) in {"usa", "united states", "mexico", "canada"}
-            pred = predictor.predict(home_id, away_id, home_advantage=is_host, draw_boost=draw_boost)
+            pred = predictor.predict(home_id, away_id, home_advantage=is_host,
+                                     draw_boost=draw_boost, knockout=is_knockout)
             win_pct  = pred["win_pct"]
             draw_pct = pred["draw_pct"]
             loss_pct = pred["loss_pct"]
