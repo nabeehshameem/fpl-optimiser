@@ -110,7 +110,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "buend":        P.IMPACT_SUB,  # competes with De Paul / Mac Allister
     "romero":       P.BENCH,       # partially torn MCL (mid-April), World Cup in jeopardy
     "otamendi":     P.BENCH,       # 3rd-choice CB behind Romero and L. Martínez
-    "lisandro":     P.EXPECTED,    # L. Martínez — Argentina first-choice CB in knockouts
+    "lisandro":     P.NAILED,      # L. Martínez — 22pts (1G 1A), nailed Argentina CB starter in knockouts
     "nico paz":     P.BENCH,       # won't get minutes over Mac Allister / Enzo / De Paul
 
     # ── Germany (ELIMINATED in R32 — lost 4-5 to Paraguay) ───────────────
@@ -191,8 +191,10 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Mexico ───────────────────────────────────────────────────────────
     "brian guti":   P.ROTATION,    # Brian Gutiérrez — heavy competition for starting spot
 
-    # ── Australia ────────────────────────────────────────────────────────
-    "beach":        P.BENCH,       # Patrick Beach — backup GK behind Ryan/Vukovic
+    # ── Australia (ELIMINATED in R32 — lost 3-5 to Egypt) ───────────────
+    "beach":        P.OUT,         # Patrick Beach — Australia eliminated vs Egypt
+    "irvine":       P.OUT,         # Jackson Irvine — Australia eliminated vs Egypt
+    "leckie":       P.OUT,         # Matthew Leckie — Australia eliminated vs Egypt
 
     # ── New Zealand (ELIMINATED — Group G 4th place) ─────────────────────
     "o. sail":      P.OUT,         # NZ eliminated in group stage
@@ -209,7 +211,14 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Ghana (ELIMINATED — Group L 3rd place, did not advance) ──────────
     "kudus":        P.OUT,         # Ghana eliminated in group stage
 
-    # ── Morocco (R16 — beat Netherlands 4-3 in R32) ───────────────────────
+    # ── Cape Verde (ELIMINATED in R32 — lost 2-3 to Argentina) ──────────
+    # (no PLAYER_STARTER_PROB entries needed for Cape Verde)
+
+    # ── Egypt (QF — beat Australia 5-3 in R32, xG only 1.32 — lucky scoreline)
+    "hany":         P.NAILED,      # Mohamed Hany — 22pts (2G 1A), nailed Egypt RB in QF
+    "shobeir":      P.NAILED,      # Mostafa Shobeir — Egypt #1 GK, in QF
+
+    # ── Morocco (QF — beat Netherlands 4-3 in R32) ────────────────────────
     "hakimi":       P.EXPECTED,    # advancing — nailed Morocco RB starter
 
     # ── Turkey (ELIMINATED — Group D 4th place) ───────────────────────────
@@ -223,6 +232,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "davies":       P.IMPACT_SUB,  # ACL (March) + hamstring (May), day-by-day rehab
 
     # ── Colombia ─────────────────────────────────────────────────────────
+    "muñoz":        P.NAILED,      # Daniel Muñoz — 27pts (2G), nailed Colombia RB in QF
     "mojica":       P.LIKELY,      # LB rotation risk — competes with Machado/Arias for left slot
 
     # ── Mexico ───────────────────────────────────────────────────────────
