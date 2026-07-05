@@ -519,6 +519,7 @@ class TournamentTeamOut(BaseModel):
     group: str
     group_1st_pct: float = 0.0
     r32_pct: float
+    r16_pct: float = 0.0
     qf_pct: float
     sf_pct: float
     final_pct: float
