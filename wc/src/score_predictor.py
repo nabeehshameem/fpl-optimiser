@@ -612,7 +612,7 @@ class DCPredictor:
         home_advantage: bool = False,
         knockout: bool = False,
         max_goals: int = MAX_GOALS,
-        draw_boost: float = 0.10,
+        draw_boost: float = 0.04,
     ) -> dict:
         """
         Predict scoreline probabilities for one match.
@@ -668,14 +668,7 @@ class DCPredictor:
         loss_pct = float(np.triu(mat, 1).sum())   * 100
 
         if draw_boost > 0:
-            # Scale up boost when one side is a clear favourite: group-stage audit
-            # showed H→D was the dominant miss pattern (Belgium/Iran, Ecuador/Curaçao,
-            # Japan/Sweden, England/Ghana, Uruguay/Cape Verde all drew despite model
-            # backing the favourite at 50-73%).
-            effective_boost = draw_boost
-            if win_pct > 55 or loss_pct > 55:
-                effective_boost = draw_boost + 0.08
-            boost_pts = effective_boost * 100
+            boost_pts = draw_boost * 100
             d_new = min(draw_pct + boost_pts, 99.0)
             excess = d_new - draw_pct
             ha_total = win_pct + loss_pct
