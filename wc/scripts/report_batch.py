@@ -174,7 +174,8 @@ def report_results(predictor, since: str | None = None) -> None:
 
     where = f"WHERE match_date >= '{since}'" if since else ""
     rows = conn.execute(f"""
-        SELECT match_date, home_team, away_team, home_score, away_score
+        SELECT match_date, home_team, away_team, home_score, away_score,
+               went_to_et, home_score_90, away_score_90
         FROM match_stats {where}
         ORDER BY match_date, home_team
     """).fetchall()
@@ -185,7 +186,7 @@ def report_results(predictor, since: str | None = None) -> None:
 
     results: list[str] = []
     exact_hits = 0
-    for match_date, home, away, hs, as_ in rows:
+    for match_date, home, away, hs, as_, went_to_et, hs_90, as_90 in rows:
         home_id = team_id_map.get(_canon(home))
         away_id = team_id_map.get(_canon(away))
         group_id = (fixture_group.get((home_id, away_id)) or fixture_group.get((away_id, home_id))) if home_id and away_id else None
@@ -205,9 +206,13 @@ def report_results(predictor, since: str | None = None) -> None:
             top3 = pred["most_likely"][:3]
             top3_str = "  ".join(f"{h}-{a}({p:.0f}%)" for h, a, p in top3)
 
-            if hs > as_:
+            # Use 90-min score for WDL/SC evaluation when available
+            eval_hs = hs_90 if (went_to_et and hs_90 is not None) else hs
+            eval_as = as_90 if (went_to_et and as_90 is not None) else as_
+
+            if eval_hs > eval_as:
                 actual_outcome = "H"
-            elif hs == as_:
+            elif eval_hs == eval_as:
                 actual_outcome = "D"
             else:
                 actual_outcome = "A"
@@ -220,13 +225,14 @@ def report_results(predictor, since: str | None = None) -> None:
                 pred_outcome = "A"
 
             ph, pa, _ = top3[0]
-            exact_hit = ph == hs and pa == as_
+            exact_hit = ph == eval_hs and pa == eval_as
             if exact_hit:
                 exact_hits += 1
 
             sc_flag  = "Y" if exact_hit else "N"
             wdl_flag = "Y" if pred_outcome == actual_outcome else "N"
-            match_str = f"{home} {hs}-{as_} {away}"
+            et_marker = " [ET]" if went_to_et else ""
+            match_str = f"{home} {hs}-{as_} {away}{et_marker}"
         except Exception:
             win_pct, draw_pct, loss_pct = 0, 0, 0
             sc_flag = wdl_flag = "?"

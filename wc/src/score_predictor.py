@@ -209,7 +209,8 @@ class DCPredictor:
         try:
             conn = sqlite3.connect(DB_PATH)
             rows = conn.execute("""
-                SELECT match_date, home_team, away_team, home_score, away_score
+                SELECT match_date, home_team, away_team, home_score, away_score,
+                       went_to_et, home_score_90, away_score_90
                 FROM match_stats
                 WHERE home_score IS NOT NULL AND away_score IS NOT NULL
             """).fetchall()
@@ -217,12 +218,15 @@ class DCPredictor:
         except Exception:
             return []
         out = []
-        for match_date, home, away, hg, ag in rows:
+        for match_date, home, away, hg, ag, went_to_et, hg_90, ag_90 in rows:
+            # Use 90-min score for training when available — ET goals distort attack/defence ratings
+            train_hg = hg_90 if (went_to_et and hg_90 is not None) else hg
+            train_ag = ag_90 if (went_to_et and ag_90 is not None) else ag
             out.append({
                 "home_key":   _canonical(home),
                 "away_key":   _canonical(away),
-                "home_goals": int(hg),
-                "away_goals": int(ag),
+                "home_goals": int(train_hg),
+                "away_goals": int(train_ag),
                 "weight":     4.0,  # 4× WC2022 — current tournament, exact squads, most relevant signal
                 "neutral":    True,
                 "home_id":    None,
