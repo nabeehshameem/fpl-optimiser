@@ -145,6 +145,9 @@ def _ingest_one(conn: sqlite3.Connection, fixture: dict, api_key: str) -> None:
     away_team = fixture["awayTeam"]["name"]
     home_score = (fixture.get("homeScore") or {}).get("current")
     away_score = (fixture.get("awayScore") or {}).get("current")
+    home_score_90 = (fixture.get("homeScore") or {}).get("normaltime")
+    away_score_90 = (fixture.get("awayScore") or {}).get("normaltime")
+    went_to_et = 1 if (fixture.get("homeScore") or {}).get("extratime") is not None else 0
 
     print(f"  {home_team} vs {away_team} ({match_date})...")
 
@@ -181,18 +184,24 @@ def _ingest_one(conn: sqlite3.Connection, fixture: dict, api_key: str) -> None:
            home_score, away_score,
            xg_home, xg_away,
            shots_home, shots_away, shots_on_home, shots_on_away,
-           possession_home, possession_away)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           possession_home, possession_away,
+           went_to_et, home_score_90, away_score_90)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (event_id, match_date, home_team, away_team,
          home_score, away_score,
          xg_home, xg_away,
          shots_home, shots_away, shots_on_home, shots_on_away,
-         poss_home, poss_away),
+         poss_home, poss_away,
+         went_to_et, home_score_90, away_score_90),
     )
 
+    et_str = " [ET]" if went_to_et else ""
+    score_str = f"{home_score}-{away_score}{et_str}"
+    if went_to_et and home_score_90 is not None:
+        score_str += f" (90min: {home_score_90}-{away_score_90})"
     xg_str = f"xG {xg_home:.2f}-{xg_away:.2f}" if xg_home is not None else "xG n/a"
-    print(f"    Score {home_score}-{away_score}  {xg_str}")
+    print(f"    Score {score_str}  {xg_str}")
 
     # ── Incidents (goals, cards, substitutions) ──────────────────────────────
     incidents_resp = _get(f"event/{event_id}/incidents", {}, api_key)
