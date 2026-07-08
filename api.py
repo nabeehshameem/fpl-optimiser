@@ -310,6 +310,26 @@ def list_teams(request: Request):
     return {"teams": [r[0] for r in rows]}
 
 
+def _most_likely_outcome_score(result: dict) -> str:
+    """Return the top predicted score that matches the most likely WDL outcome.
+
+    The DC tau correction inflates 1-1 enough to make it the raw top score even
+    when one team is a clear favourite. Instead we pick the top score within
+    whichever WDL bucket (home-win / draw / away-win) the model considers most
+    probable.
+    """
+    win, draw, loss = result["win_pct"], result["draw_pct"], result["loss_pct"]
+    best = max(win, draw, loss)
+    scores = result["most_likely"]
+    if best == draw:
+        top = next((s for s in scores if s[0] == s[1]), scores[0])
+    elif best == win:
+        top = next((s for s in scores if s[0] > s[1]), scores[0])
+    else:
+        top = next((s for s in scores if s[1] > s[0]), scores[0])
+    return f"{top[0]}-{top[1]}"
+
+
 @app.post("/api/wc/predict", response_model=PredictResponse)
 @limiter.limit("30/minute")
 def predict_match(req: PredictRequest, request: Request) -> PredictResponse:
@@ -351,7 +371,7 @@ def predict_match(req: PredictRequest, request: Request) -> PredictResponse:
         away_name=result["away_name"],
         home_xg=home_xg,
         away_xg=away_xg,
-        predicted_score=f"{result['most_likely'][0][0]}-{result['most_likely'][0][1]}",
+        predicted_score=_most_likely_outcome_score(result),
         win_pct=result["win_pct"],
         draw_pct=result["draw_pct"],
         loss_pct=result["loss_pct"],
