@@ -252,6 +252,7 @@ INDEXES = [
 
 MIGRATIONS = [
     # match_lineups: bonus stat columns added after initial deploy
+    "ALTER TABLE match_lineups ADD COLUMN penalty_won INTEGER DEFAULT 0",
     "ALTER TABLE match_lineups ADD COLUMN saves INTEGER DEFAULT 0",
     "ALTER TABLE match_lineups ADD COLUMN shots_on_target INTEGER DEFAULT 0",
     "ALTER TABLE match_lineups ADD COLUMN tackles INTEGER DEFAULT 0",
@@ -260,6 +261,7 @@ MIGRATIONS = [
     "ALTER TABLE match_lineups ADD COLUMN penalty_conceded INTEGER DEFAULT 0",
     # wc2026_player_points: own_goals + bonus stat columns
     "ALTER TABLE wc2026_player_points ADD COLUMN own_goals INTEGER DEFAULT 0",
+    "ALTER TABLE wc2026_player_points ADD COLUMN penalty_won INTEGER DEFAULT 0",
     "ALTER TABLE wc2026_player_points ADD COLUMN penalty_conceded INTEGER DEFAULT 0",
     "ALTER TABLE wc2026_player_points ADD COLUMN saves INTEGER DEFAULT 0",
     "ALTER TABLE wc2026_player_points ADD COLUMN shots_on_target INTEGER DEFAULT 0",
