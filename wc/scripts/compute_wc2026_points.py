@@ -53,7 +53,7 @@ def _pts(pos: str, minutes: int, goals: int, assists: int,
          clean_sheet: bool, goals_conceded: int,
          saves: int, shots_on_target: int, tackles: int,
          big_chances_created: int, penalty_saves: int,
-         penalty_conceded: int) -> float:
+         penalty_conceded: int, penalty_won: int) -> float:
     s = SCORING.get(pos, SCORING["MID"])
     if minutes == 0:
         return 0.0
@@ -65,6 +65,7 @@ def _pts(pos: str, minutes: int, goals: int, assists: int,
     pts += yellow_cards * s["yellow"]
     pts += red_cards * s["red"]
     pts += penalty_conceded * -1
+    pts += penalty_won * 2
 
     if clean_sheet and minutes >= 60:
         pts += s["clean_sheet"]
@@ -103,12 +104,12 @@ def _compute_fixture(conn: sqlite3.Connection, fixture_id: int) -> int:
     for row in conn.execute(
         """SELECT player_name, team_name, position, minutes_played,
                   saves, shots_on_target, tackles, big_chances_created,
-                  penalty_saves, penalty_conceded
+                  penalty_saves, penalty_conceded, penalty_won
            FROM match_lineups WHERE api_fixture_id = ?""",
         (fixture_id,),
     ).fetchall():
         (player_name, team, pos, minutes,
-         saves, sot, tackles, bcc, pen_saves, pen_conceded) = row
+         saves, sot, tackles, bcc, pen_saves, pen_conceded, pen_won) = row
         players[player_name] = {
             "team": team, "pos": pos or "MID", "minutes": minutes or 0,
             "goals": 0, "assists": 0, "yellow_cards": 0, "red_cards": 0,
@@ -116,6 +117,7 @@ def _compute_fixture(conn: sqlite3.Connection, fixture_id: int) -> int:
             "saves": saves or 0, "shots_on_target": sot or 0,
             "tackles": tackles or 0, "big_chances_created": bcc or 0,
             "penalty_saves": pen_saves or 0, "penalty_conceded": pen_conceded or 0,
+            "penalty_won": pen_won or 0,
         }
 
     # Accumulate events — distinguish own goals from regular goals
@@ -153,6 +155,7 @@ def _compute_fixture(conn: sqlite3.Connection, fixture_id: int) -> int:
             cs, gc,
             p["saves"], p["shots_on_target"], p["tackles"],
             p["big_chances_created"], p["penalty_saves"], p["penalty_conceded"],
+            p["penalty_won"],
         )
         conn.execute(
             """
@@ -161,14 +164,14 @@ def _compute_fixture(conn: sqlite3.Connection, fixture_id: int) -> int:
                position, minutes, goals, assists,
                yellow_cards, red_cards, own_goals, clean_sheet, goals_conceded,
                saves, shots_on_target, tackles, big_chances_created,
-               penalty_saves, penalty_conceded, fantasy_pts)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               penalty_saves, penalty_conceded, penalty_won, fantasy_pts)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (fixture_id, match_date, team, player_name,
              p["pos"], p["minutes"], p["goals"], p["assists"],
              p["yellow_cards"], p["red_cards"], p["own_goals"], int(cs), gc,
              p["saves"], p["shots_on_target"], p["tackles"], p["big_chances_created"],
-             p["penalty_saves"], p["penalty_conceded"], fantasy_pts),
+             p["penalty_saves"], p["penalty_conceded"], p["penalty_won"], fantasy_pts),
         )
         count += 1
 
