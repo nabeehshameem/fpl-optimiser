@@ -306,16 +306,27 @@ def _ingest_one(conn: sqlite3.Connection, fixture: dict, api_key: str) -> None:
                     continue
                 pos = POSITION_MAP.get(p.get("position", ""), "MID")
                 is_starter = 0 if p.get("substitute", False) else 1
-                minutes = (p.get("statistics") or {}).get("minutesPlayed") or 0
+                st = p.get("statistics") or {}
+                minutes            = st.get("minutesPlayed") or 0
+                saves              = st.get("saves") or 0
+                shots_on_target    = st.get("onTargetScoringAttempt") or 0
+                tackles            = st.get("totalTackle") or 0
+                big_chances_created = st.get("bigChancesCreated") or 0
+                penalty_saves      = st.get("penaltySave") or 0
+                penalty_conceded   = st.get("penaltyConceded") or 0
                 conn.execute(
                     """
-                    INSERT OR IGNORE INTO match_lineups
+                    INSERT OR REPLACE INTO match_lineups
                       (api_fixture_id, match_date, team_name, player_name,
-                       position, minutes_played, is_starter)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                       position, minutes_played, is_starter,
+                       saves, shots_on_target, tackles, big_chances_created,
+                       penalty_saves, penalty_conceded)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (event_id, match_date, team_name, player_name,
-                     pos, minutes, is_starter),
+                     pos, minutes, is_starter,
+                     saves, shots_on_target, tackles, big_chances_created,
+                     penalty_saves, penalty_conceded),
                 )
                 total_players += 1
 
