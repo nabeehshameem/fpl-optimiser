@@ -250,6 +250,25 @@ INDEXES = [
 ]
 
 
+MIGRATIONS = [
+    # match_lineups: bonus stat columns added after initial deploy
+    "ALTER TABLE match_lineups ADD COLUMN saves INTEGER DEFAULT 0",
+    "ALTER TABLE match_lineups ADD COLUMN shots_on_target INTEGER DEFAULT 0",
+    "ALTER TABLE match_lineups ADD COLUMN tackles INTEGER DEFAULT 0",
+    "ALTER TABLE match_lineups ADD COLUMN big_chances_created INTEGER DEFAULT 0",
+    "ALTER TABLE match_lineups ADD COLUMN penalty_saves INTEGER DEFAULT 0",
+    "ALTER TABLE match_lineups ADD COLUMN penalty_conceded INTEGER DEFAULT 0",
+    # wc2026_player_points: own_goals + bonus stat columns
+    "ALTER TABLE wc2026_player_points ADD COLUMN own_goals INTEGER DEFAULT 0",
+    "ALTER TABLE wc2026_player_points ADD COLUMN penalty_conceded INTEGER DEFAULT 0",
+    "ALTER TABLE wc2026_player_points ADD COLUMN saves INTEGER DEFAULT 0",
+    "ALTER TABLE wc2026_player_points ADD COLUMN shots_on_target INTEGER DEFAULT 0",
+    "ALTER TABLE wc2026_player_points ADD COLUMN tackles INTEGER DEFAULT 0",
+    "ALTER TABLE wc2026_player_points ADD COLUMN big_chances_created INTEGER DEFAULT 0",
+    "ALTER TABLE wc2026_player_points ADD COLUMN penalty_saves INTEGER DEFAULT 0",
+]
+
+
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
@@ -258,6 +277,11 @@ def init_db():
         conn.execute(stmt)
     for stmt in INDEXES:
         conn.execute(stmt)
+    for stmt in MIGRATIONS:
+        try:
+            conn.execute(stmt)
+        except sqlite3.OperationalError:
+            pass  # column already exists
     conn.commit()
     conn.close()
     print(f"DB initialised: {DB_PATH}")
