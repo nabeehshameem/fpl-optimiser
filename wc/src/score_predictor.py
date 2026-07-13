@@ -589,7 +589,7 @@ class DCPredictor:
         """team_id → canonical name. Falls back to str(team_id)."""
         if not self._id_to_name:
             self._build_id_name_map()
-        return self._id_to_name.get(team_id, str(team_id))
+        return self._id_to_name.get(team_id, str(team_id).lower())
 
     def _team_atk_def(self, team_key: str) -> tuple[float, float]:
         """Return (attack, defense) falling back to FIFA rank prior."""
@@ -979,8 +979,14 @@ class DCPredictor:
         atk_arr = np.array([self.team_params.get(k, {"attack":  mean_atk})["attack"]  for k in all_keys])
         def_arr = np.array([self.team_params.get(k, {"defense": mean_def})["defense"] for k in all_keys])
 
+        # Apply WC2026 form adjustments — same residual correction used in predict().
+        # form_atk: team scores this × more/less than DC expects from historical params.
+        # form_def: team concedes this × more/less (>1 = leakier, <1 = tighter).
+        form_atk = np.array([self.form_adjustments.get(k, (1.0, 1.0))[0] for k in all_keys])
+        form_def = np.array([self.form_adjustments.get(k, (1.0, 1.0))[1] for k in all_keys])
+
         # lam[i, j] = expected goals scored by team i vs team j
-        lam = np.outer(atk_arr, def_arr)  # (T, T)
+        lam = np.outer(atk_arr * form_atk, def_arr * form_def)  # (T, T)
 
         # ── Build group match index (72 matches) ──────────────────────────────
         group_lists: list[list[int]] = []
