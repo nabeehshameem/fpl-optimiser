@@ -158,38 +158,38 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "mateta":       P.BENCH,       # Jean-Philippe Mateta — 2pt actual vs 24pt proj; squad depth
     "tchouam":      P.ROTATION,    # Aurélien Tchouaméni — 9pt actual vs 30pt proj; rotated/benched
 
-    # ── Brazil ───────────────────────────────────────────────────────────
-    "neymar":        P.BENCH,       # did not play MD1 or MD2 — fitness very uncertain for MD3
-    "endrick":       P.BENCH,       # 3pt actual vs 27pt proj — not starting; squad depth behind Vinícius/Cunha
-    "casemiro":      P.ROTATION,    # avg 67 min in MD1+MD2 — being rotated off, not guaranteed full game
-    "wesley":        P.LIKELY,      # Brazil RB rotation — competes with Vanderson/Danilo
-    "cunha":         P.ROTATION,    # 3G in group stage in limited mins — pushing for knockout starts
-    "igor thiago":   P.BENCH,       # minimal game time in MD2+MD3; not a genuine knockout starter
+    # ── Brazil (ELIMINATED in QF — lost 1-2 to Norway Jul 5) ────────────
+    "neymar":        P.OUT,
+    "endrick":       P.OUT,
+    "casemiro":      P.OUT,
+    "wesley":        P.OUT,
+    "cunha":         P.OUT,
+    "igor thiago":   P.OUT,
 
-    # ── Norway (R16 — beat Ivory Coast 2-1 in R32) ───────────────────────
-    "sorloth":      P.ROTATION,    # backup striker to Haaland
-    "stig":         P.LIKELY,      # L. Østigård — Norway advanced from R32; solid CB
-    "nusa":         P.ROTATION,    # young, rotation with Ødegaard
+    # ── Norway (ELIMINATED in SF — lost 1-2 to England Jul 11) ──────────
+    "sorloth":      P.OUT,
+    "stig":         P.OUT,
+    "nusa":         P.OUT,
 
     # ── Sweden (ELIMINATED in R32 — lost 0-3 to France) ──────────────────
     "isak":         P.OUT,         # Alexander Isak — Sweden eliminated vs France
     "gyök":         P.OUT,         # Viktor Gyökeres — Sweden eliminated vs France
 
-    # ── Portugal ─────────────────────────────────────────────────────────
-    "ronaldo":      P.LIKELY,      # 41 years old in 2026; still likely starts but rotation risk
+    # ── Portugal (ELIMINATED in R16 — lost 0-1 to Spain Jul 6) ─────────
+    "ronaldo":      P.OUT,
 
-    # ── Belgium (R16 — beat Senegal 3-2 in R32, won on xG luck 1.74 vs 3.58) ──
-    "lammens":      P.BENCH,       # Belgium #2 GK — Courtois is clear starter when fit
-    "penders":      P.FRINGE,      # Belgium #3 GK
-    "tielemans":    P.LIKELY,      # rotates in Belgium's evolving midfield
-    "witsel":       P.IMPACT_SUB,  # 36 years old in 2026, squad veteran, not guaranteed XI
-    "lukaku":       P.IMPACT_SUB,  # De Ketelaere expected to start as #9; Lukaku impact sub
-    "doku":         P.ROTATION,    # Jérémy Doku — 4pt actual vs 24pt proj; rotation/impact sub
-    "de cuyper":    P.LIKELY,      # some competition for Belgium LB slot
-    "trossard":     P.EXPECTED,    # Leandro Trossard — 2G 1A vs Senegal, nailing starting spot
+    # ── Belgium (ELIMINATED in SF — lost 1-2 to Spain Jul 10) ───────────
+    "lammens":      P.OUT,
+    "penders":      P.OUT,
+    "tielemans":    P.OUT,
+    "witsel":       P.OUT,
+    "lukaku":       P.OUT,
+    "doku":         P.OUT,
+    "de cuyper":    P.OUT,
+    "trossard":     P.OUT,
 
-    # ── Mexico ───────────────────────────────────────────────────────────
-    "brian guti":   P.ROTATION,    # Brian Gutiérrez — heavy competition for starting spot
+    # ── Mexico (ELIMINATED in R16 — lost 2-3 to England Jul 6) ──────────
+    "brian guti":   P.OUT,
 
     # ── Australia (ELIMINATED in R32 — lost 3-5 to Egypt) ───────────────
     "beach":        P.OUT,         # Patrick Beach — Australia eliminated vs Egypt
@@ -214,12 +214,12 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     # ── Cape Verde (ELIMINATED in R32 — lost 2-3 to Argentina) ──────────
     # (no PLAYER_STARTER_PROB entries needed for Cape Verde)
 
-    # ── Egypt (QF — beat Australia 5-3 in R32, xG only 1.32 — lucky scoreline)
-    "hany":         P.NAILED,      # Mohamed Hany — 22pts (2G 1A), nailed Egypt RB in QF
-    "shobeir":      P.NAILED,      # Mostafa Shobeir — Egypt #1 GK, in QF
+    # ── Egypt (ELIMINATED in R16 — lost 2-3 to Argentina Jul 7) ────────
+    "hany":         P.OUT,
+    "shobeir":      P.OUT,
 
-    # ── Morocco (QF — beat Netherlands 4-3 in R32) ────────────────────────
-    "hakimi":       P.EXPECTED,    # advancing — nailed Morocco RB starter
+    # ── Morocco (ELIMINATED in QF — lost 0-2 to France Jul 9) ───────────
+    "hakimi":       P.OUT,
 
     # ── Turkey (ELIMINATED — Group D 4th place) ───────────────────────────
     "güler":        P.OUT,         # Turkey eliminated in group stage
@@ -228,15 +228,15 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "modri":        P.OUT,         # Modric — Croatia eliminated vs Portugal
     "baturina":     P.OUT,         # Martin Baturina — Croatia eliminated vs Portugal
 
-    # ── Canada ───────────────────────────────────────────────────────────
-    "davies":       P.IMPACT_SUB,  # ACL (March) + hamstring (May), day-by-day rehab
+    # ── Canada (ELIMINATED in R16 — lost 0-3 to Morocco Jul 4) ─────────
+    "davies":       P.OUT,
 
-    # ── Colombia ─────────────────────────────────────────────────────────
-    "muñoz":        P.NAILED,      # Daniel Muñoz — 27pts (2G), nailed Colombia RB in QF
-    "mojica":       P.LIKELY,      # LB rotation risk — competes with Machado/Arias for left slot
+    # ── Colombia (ELIMINATED in R16 — lost 3-4 to Switzerland Jul 7) ───
+    "muñoz":        P.OUT,
+    "mojica":       P.OUT,
 
-    # ── Mexico ───────────────────────────────────────────────────────────
-    "mateo ch":     P.FRINGE,      # Mateo Chávez — widely regarded as second-choice LB
+    # ── Mexico (ELIMINATED in R16 — lost 2-3 to England Jul 6) ─────────
+    "mateo ch":     P.OUT,
 
     # ── Fantasy data artefacts / confirmed non-squad / poor value ────────
     "tagnaouti":    P.FRINGE,      # Morocco backup GK — Bounou is their clear #1
@@ -252,9 +252,6 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── Iran (ELIMINATED — Group G 3rd place, did not advance) ──────────
     "beiranvand":   P.OUT,         # Iran eliminated in group stage
-
-    # ── Egypt (R16 — Group G 2nd place, advancing) ───────────────────────
-    "shobeir":      P.EXPECTED,    # Mostafa Shobeir — Egypt #1 GK, still in tournament
 
     # ── Uruguay (ELIMINATED — Group H 3rd place, did not advance) ────────
     "muslera":      P.OUT,         # Uruguay eliminated in group stage
@@ -294,9 +291,9 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "mahrez":       P.OUT,         # Riyad Mahrez — Algeria eliminated vs Switzerland
     "gouiri":       P.OUT,         # Amine Gouiri — Algeria eliminated vs Switzerland
 
-    # ── Switzerland ──────────────────────────────────────────────────────
-    "manzambi":     P.NAILED,      # Johan Manzambi — 28pts (3G 2A), nailed QF starter
-    "widmer":       P.BENCH,       # Silvan Widmer — named sub, 0 min MD1 vs Canada
+    # ── Switzerland (ELIMINATED in SF — lost 1-3 to Argentina Jul 12) ──
+    "manzambi":     P.OUT,
+    "widmer":       P.OUT,
 
     # ── Argentina ────────────────────────────────────────────────────────
     "molina":       P.IMPACT_SUB,  # Nahuel Molina — came on as sub at HT in MD1 (45 min only)
@@ -319,25 +316,15 @@ PLAYER_STARTER_PROB_UNCONFIRMED: dict[str, float] = {
 # is unavailable pre-tournament.  Differentials are already indirectly rewarded by
 # the MILP's pts/$ objective (higher pts per unit of budget = preferred).
 PLAYER_SETPIECE_BONUS: dict[str, float] = {
-    # ── Penalty takers ───────────────────────────────────────────────────
+    # ── Penalty takers (SF teams only) ───────────────────────────────────
     "messi":      4.5,   # ARG
-    "mbapp":      4.5,   # FRA — K. Mbappé (accent-safe prefix key)
-    "haaland":    4.5,   # NOR
-    "ronaldo":    4.5,   # POR — C. Ronaldo still designated taker
+    "mbapp":      4.5,   # FRA — K. Mbappé
     "kane":       4.5,   # ENG
-    "havertz":    4.5,   # GER — confirmed FWD/PK role
-    "lukaku":     4.5,   # BEL
-    "raphinha":   6.0,   # BRA — penalty + corner/FK taker, Brazil captain
 
-    # ── Corner / FK takers ───────────────────────────────────────────────
-    "kimmich":    5.0,   # GER — sole corner + FK taker; setpiece assists are primary ceiling-raiser as DEF
-    "de bruyne":  1.5,   # BEL — primary FK delivery
-    "degaard":    1.5,   # NOR — M. Ødegaard (Ø prefix skipped; "degaard" matches)
+    # ── Corner / FK takers (SF teams only) ───────────────────────────────
     "bellingham": 1.0,   # ENG
-    "güler":      1.5,   # TUR — FK specialist
     "de paul":    1.0,   # ARG
     "pedri":      1.0,   # ESP
-    "hakimi":     0.8,   # MAR — overlapping FK role
 }
 
 # Attacking-contribution multiplier for defensive/holding midfielders.
