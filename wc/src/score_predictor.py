@@ -401,22 +401,27 @@ class DCPredictor:
                 continue
 
             n = len(last)
-            recency_w = np.linspace(0.5, 1.0, n)
+            # Reduced recency gradient (0.75→1.0 instead of 0.5→1.0) so the most
+            # recent 1-2 matches against weak opponents don't dominate the form
+            # signal for semi-final/final predictions.
+            recency_w = np.linspace(0.75, 1.0, n)
             tier_w    = np.array([r[4] for r in last])
             w         = recency_w * tier_w
 
             # Cap expected at 2.5 so a sky-high DC baseline against weak opponents
             # doesn't suppress the form signal for strong teams (e.g. Argentina 5-0
             # Zambia expected 4.8 → ratio 1.04 vs capped-at-2.5 → ratio 2.0)
+            # Also floor individual ratios at 0.35 so a single shut-out against a
+            # weak team (e.g. France xG 0.14 vs Morocco) doesn't collapse form_def.
             scored_ratios   = np.array([min(r[0], 6.0) / max(min(r[1], 2.5), 0.1) for r in last])
-            conceded_ratios = np.array([min(r[2], 6.0) / max(min(r[3], 2.5), 0.1) for r in last])
+            conceded_ratios = np.array([max(0.35, min(r[2], 6.0) / max(min(r[3], 2.5), 0.1)) for r in last])
 
             raw_atk = float(np.average(scored_ratios, weights=w))
             raw_def = float(np.average(conceded_ratios, weights=w))
 
-            # Dampen 55% toward 1.0 and cap at ±30%
-            atk_mult = max(0.70, min(1.30, 1.0 + 0.55 * (raw_atk - 1.0)))
-            def_mult = max(0.70, min(1.30, 1.0 + 0.55 * (raw_def - 1.0)))
+            # Dampen 50% toward 1.0 and cap at ±25%
+            atk_mult = max(0.75, min(1.25, 1.0 + 0.50 * (raw_atk - 1.0)))
+            def_mult = max(0.75, min(1.25, 1.0 + 0.50 * (raw_def - 1.0)))
 
             adjustments[team] = (atk_mult, def_mult)
 
