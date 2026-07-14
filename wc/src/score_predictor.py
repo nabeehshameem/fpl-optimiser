@@ -233,6 +233,7 @@ class DCPredictor:
                 "away_id":    None,
                 "match_date": str(match_date),
                 "tier":       "A",
+                "wc2026":     True,
             })
         return out
 
@@ -367,8 +368,8 @@ class DCPredictor:
 
         xg_lookup = self._load_match_xg()
 
-        # Tier weights: friendlies count half — they're unreliable pre-tournament prep
-        # (squads rotated, motivations mixed) vs qualifiers/tournaments which are competitive.
+        # Tier weights: WC2026 = 3.0 so it dominates even when pre-tournament
+        # matches (Nations League etc.) are in the window. Other tiers: A=1.0, B=0.8, C=0.5.
         TIER_WEIGHT = {"A": 1.0, "B": 0.8, "C": 0.5}
 
         # Accumulate per team: list of (actual_scored, exp_scored, actual_conceded, exp_conceded, tier_weight)
@@ -376,7 +377,7 @@ class DCPredictor:
 
         for m in recent:
             h, a = m["home_key"], m["away_key"]
-            tw = TIER_WEIGHT.get(m.get("tier", "C"), 0.5)
+            tw = 3.0 if m.get("wc2026") else TIER_WEIGHT.get(m.get("tier", "C"), 0.5)
             # Use xG when available — more reliable form signal than noisy actual goals
             xg_key = (_canonical(h), _canonical(a), str(m["match_date"])[:10])
             if xg_key in xg_lookup:
