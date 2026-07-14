@@ -329,7 +329,6 @@ PLAYER_SETPIECE_BONUS: dict[str, float] = {
 
     # ── Corner / FK takers (SF teams only) ───────────────────────────────
     "bellingham": 1.0,   # ENG
-    "de paul":    1.0,   # ARG
     "pedri":      1.0,   # ESP
 }
 
