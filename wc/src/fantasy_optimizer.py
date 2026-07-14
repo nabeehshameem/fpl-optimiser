@@ -71,6 +71,11 @@ PLAYER_EXCLUDED: frozenset[str] = frozenset({
 PLAYER_UNAVAILABLE: dict[str, set[int]] = {
 }
 
+# Current knockout round being projected. Update each gameweek so e_ko_matches
+# only counts upcoming matches, not already-scored historical rounds.
+# Values: "r32_pct" | "r16_pct" | "qf_pct" | "sf_pct" | "final_pct" | None (legacy sum)
+CURRENT_KO_ROUND: str | None = "sf_pct"
+
 # Players who miss specific knockout rounds due to injury.
 # Values are sets of qual_probs keys to EXCLUDE from the e_ko_matches sum.
 # Example: "raphinha": {"r32_pct"} → Raphinha skips R32, projected from R16 onward.
@@ -544,6 +549,36 @@ def _load_wc2026_data_probs(last_n: int = 2) -> dict[str, float]:
     return result
 
 
+_KO_ROUND_KEYS = ("r32_pct", "r16_pct", "qf_pct", "sf_pct", "final_pct")
+# Advancement keys: excludes final_pct because winning the Final adds no further match.
+_KO_ADV_KEYS = _KO_ROUND_KEYS[:-1]
+
+
+def _e_ko_matches(qp: dict, skip_rounds: set[str]) -> float:
+    """Expected KO matches remaining for a player given their team's qual_probs.
+
+    Uses CURRENT_KO_ROUND so only upcoming matches are projected — historical
+    rounds (already scored in prior gameweeks) are excluded.
+
+    Formula: 1 (certain current-round match) + P(advancing to each subsequent round).
+    P(plays round N+1) = P(won round N), which is what each _pct key represents.
+    """
+    if CURRENT_KO_ROUND is None or CURRENT_KO_ROUND not in _KO_ROUND_KEYS:
+        # Legacy fallback: sum all round probabilities
+        return sum(qp.get(r, 0.0) for r in _KO_ROUND_KEYS if r not in skip_rounds) / 100.0
+
+    c = _KO_ROUND_KEYS.index(CURRENT_KO_ROUND)
+
+    # Team must have won the previous round to be in the current one
+    in_round = (c == 0) or (qp.get(_KO_ROUND_KEYS[c - 1], 0.0) >= 99.0)
+    if not in_round or CURRENT_KO_ROUND in skip_rounds:
+        return 0.0
+
+    # P(playing each subsequent round) = P(won each intervening round)
+    advancement_keys = [r for r in _KO_ADV_KEYS[c:] if r not in skip_rounds]
+    return 1.0 + sum(qp.get(r, 0.0) for r in advancement_keys) / 100.0
+
+
 def _project_mc(
     players: list[dict],
     dc: dict,
@@ -731,10 +766,7 @@ def _project_mc(
                     if ko_key in name_lower:
                         skip_rounds = skipped
                         break
-                _KO_ROUND_KEYS = ("r32_pct", "r16_pct", "qf_pct", "sf_pct", "final_pct")
-                e_ko_matches = sum(
-                    qp.get(r, 0.0) for r in _KO_ROUND_KEYS if r not in skip_rounds
-                ) / 100.0
+                e_ko_matches = _e_ko_matches(qp, skip_rounds)
                 projected = (match_avg / max(n_m, 1)) * 0.82 * e_ko_matches
             else:
                 projected = match_avg + 2.0 * qp.get("qf_pct", 0.0) / 100.0
@@ -835,9 +867,7 @@ def _project_mc(
             if qual_probs and matchday is None:
                 qp = qual_probs.get(tk, {})
                 if "r16_pct" in qp:
-                    e_ko = (qp.get("r32_pct", 0.0) + qp.get("r16_pct", 0.0) +
-                            qp.get("qf_pct", 0.0) + qp.get("sf_pct", 0.0) +
-                            qp.get("final_pct", 0.0)) / 100.0
+                    e_ko = _e_ko_matches(qp, skip_rounds)
                     saved = _raw_concede_saved * 0.82 * e_ko
                 else:
                     saved = _raw_concede_saved * n_m

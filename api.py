@@ -608,6 +608,86 @@ def simulate_tournament(request: Request, n_sim: int = 10_000):
     return JSONResponse(content=data.model_dump(), headers={"Cache-Control": "no-store"})
 
 
+# ── Knockout bracket state ────────────────────────────────────────────────────
+
+class BracketMatchOut(BaseModel):
+    team_a: str
+    team_b: str
+    score: str | None = None
+    winner: str | None = None
+    status: Literal["played", "pending"]
+    team_a_win_pct: float | None = None
+    team_b_win_pct: float | None = None
+
+
+@app.get("/api/wc/bracket")
+@limiter.limit("30/minute")
+def get_bracket(request: Request):
+    """
+    Derive current SF/Final bracket state from simulation probabilities + played results.
+    SF teams = sf_pct >= 99. Finalists = final_pct >= 99. 3rd place = sf_pct >= 99 and final_pct <= 1.
+    """
+    predictor = _get_predictor()
+
+    cached = _sim_cache.get(10_000)
+    if cached:
+        sim_teams = [TournamentTeamOut(**r) for r in cached[1]]
+    else:
+        results = predictor.simulate_tournament(n_sim=10_000)
+        _sim_cache[10_000] = (time.time(), results)
+        sim_teams = [TournamentTeamOut(**r) for r in results]
+
+    team_probs = {_canonical(t.team): t for t in sim_teams}
+    sf_teams = {name: t for name, t in team_probs.items() if t.sf_pct >= 99}
+
+    conn = sqlite3.connect(str(DB_PATH))
+    ko_rows = conn.execute(
+        "SELECT home_team, away_team, home_score, away_score FROM match_stats WHERE match_date >= '2026-06-28'"
+    ).fetchall()
+    conn.close()
+
+    sf_results: list[BracketMatchOut] = []
+    played_canon: set[str] = set()
+    for home, away, hs, as_ in ko_rows:
+        h_c, a_c = _canonical(home), _canonical(away)
+        if h_c in sf_teams and a_c in sf_teams:
+            winner = home if int(hs) > int(as_) else away
+            sf_results.append(BracketMatchOut(
+                team_a=home, team_b=away,
+                score=f"{hs}-{as_}", winner=winner, status="played",
+            ))
+            played_canon.update([h_c, a_c])
+
+    pending_names = [name for name in sf_teams if name not in played_canon]
+    sf_matches = sf_results[:]
+    if len(pending_names) >= 2:
+        ta, tb = sf_teams[pending_names[0]], sf_teams[pending_names[1]]
+        total = ta.final_pct + tb.final_pct
+        ta_win = round(ta.final_pct / total * 100, 1) if total > 0 else 50.0
+        tb_win = round(tb.final_pct / total * 100, 1) if total > 0 else 50.0
+        sf_matches.append(BracketMatchOut(
+            team_a=ta.team, team_b=tb.team, status="pending",
+            team_a_win_pct=ta_win, team_b_win_pct=tb_win,
+        ))
+
+    finalists = [
+        {"team": t.team, "win_pct": round(t.win_pct, 1)}
+        for t in sf_teams.values() if t.final_pct >= 99
+    ]
+    pending_finalists = [
+        {"team": t.team, "win_pct": round(t.win_pct, 1), "reach_final_pct": round(t.final_pct, 1)}
+        for t in sf_teams.values() if 1 < t.final_pct < 99
+    ]
+    third_place = [t.team for t in sf_teams.values() if t.final_pct <= 1]
+
+    return JSONResponse(content={
+        "sf_matches": [m.model_dump() for m in sf_matches],
+        "finalists": finalists,
+        "pending_finalists": pending_finalists,
+        "third_place_teams": third_place,
+    }, headers={"Cache-Control": "no-store"})
+
+
 # ── Group standings + lock status ────────────────────────────────────────────
 
 class TeamStandingOut(BaseModel):
