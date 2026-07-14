@@ -211,6 +211,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "gakpo":        P.OUT,         # Netherlands eliminated in R32 vs Morocco
     "mem":          P.OUT,         # Netherlands eliminated in R32 vs Morocco
     "malen":        P.OUT,         # Netherlands eliminated in R32 vs Morocco
+    "mazraoui":     P.OUT,         # Noussair Mazraoui — Morocco eliminated in QF
 
     # ── Ghana (ELIMINATED — Group L 3rd place, did not advance) ──────────
     "kudus":        P.OUT,         # Ghana eliminated in group stage
@@ -776,7 +777,10 @@ def _project_mc(
                 if explicit_prob is None or explicit_prob > P.ROTATION:
                     explicit_prob = min(explicit_prob if explicit_prob is not None else 1.0, P.BENCH)
 
-        if explicit_prob is not None:
+        if explicit_prob is not None and explicit_prob <= P.OUT:
+            projected = 0.0
+            match_avg = 0.0
+        elif explicit_prob is not None:
             projected *= explicit_prob
             match_avg *= explicit_prob
         else:
@@ -842,7 +846,7 @@ def _project_mc(
                 saved = _raw_concede_saved * n_m
             # Apply same starter-prob discount as projected_pts
             if explicit_prob is not None:
-                saved *= explicit_prob
+                saved = 0.0 if explicit_prob <= P.OUT else saved * explicit_prob
             p["concede_saved"] = round(saved, 2)
         else:
             p["concede_saved"] = 0.0
