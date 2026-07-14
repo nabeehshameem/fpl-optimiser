@@ -233,7 +233,6 @@ class DCPredictor:
                 "away_id":    None,
                 "match_date": str(match_date),
                 "tier":       "A",
-                "wc2026":     True,
             })
         return out
 
@@ -378,11 +377,9 @@ class DCPredictor:
         for m in recent:
             h, a = m["home_key"], m["away_key"]
             tw = TIER_WEIGHT.get(m.get("tier", "C"), 0.5)
-            # For WC2026 matches use actual goals — in this tournament goals/xG = 1.225,
-            # so xG systematically underestimates real scoring. For other matches use xG
-            # when available as a noise-reduced form signal.
+            # Use xG when available — more reliable form signal than noisy actual goals
             xg_key = (_canonical(h), _canonical(a), str(m["match_date"])[:10])
-            if not m.get("wc2026") and xg_key in xg_lookup:
+            if xg_key in xg_lookup:
                 hg, ag = xg_lookup[xg_key]
             else:
                 hg, ag = float(m["home_goals"]), float(m["away_goals"])
