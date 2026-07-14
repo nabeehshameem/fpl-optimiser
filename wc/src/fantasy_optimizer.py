@@ -125,7 +125,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "undav":        P.OUT,         # Germany eliminated in R32 vs Paraguay
 
     # ── England (R16 — beat DR Congo 2-1 in R32) ────────────────────────
-    "saka":         P.EXPECTED,    # hamstring recovered; likely starter in knockouts
+    "saka":         P.ROTATION,    # inconsistent minutes (75/57/29/90); rotation risk not nailed starter
     "reece james":  P.LIKELY,      # recurring knee/hamstring issues — fitness managed
     "kane":         P.NAILED,      # 5 goals in tournament — nailed England #9
     "bellingham":   P.NAILED,      # England's best player, nailed in knockouts
@@ -138,17 +138,21 @@ PLAYER_STARTER_PROB: dict[str, float] = {
     "palmer":       P.LIKELY,      # competes with Eze/Foden
 
     # ── Spain ────────────────────────────────────────────────────────────
-    "yamal":        P.EXPECTED,    # 44.7% ownership; community expects him fit
+    "yamal":        P.NAILED,      # Lamine Yamal — nailed starter for Spain SF
     "williams":     P.LIKELY,      # Nico Williams, competing with Yamal/Olmo
-    "olmo":         P.LIKELY,      # competes with Pedri when both fit
+    "olmo":         P.NAILED,      # Dani Olmo — nailed starter for Spain SF
     "gavi":         P.LIKELY,      # returning from injury, competes with Zubimendi
     "merino":       P.BENCH,       # stress fracture in foot (Feb), targeting return — fitness risk
     "zubimendi":    P.LIKELY,      # rotates with Rodri
     "ferran":       P.IMPACT_SUB,  # super sub behind Williams/Yamal/Oyarzabal, rarely starts
-    "cubar":        P.LIKELY,      # Cubarsi — competes with Laporte/García for CB slot
-    "laporte":      P.LIKELY,      # rotation risk — Cubarsi pushing hard for his CB spot
-    "llorente":     P.LIKELY,      # expected to start over Porro at Spain RB/wing
-    "porro":        P.BENCH,       # Llorente preferred ahead of him in knockouts
+    "cubar":        P.NAILED,      # Cubarsi — 90 mins in all 4 WC2026 games; nailed CB starter
+    "laporte":      P.NAILED,      # Laporte — nailed starter for Spain SF
+    "llorente":     P.BENCH,       # 0 mins last 3 WC2026 games; Porro is the actual starter
+    "porro":        P.NAILED,      # 90 mins STARTER in last 3 WC2026 games
+    "grimaldo":     P.OUT,         # 0 mins in ALL WC2026 games; never in Spain matchday squad
+    "pedri":        P.BENCH,       # 35-min sub in QF; Fabián Ruiz starting in SF
+    "fabian ruiz":  P.EXPECTED,    # Fabián Ruiz (no-accent fallback)
+    "fabián ruiz":  P.EXPECTED,    # Fabián Ruiz — started QF, expected Spain CM starter for SF
 
     # ── France ───────────────────────────────────────────────────────────
     "dembel":       P.EXPECTED,    # Ousmane Dembélé — started MD1 & MD2, subbed ~85th min
@@ -220,6 +224,7 @@ PLAYER_STARTER_PROB: dict[str, float] = {
 
     # ── Morocco (ELIMINATED in QF — lost 0-2 to France Jul 9) ───────────
     "hakimi":       P.OUT,
+    "brahim":       P.OUT,         # Brahim Díaz — Morocco eliminated in QF
 
     # ── Turkey (ELIMINATED — Group D 4th place) ───────────────────────────
     "güler":        P.OUT,         # Turkey eliminated in group stage
@@ -493,6 +498,52 @@ def _build_fixture_lambdas(
     return result
 
 
+def _load_wc2026_data_probs(last_n: int = 2) -> dict[str, float]:
+    """
+    Compute per-player starter probability from actual WC2026 match_lineups data.
+    Uses avg minutes over the last `last_n` matches per player.
+    Stores keys by both full lowercased name and last-name token for substring matching.
+    Only probabilities <= P.BENCH are used as caps in _project_mc — higher values
+    are not promoted (the explicit dict handles that).
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        rows = conn.execute("""
+            SELECT player_name, AVG(minutes_played) AS avg_mins
+            FROM (
+                SELECT player_name, minutes_played,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY player_name ORDER BY match_date DESC
+                       ) AS rn
+                FROM match_lineups
+                WHERE minutes_played IS NOT NULL
+            ) ranked
+            WHERE rn <= ?
+            GROUP BY player_name
+        """, (last_n,)).fetchall()
+        conn.close()
+    except Exception:
+        return {}
+
+    result: dict[str, float] = {}
+    for db_name, avg_mins in rows:
+        if avg_mins is None:
+            continue
+        avg = float(avg_mins)
+        if avg < 15:
+            prob = P.BENCH
+        elif avg < 35:
+            prob = P.IMPACT_SUB
+        elif avg < 60:
+            prob = P.ROTATION
+        elif avg < 75:
+            prob = P.LIKELY
+        else:
+            prob = P.NAILED
+        result[db_name.lower()] = prob
+    return result
+
+
 def _project_mc(
     players: list[dict],
     dc: dict,
@@ -512,6 +563,9 @@ def _project_mc(
     Qual bonus is always included when matchday is None (covers both MD1+MD2 and full views).
     """
     rng = np.random.default_rng(42)
+
+    # Load actual WC2026 minutes data once; used to cap stale/wrong explicit entries.
+    _wc2026_data_probs = _load_wc2026_data_probs(last_n=2)
 
     team_params = dc.get("team_params", {})
     if team_params:
@@ -709,6 +763,19 @@ def _project_mc(
             )
             if unconf is not None:
                 explicit_prob = max(unconf, _UNCONFIRMED_FLOOR)
+
+        # Data-driven safety cap: if actual WC2026 minutes show avg < 15 mins
+        # in the last 2 matches, cap to P.BENCH regardless of the explicit entry.
+        # This catches stale overrides (e.g. a player who was P.LIKELY but stopped playing).
+        if _wc2026_data_probs:
+            wc_data_prob = next(
+                (dp for dk, dp in _wc2026_data_probs.items() if dk in name_lower),
+                None,
+            )
+            if wc_data_prob is not None and wc_data_prob <= P.BENCH:
+                if explicit_prob is None or explicit_prob > P.ROTATION:
+                    explicit_prob = min(explicit_prob if explicit_prob is not None else 1.0, P.BENCH)
+
         if explicit_prob is not None:
             projected *= explicit_prob
             match_avg *= explicit_prob
