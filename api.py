@@ -544,6 +544,7 @@ class TournamentTeamOut(BaseModel):
     sf_pct: float
     final_pct: float
     win_pct: float
+    third_place_pct: float = 0.0
 
 
 class TournamentResponse(BaseModel):
@@ -567,6 +568,23 @@ def _run_simulation_bg(predictor: DCPredictor, n_sim: int) -> None:
         _sim_running.discard(n_sim)
 
 
+def _inject_third_place_pcts(results: list[dict], predictor) -> None:
+    """Use a direct DC prediction to set win probability for the two SF losers."""
+    tp = [r for r in results if r.get("sf_pct", 0) >= 99 and r.get("final_pct", 0) <= 1]
+    if len(tp) != 2:
+        return
+    id_a = _resolve_team_id(tp[0]["team"])
+    id_b = _resolve_team_id(tp[1]["team"])
+    if not id_a or not id_b:
+        return
+    try:
+        pred = predictor.predict(id_a, id_b, knockout=True)
+        tp[0]["third_place_pct"] = pred["ko_win_pct"]
+        tp[1]["third_place_pct"] = pred["ko_loss_pct"]
+    except Exception:
+        pass
+
+
 @app.get("/api/wc/simulate", response_model=TournamentResponse)
 @limiter.limit("10/minute")
 def simulate_tournament(request: Request, n_sim: int = 10_000):
@@ -588,6 +606,7 @@ def simulate_tournament(request: Request, n_sim: int = 10_000):
         threading.Thread(target=_run_simulation_bg, args=(predictor, n_sim), daemon=True).start()
 
     if cached:
+        _inject_third_place_pcts(cached[1], predictor)
         data = TournamentResponse(
             teams=[TournamentTeamOut(**r) for r in cached[1]],
             n_sim=n_sim,
@@ -599,6 +618,7 @@ def simulate_tournament(request: Request, n_sim: int = 10_000):
     if n_sim in _sim_running:
         _sim_running.discard(n_sim)
     results = predictor.simulate_tournament(n_sim=n_sim)
+    _inject_third_place_pcts(results, predictor)
     _sim_cache[n_sim] = (time.time(), results)
     data = TournamentResponse(
         teams=[TournamentTeamOut(**r) for r in results],
