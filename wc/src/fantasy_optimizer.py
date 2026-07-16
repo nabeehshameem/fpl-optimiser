@@ -74,7 +74,7 @@ PLAYER_UNAVAILABLE: dict[str, set[int]] = {
 # Current knockout round being projected. Update each gameweek so e_ko_matches
 # only counts upcoming matches, not already-scored historical rounds.
 # Values: "r32_pct" | "r16_pct" | "qf_pct" | "sf_pct" | "final_pct" | None (legacy sum)
-CURRENT_KO_ROUND: str | None = "sf_pct"
+CURRENT_KO_ROUND: str | None = "final_pct"
 
 # Players who miss specific knockout rounds due to injury.
 # Values are sets of qual_probs keys to EXCLUDE from the e_ko_matches sum.
@@ -886,7 +886,8 @@ def _project_mc(
 def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None = None,
              locked_player_ids: list[int] | None = None,
              locked_starter_ids: list[int] | None = None,
-             matchdays: list[int] | None = None) -> dict:
+             matchdays: list[int] | None = None,
+             per_team_cap: int = 3) -> dict:
     """
     Select the optimal 15-player squad with explicit starting XI (11) and bench (4).
 
@@ -958,10 +959,10 @@ def optimise(budget: int = BUDGET_DEFAULT, predictor=None, booster: str | None =
     # ── Budget (on x) ────────────────────────────────────────────────────────
     rows.append(_xrow(prices)); lbs.append(0.0); ubs.append(float(budget))
 
-    # ── Per-team cap = 3 (on x) ───────────────────────────────────────────────
+    # ── Per-team cap (on x) ──────────────────────────────────────────────────
     for team in set(teams):
         v = np.array([1.0 if t == team else 0.0 for t in teams])
-        rows.append(_xrow(v)); lbs.append(0.0); ubs.append(3.0)
+        rows.append(_xrow(v)); lbs.append(0.0); ubs.append(float(per_team_cap))
 
     # ── Hierarchy: c_i <= s_i <= x_i (block-matrix form) ────────────────────
     I_n = np.eye(n)

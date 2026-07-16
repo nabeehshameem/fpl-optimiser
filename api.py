@@ -408,6 +408,7 @@ class OptimiseRequest(BaseModel):
     locked_player_ids: list[int] = Field(default_factory=list)
     locked_starter_ids: list[int] = Field(default_factory=list)
     matchdays: Optional[list[int]] = Field(default=None, description="Matchdays to optimise for. None = knockout projection mode.")
+    per_team_cap: int = Field(default=3, ge=1, le=15)
 
 
 class PlayersResponse(BaseModel):
@@ -469,7 +470,8 @@ def fantasy_optimise(req: OptimiseRequest, request: Request):
         res = _optimise(budget=req.budget, predictor=_predictor, booster=req.booster,
                         locked_player_ids=req.locked_player_ids or [],
                         locked_starter_ids=req.locked_starter_ids or [],
-                        matchdays=req.matchdays or None)
+                        matchdays=req.matchdays or None,
+                        per_team_cap=req.per_team_cap)
     except RuntimeError:
         logger.exception("fantasy optimise failed")
         raise HTTPException(status_code=503, detail="Optimisation unavailable. Try again shortly.")
