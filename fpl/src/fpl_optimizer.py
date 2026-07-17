@@ -377,6 +377,9 @@ def optimise(
     existing_squad_ids: list[int] | None = None,
     free_transfers: int = 1,
     transfer_penalty: int = 4,
+    selling_prices: dict[int, int] | None = None,
+    horizon: int = 1,
+    max_transfers: int = 5,
 ) -> dict:
     """
     Select the optimal 15-player FPL squad.
@@ -387,7 +390,17 @@ def optimise(
     excluded_player_ids: players to exclude entirely.
     existing_squad_ids: current squad — used to compute transfer penalties.
     free_transfers: number of free transfers available (default 1).
+        FPL banks up to 5 FTs; pass the actual banked count.
     transfer_penalty: points deducted per extra transfer beyond free_transfers.
+    selling_prices: {player_id: selling_price_tenths} for players in existing_squad.
+        FPL selling price = purchase price + floor(price_rise / 2). When omitted,
+        budget is taken as-is (caller's responsibility to pass bank + selling values).
+        Passing this corrects the budget when players have risen since purchase.
+    horizon: number of gameweeks over which to amortise a transfer hit (default 1).
+        A hit of 4 pts over a 6-GW horizon costs only 0.67 pts/GW effective.
+        Pass the number of remaining GWs in the planning window.
+    max_transfers: hard cap on transfers-in when existing_squad_ids is provided.
+        FPL allows banking up to 5 free transfers; default matches that ceiling.
     """
     conn    = sqlite3.connect(DB_PATH)
     players = _load_players(conn)
@@ -417,15 +430,33 @@ def optimise(
     pos_l  = [p["pos"]  for p in players]
     teams  = [p["team"] for p in players]
 
-    # Transfer penalty: adjust pts for players NOT in existing squad beyond free transfers
+    # ── Gap 2: horizon amortisation ──────────────────────────────────────────
+    # Scale projected pts by planning horizon so a fixed 4-pt hit is correctly
+    # weighed against multi-GW gains. A +3 pt/GW upgrade over 6 GWs = +18 pts
+    # net of a one-time 4-pt hit.
+    if horizon > 1:
+        pts = pts * float(horizon)
+
+    # ── Gap 1: effective budget from selling prices ───────────────────────────
+    # FPL sells at purchase_price + floor(price_rise / 2).  If players have
+    # risen since purchase, using current_cost overstates available funds and
+    # the optimizer can recommend transfers the user cannot execute.
+    effective_budget = budget
+    if existing_squad_ids and selling_prices:
+        existing_set_budget = set(existing_squad_ids)
+        for p in players:
+            if p["id"] in existing_set_budget and p["id"] in selling_prices:
+                effective_budget += selling_prices[p["id"]] - p["price"]
+
+    # ── Transfer penalty ──────────────────────────────────────────────────────
+    # Penalise incoming players uniformly when no free transfers remain; the
+    # solver internalises the cost and only transfers when the gain exceeds it.
+    existing_set: set[int] = set()
     if existing_squad_ids:
         existing_set = set(existing_squad_ids)
         for i, p in enumerate(players):
-            if p["id"] not in existing_set:
-                # Will incur a penalty if this is an extra transfer
-                # Penalise uniformly; solver will weigh this against quality gain
-                if free_transfers <= 0:
-                    pts[i] -= transfer_penalty
+            if p["id"] not in existing_set and free_transfers <= 0:
+                pts[i] -= transfer_penalty
 
     # Variables: [x_0..x_{n-1}, s_0..s_{n-1}, c_0..c_{n-1}]
     BENCH_WEIGHT = 0.60
@@ -454,8 +485,13 @@ def optimise(
         v = np.array([1.0 if p == pos else 0.0 for p in pos_l])
         rows.append(_srow(v)); lbs.append(float(lo)); ubs.append(float(hi))
 
-    # ── Budget ────────────────────────────────────────────────────────────────
-    rows.append(_xrow(prices)); lbs.append(0.0); ubs.append(float(budget))
+    # ── Budget (uses selling-price-adjusted effective_budget) ────────────────
+    rows.append(_xrow(prices)); lbs.append(0.0); ubs.append(float(effective_budget))
+
+    # ── Max transfers-in (Gap 3: FPL banks up to 5 FTs) ──────────────────────
+    if existing_squad_ids:
+        not_existing = np.array([0.0 if p["id"] in existing_set else 1.0 for p in players])
+        rows.append(_xrow(not_existing)); lbs.append(0.0); ubs.append(float(max_transfers))
 
     # ── Per-team cap ──────────────────────────────────────────────────────────
     for team in set(teams):
@@ -512,10 +548,9 @@ def optimise(
     # Transfer summary if existing squad provided
     transfers_out = transfers_in = []
     if existing_squad_ids:
-        squad_ids    = {p["id"] for p in squad}
-        existing_set = set(existing_squad_ids)
+        squad_ids     = {p["id"] for p in squad}
         transfers_in  = [p for p in squad if p["id"] not in existing_set]
-        transfers_out = existing_squad_ids and [pid for pid in existing_squad_ids if pid not in squad_ids]
+        transfers_out = [pid for pid in existing_squad_ids if pid not in squad_ids]
         n_transfers   = len(transfers_in)
         hit = max(0, n_transfers - free_transfers) * transfer_penalty
     else:
