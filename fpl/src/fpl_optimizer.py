@@ -426,27 +426,41 @@ def optimise(
 
     n      = len(players)
     pts    = np.array([p["projected_pts"] for p in players], dtype=float)
-    prices = np.array([p["price"]         for p in players], dtype=float)
     pos_l  = [p["pos"]  for p in players]
     teams  = [p["team"] for p in players]
 
-    # ── Gap 2: horizon amortisation ──────────────────────────────────────────
-    # Scale projected pts by planning horizon so a fixed 4-pt hit is correctly
-    # weighed against multi-GW gains. A +3 pt/GW upgrade over 6 GWs = +18 pts
-    # net of a one-time 4-pt hit.
+    # ── Gap 2: horizon amortisation (decayed approximation) ─────────────────
+    # Scales pts so a fixed 4-pt hit is weighed against multi-GW gains.
+    # Uses exponential decay (0.85^k) rather than a bare multiplier because
+    # fixture-based advantages degrade over time; horizon=6 gives ≈4.1x not 6x.
+    # This is a stopgap: the correct version sums per-GW fixture-adjusted pts
+    # for each of the next `horizon` gameweeks (pending multi-GW predictor).
     if horizon > 1:
-        pts = pts * float(horizon)
+        _DECAY = 0.85
+        pts = pts * sum(_DECAY ** k for k in range(horizon))
 
-    # ── Gap 1: effective budget from selling prices ───────────────────────────
+    # ── Gap 1: effective budget + corrected prices for retained players ───────
     # FPL sells at purchase_price + floor(price_rise / 2).  If players have
-    # risen since purchase, using current_cost overstates available funds and
-    # the optimizer can recommend transfers the user cannot execute.
+    # risen since purchase, two things must both change:
+    #   (a) effective_budget = bank + sum(selling_prices) not sum(current_cost)
+    #   (b) retained players cost their selling_price in the budget constraint,
+    #       not their current_cost — otherwise keeping a risen player looks
+    #       unaffordable even when no cash changes hands.
     effective_budget = budget
+    existing_set_budget: set[int] = set()
     if existing_squad_ids and selling_prices:
         existing_set_budget = set(existing_squad_ids)
         for p in players:
             if p["id"] in existing_set_budget and p["id"] in selling_prices:
                 effective_budget += selling_prices[p["id"]] - p["price"]
+
+    # prices_milp: use selling_price for retained players (part b of Gap 1)
+    prices_milp = np.array([
+        selling_prices.get(p["id"], p["price"])
+        if (selling_prices and p["id"] in existing_set_budget)
+        else p["price"]
+        for p in players
+    ], dtype=float)
 
     # ── Transfer penalty ──────────────────────────────────────────────────────
     # Penalise incoming players uniformly when no free transfers remain; the
@@ -485,8 +499,8 @@ def optimise(
         v = np.array([1.0 if p == pos else 0.0 for p in pos_l])
         rows.append(_srow(v)); lbs.append(float(lo)); ubs.append(float(hi))
 
-    # ── Budget (uses selling-price-adjusted effective_budget) ────────────────
-    rows.append(_xrow(prices)); lbs.append(0.0); ubs.append(float(effective_budget))
+    # ── Budget ────────────────────────────────────────────────────────────────
+    rows.append(_xrow(prices_milp)); lbs.append(0.0); ubs.append(float(effective_budget))
 
     # ── Max transfers-in (Gap 3: FPL banks up to 5 FTs) ──────────────────────
     if existing_squad_ids:

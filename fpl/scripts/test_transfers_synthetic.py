@@ -334,6 +334,64 @@ def test_s6_per_team_cap():
     )
 
 
+# ── Scenario S7 ──────────────────────────────────────────────────────────────
+
+def test_s7_risen_player_retention():
+    """
+    A player in the existing squad has risen since purchase:
+      current_cost=55, selling_price=50.
+    The squad is otherwise optimal. The correct answer is 0 transfers.
+
+    This tests the Gap 1 cost-row fix: retained players must be costed
+    at selling_price in the budget constraint (not current_cost), otherwise
+    keeping a risen player appears unaffordable even though no cash changes
+    hands for a retention.
+
+    Without the fix: effective_budget drops by 5 (selling–market delta)
+    AND the risen player still costs 55 in the constraint → net 10 tighter
+    than reality → solver is forced into an unwanted sale.
+    """
+    # One GK has risen: current_cost=55 but selling_price=50.
+    # All others: current_cost=50, no price rise (selling_price=50).
+    squad = [
+        (101, 1, 1, 55, 0.0),   # GK1 — risen player
+        (102, 1, 2, 50, 0.0),   # GK2
+        (201, 2, 3, 50, 0.0),   # DEF1
+        (202, 2, 4, 50, 0.0),   # DEF2
+        (203, 2, 5, 50, 0.0),   # DEF3
+        (204, 2, 6, 50, 0.0),   # DEF4
+        (205, 2, 7, 50, 0.0),   # DEF5
+        (301, 3, 1, 50, 0.2),   # MID1
+        (302, 3, 2, 50, 0.2),   # MID2
+        (303, 3, 3, 50, 0.2),   # MID3
+        (304, 3, 4, 50, 0.2),   # MID4
+        (305, 3, 5, 50, 0.2),   # MID5
+        (401, 4, 1, 50, 0.4),   # FWD1
+        (402, 4, 2, 50, 0.4),   # FWD2
+        (403, 4, 3, 50, 0.4),   # FWD3
+    ]
+    existing_ids = [p[0] for p in squad]
+    # GK1 selling price = 50 (bought at 45, now worth 55 → floor((55-45)/2)=5 → 45+5=50)
+    selling_prices = {101: 50}
+    for p in squad[1:]:
+        selling_prices[p[0]] = p[3]   # no price rise: selling = current
+
+    # budget = bank(0) + sum(current_cost) = 55 + 14*50 = 755
+    budget = 55 + 14 * 50
+
+    result = _run(
+        squad,                        # no better alternatives in the pool
+        budget=budget,
+        existing_squad_ids=existing_ids,
+        free_transfers=1,
+        selling_prices=selling_prices,
+    )
+
+    assert result["n_transfers"] == 0, (
+        f"Risen-price player should be retained; got {result['n_transfers']} transfer(s)"
+    )
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -344,6 +402,7 @@ if __name__ == "__main__":
         test_s4_takes_strong_upgrade_despite_hit,
         test_s5_selling_price_budget,
         test_s6_per_team_cap,
+        test_s7_risen_player_retention,
     ]
     passed = failed = 0
     for t in tests:
