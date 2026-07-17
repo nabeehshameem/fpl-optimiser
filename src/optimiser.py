@@ -196,7 +196,7 @@ class SquadOptimiser:
         predictions_df: pd.DataFrame,
         current_squad: list,
         free_transfers: int = 1,
-        max_transfers: int = 3,
+        max_transfers: int = 5,
         transfer_hit_cost: int = 4,
         bank: int = 0,
     ) -> dict:
