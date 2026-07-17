@@ -199,14 +199,19 @@ class SquadOptimiser:
         max_transfers: int = 5,
         transfer_hit_cost: int = 4,
         bank: int = 0,
+        selling_prices: Optional[dict] = None,
+        horizon: int = 1,
     ) -> dict:
         """Given a current 15-player squad, find the optimal transfer move(s).
 
         Args:
             bank: cash in the bank in tenths of £1m (e.g. 14 = £1.4m).
-                  The effective budget is derived from your squad's current buying
-                  prices plus this bank value, so the ILP never suggests a squad
-                  you can't afford.
+            selling_prices: {player_id: selling_price_tenths}. FPL sells at
+                purchase_price + floor(price_rise / 2). When omitted, effective
+                budget uses current_cost for all squad players.
+            horizon: planning horizon in GWs for amortising transfer hits.
+                Uses decayed scaling (0.85^k) — a fixture-blind approximation
+                pending a multi-GW predictor.
         """
         if len(current_squad) != SQUAD_SIZE:
             raise ValueError(f"current_squad must have {SQUAD_SIZE} players, got {len(current_squad)}")
@@ -224,6 +229,12 @@ class SquadOptimiser:
         df["qualifying_games_5"] = df["qualifying_games_5"].fillna(0)
         df["chance_of_playing_next"] = df["chance_of_playing_next"].fillna(0)
 
+        # Horizon amortisation (decayed): uniform scaling never reorders players,
+        # it only reweighs multi-GW gains against the fixed transfer hit.
+        if horizon > 1:
+            _DECAY = 0.85
+            df["predicted_points"] *= sum(_DECAY ** k for k in range(horizon))
+
         current_set = set(current_squad)
 
         eligible_mask = (
@@ -233,10 +244,16 @@ class SquadOptimiser:
         ) | df["player_id"].isin(current_set)
         df = df[eligible_mask].reset_index(drop=True)
 
-        # Effective budget = current squad's buying prices + cash in bank.
-        # Using BUDGET (£100m) for transfers is wrong: it would allow squads the
-        # user can't afford when their squad+bank < £100m.
-        current_squad_cost = int(df[df["player_id"].isin(current_set)]["current_cost"].sum())
+        # milp_cost: retained players are costed at SELLING price (what freeing
+        # their slot actually yields); incoming players at market price. Without
+        # this, a risen-price retention looks unaffordable even though keeping
+        # a player costs nothing.
+        sp = selling_prices or {}
+        df["milp_cost"] = [
+            sp.get(pid, cost) if pid in current_set else cost
+            for pid, cost in zip(df["player_id"], df["current_cost"])
+        ]
+        current_squad_cost = int(df[df["player_id"].isin(current_set)]["milp_cost"].sum())
         effective_budget = current_squad_cost + bank
 
         prob = pulp.LpProblem("FPL_Transfers", pulp.LpMaximize)
@@ -269,7 +286,7 @@ class SquadOptimiser:
             prob += captain[pid] <= start[pid], f"cap_iff_start_{pid}"
 
         prob += pulp.lpSum(
-            row.current_cost * select[row.player_id] for row in df.itertuples()
+            row.milp_cost * select[row.player_id] for row in df.itertuples()
         ) <= effective_budget
 
         for pos_id, squad_count, xi_min, xi_max in POSITION_RULES:
@@ -322,7 +339,7 @@ class SquadOptimiser:
             predictions_df[["player_id", "predicted_points"]], on="player_id", how="left"
         )
 
-        total_cost = int(squad["current_cost"].sum())
+        total_cost = int(squad["milp_cost"].sum())
         gross_xi_points = float(xi["predicted_points"].sum() + captain_row["predicted_points"])
         net_expected_points = gross_xi_points - hit_points
 
