@@ -168,6 +168,18 @@ def main():
         ok &= check("G8 tampered squad_json rejected",
                     "mismatch" in str(e).lower(), str(e))
 
+    # G9: external verification — the published result must contain enough to
+    # verify the commitment using ONLY stdlib (what a skeptic on the internet has).
+    db = build_db(Path(tempfile.mkdtemp()), base_stats())
+    r = g.grade(gw=1, dry_run=True, db_path=db)
+    import hashlib as _h
+    independent = _h.sha256(json.dumps(
+        r["squad"], sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode()).hexdigest()
+    ok &= check("G9 published reveal verifies against commitment",
+                independent == r["squad_hash"],
+                f"independent={independent[:16]}... stored={r['squad_hash'][:16]}...")
+
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
 
