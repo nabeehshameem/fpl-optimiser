@@ -40,7 +40,7 @@ DB_PATH = PROJECT_ROOT / "data" / "fpl.db"
 EXPORT_DIR = PROJECT_ROOT / "predictions" / "fpl"
 
 MAX_BANKED_FT = 5
-MODEL_NAME = "lightgbm_v1"   # predictions row filter; falls back to any model
+MODEL_NAME = "dc_projection_v1"  # clean OOS bake-off winner; see scripts/run_evaluation.py
 
 
 # ── ledger schema ────────────────────────────────────────────────────────────
