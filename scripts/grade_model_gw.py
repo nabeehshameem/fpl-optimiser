@@ -185,6 +185,12 @@ def grade(gw: int | None = None, dry_run: bool = False,
 
     result = {
         "gameweek": gw,
+        # THE REVEAL: the exact rows the pre-deadline hash committed to.
+        # External verification: sha256 of this list serialised with
+        # sort_keys=True, separators=(",",":"), ensure_ascii=True must equal
+        # squad_hash in the pre-deadline gwNN.json. See src/squad_commit.py.
+        "squad": squad,
+        "squad_hash": stored_hash,
         "graded_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "gross_points": int(gross),
         "hit_points": hits,
