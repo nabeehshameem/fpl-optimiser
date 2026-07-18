@@ -178,6 +178,9 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
+from src.fpl_api import router as fpl_router  # noqa: E402
+app.include_router(fpl_router)
+
 
 def _build_lookup_caches() -> None:
     """Populate team-id and fixture-matchday caches from the DB. Call at startup and after retrain."""
