@@ -120,6 +120,21 @@ def main():
     ok &= check("W2 hostile name escaped", "<script>" not in body
                 and "&lt;script&gt;" in body)
 
+    # C6: hostile widths — big season tallies and a wide team name must fit
+    from PIL import ImageDraw
+    hostile = fixture_receipt(name="WWWWWWWWWWWWWWWWWWWWWWWW")
+    hostile["h2h_season"] = {"user": 12, "model": 14, "draws": 12}
+    for fmt, (w, h) in cr.FORMATS.items():
+        img = cr.render_card(hostile, fmt=fmt)
+        # scan the strip/label rows for ink in the outer 2% margins
+        px = img.load()
+        margin = int(w * 0.02)
+        bg = px[2, 2]
+        bleed = any(px[x, y] != bg
+                    for y in range(int(h * 0.78), int(h * 0.88))
+                    for x in list(range(margin)) + list(range(w - margin, w)))
+        ok &= check(f"C6 {fmt} strip fits with hostile tallies", not bleed)
+
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
 

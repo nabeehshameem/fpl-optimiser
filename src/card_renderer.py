@@ -40,6 +40,18 @@ def _font(path: Path, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(path), size)
 
 
+def _fit_font(d: ImageDraw.ImageDraw, text: str, path: Path,
+              size: int, max_width: float) -> ImageFont.FreeTypeFont:
+    """Largest font <= size whose rendered text fits max_width."""
+    while size > 8:
+        f = _font(path, size)
+        l, _, r, _ = d.textbbox((0, 0), text, font=f)
+        if (r - l) <= max_width:
+            return f
+        size = int(size * 0.92)
+    return _font(path, size)
+
+
 def _center_text(d: ImageDraw.ImageDraw, xy, text, font, fill):
     x, y = xy
     l, t, r, b = d.textbbox((0, 0), text, font=font)
@@ -82,7 +94,9 @@ def render_card(receipt: dict, fmt: str = "og") -> Image.Image:
     # score blocks
     def block(center_x, center_y, label, score, won):
         colour = WIN if won else (DRAW if winner == "draw" else LOSE)
-        _center_text(d, (center_x, center_y - 90 * s), label, f_name,
+        max_label_w = (w * 0.42) if not portrait else (w * 0.88)
+        f_label = _fit_font(d, label, FONT_REG, int(26 * s), max_label_w)
+        _center_text(d, (center_x, center_y - 90 * s), label, f_label,
                      FG if won else MUTED)
         _center_text(d, (center_x, center_y), str(score), f_score, colour)
         if won:
@@ -102,7 +116,8 @@ def render_card(receipt: dict, fmt: str = "og") -> Image.Image:
     # season strip
     strip = (f"SEASON  ·  YOU {h2h['user']} — {h2h['model']} MODEL"
              + (f"  ·  {h2h['draws']} DRAWN" if h2h["draws"] else ""))
-    _center_text(d, (cx, strip_y), strip, f_h2h, FG)
+    f_strip = _fit_font(d, strip, FONT_BOLD, int(26 * s), w * 0.90)
+    _center_text(d, (cx, strip_y), strip, f_strip, FG)
 
     # footer
     _center_text(d, (cx, h * 0.93), "themodelsays.com/fpl", f_foot, MUTED)
