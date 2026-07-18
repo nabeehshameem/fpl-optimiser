@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS model_squad_log (
     gameweek_id     INTEGER PRIMARY KEY,
     locked_at_utc   TEXT NOT NULL,
     deadline_utc    TEXT NOT NULL,
-    squad_json      TEXT NOT NULL,   -- 15 x {player_id, purchase_price, is_xi, is_captain, is_vice}
+    squad_json      TEXT NOT NULL,   -- 15 x {player_id, purchase_price, is_xi, is_captain, is_vice, bench_order}
     transfers_json  TEXT NOT NULL,   -- {in: [...], out: [...], hits: int}
     free_transfers  INTEGER NOT NULL,
     bank            INTEGER NOT NULL, -- tenths of GBP 1m, AFTER transfers
@@ -234,12 +234,27 @@ def lock(dry_run: bool = False) -> dict:
     cap = int(result["captain"]["player_id"])
     vice = int(result["vice_captain"]["player_id"])
 
+    # Bench order drives auto-subs at grading time. FPL convention:
+    # slot 1 = backup GK (fixed), slots 2-4 = outfield bench, here ordered by
+    # lock-time predicted points descending (best first). XI players get 0.
+    bench = result["bench"]
+    bench_gk = [int(r.player_id) for r in bench.itertuples() if r.position == 1]
+    bench_out = [int(r.player_id) for r in
+                 bench.sort_values("predicted_points", ascending=False).itertuples()
+                 if r.position != 1]
+    bench_order = {}
+    if bench_gk:
+        bench_order[bench_gk[0]] = 1
+    for i, pid in enumerate(bench_out, start=2):
+        bench_order[pid] = i
+
     squad_rows = [{
         "player_id": int(pid),
         "purchase_price": int(purchase[pid]),
         "is_xi": int(pid in xi_ids),
         "is_captain": int(pid == cap),
         "is_vice": int(pid == vice),
+        "bench_order": bench_order.get(int(pid), 0),
     } for pid in squad_ids]
 
     payload = {
