@@ -30,9 +30,9 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.stats import poisson
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH      = PROJECT_ROOT / "data" / "fpl.db"
-MODEL_PATH   = Path(__file__).resolve().parent.parent / "models" / "fpl_dc_params.json"
+MODEL_PATH   = PROJECT_ROOT / "models" / "fpl_dc_params.json"
 
 MAX_GOALS = 8
 

@@ -3,9 +3,9 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8")
 
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from fpl.src.dc_predictor import FPLDCPredictor
+from src.dc_model import FPLDCPredictor
 
 print("Fitting FPL Dixon-Coles model on PL 2025/26 data...")
 p = FPLDCPredictor()
