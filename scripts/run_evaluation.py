@@ -19,6 +19,23 @@ import pandas as pd
 from src.evaluator import Evaluator
 from src.predictor import NaivePredictor
 from src.ml_predictor import LightGBMPredictor
+from src.dc_predictor import DCPredictor
+
+# Every predictor must emit the same schema, or the bake-off silently compares
+# predictors under different eligibility regimes and results are meaningless.
+REQUIRED_PREDICTION_COLUMNS = {
+    "player_id", "predicted_points",
+    "qualifying_games_3", "qualifying_games_5", "chance_of_playing_next",
+}
+
+
+def assert_prediction_schema(name: str, df) -> None:
+    missing = REQUIRED_PREDICTION_COLUMNS - set(df.columns)
+    if missing:
+        raise RuntimeError(
+            f"Predictor '{name}' output is missing required columns {sorted(missing)}. "
+            "All predictors must share the predict_all() schema for a fair comparison."
+        )
 
 
 EVAL_GAMEWEEKS = list(range(29, 35))
@@ -40,24 +57,34 @@ def main():
     naive = NaivePredictor()
     ml = LightGBMPredictor()
     ml.load()
+    dc = DCPredictor()
+
+    # Hard schema gate before any evaluation runs
+    probe_gw = EVAL_GAMEWEEKS[0]
+    for name, pred in [("naive_v1", naive), ("lightgbm_v1", ml),
+                       (DCPredictor.MODEL_NAME, dc)]:
+        assert_prediction_schema(name, pred.predict_all(probe_gw))
 
     print(f"\nEvaluation gameweeks: GW{EVAL_GAMEWEEKS[0]}..GW{EVAL_GAMEWEEKS[-1]}")
-    print("Predictors: naive_v1, lightgbm_v1\n")
+    print("Predictors: naive_v1, lightgbm_v1, dc_projection_v1\n")
     print("Note: FPL ep_next baseline shown only for gameweeks with available snapshots.\n")
 
     naive_raw = evaluator.evaluate_many(naive, EVAL_GAMEWEEKS, restrict_to_appeared=True)
     ml_raw = evaluator.evaluate_many(ml, EVAL_GAMEWEEKS, restrict_to_appeared=True)
+    dc_raw = evaluator.evaluate_many(dc, EVAL_GAMEWEEKS, restrict_to_appeared=True)
 
     rows = []
     for gw in EVAL_GAMEWEEKS:
         naive_gw = naive_raw[naive_raw["gameweek"] == gw]
         ml_gw = ml_raw[ml_raw["gameweek"] == gw]
+        dc_gw = dc_raw[dc_raw["gameweek"] == gw]
 
         rows.append({
             "gameweek": gw,
             "n_players": len(naive_gw),
             "naive_mae": _safe_mae(naive_gw["model_pred"], naive_gw["actual_points"]),
             "ml_mae":    _safe_mae(ml_gw["model_pred"], ml_gw["actual_points"]),
+            "dc_mae":    _safe_mae(dc_gw["model_pred"], dc_gw["actual_points"]),
             "fpl_mae":   _safe_mae(ml_gw["fpl_ep_next"], ml_gw["actual_points"]),
             "zero_mae":  float(ml_gw["actual_points"].abs().mean()),
         })
@@ -67,6 +94,7 @@ def main():
         "n_players": len(naive_raw),
         "naive_mae": _safe_mae(naive_raw["model_pred"], naive_raw["actual_points"]),
         "ml_mae":    _safe_mae(ml_raw["model_pred"], ml_raw["actual_points"]),
+        "dc_mae":    _safe_mae(dc_raw["model_pred"], dc_raw["actual_points"]),
         "fpl_mae":   _safe_mae(ml_raw["fpl_ep_next"], ml_raw["actual_points"]),
         "zero_mae":  float(ml_raw["actual_points"].abs().mean()),
     }
@@ -80,10 +108,12 @@ def main():
     for n in [10, 30, 50]:
         naive_top = naive_raw.nlargest(n * len(EVAL_GAMEWEEKS), "model_pred")
         ml_top = ml_raw.nlargest(n * len(EVAL_GAMEWEEKS), "model_pred")
+        dc_top = dc_raw.nlargest(n * len(EVAL_GAMEWEEKS), "model_pred")
         top_n_rows.append({
             "top_n": n,
             "naive_mae_on_picks": _safe_mae(naive_top["model_pred"], naive_top["actual_points"]),
             "ml_mae_on_picks":    _safe_mae(ml_top["model_pred"], ml_top["actual_points"]),
+            "dc_mae_on_picks":    _safe_mae(dc_top["model_pred"], dc_top["actual_points"]),
         })
     print(pd.DataFrame(top_n_rows).to_string(index=False))
 
