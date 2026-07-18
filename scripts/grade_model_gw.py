@@ -33,6 +33,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.squad_commit import compute_squad_hash  # noqa: E402
+
 DB_PATH = PROJECT_ROOT / "data" / "fpl.db"
 EXPORT_DIR = PROJECT_ROOT / "predictions" / "fpl"
 
@@ -84,13 +86,27 @@ def grade(gw: int | None = None, dry_run: bool = False,
         raise RuntimeError(f"GW{gw} already graded at {already[0]} (append-only).")
 
     lock_row = conn.execute(
-        "SELECT squad_json, transfers_json FROM model_squad_log WHERE gameweek_id = ?",
+        "SELECT squad_json, transfers_json, squad_hash FROM model_squad_log "
+        "WHERE gameweek_id = ?",
         (gw,),
     ).fetchone()
     if not lock_row:
         raise RuntimeError(f"GW{gw} was never locked — nothing to grade.")
-    squad = json.loads(lock_row[0])
-    hits = int(json.loads(lock_row[1]).get("hits", 0))
+    squad_json, transfers_json, stored_hash = lock_row
+
+    # Verify the pre-deadline commitment before revealing the graded result.
+    # src.squad_commit is the single source of truth for canonicalisation —
+    # a mismatch means the ledger record was altered after the pre-deadline push.
+    recomputed = compute_squad_hash(json.loads(squad_json))
+    if recomputed != stored_hash:
+        raise RuntimeError(
+            f"GW{gw} squad hash mismatch: stored={stored_hash!r} "
+            f"recomputed={recomputed!r}. Ledger may have been tampered with — "
+            "refusing to grade."
+        )
+
+    squad = json.loads(squad_json)
+    hits = int(json.loads(transfers_json).get("hits", 0))
 
     # ── pull results + positions ─────────────────────────────────────────────
     ids = [p["player_id"] for p in squad]

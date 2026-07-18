@@ -24,7 +24,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sqlite3
 import sys
@@ -35,6 +34,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.optimiser import SquadOptimiser  # noqa: E402
+from src.squad_commit import CANONICAL, compute_squad_hash  # noqa: E402
 
 DB_PATH = PROJECT_ROOT / "data" / "fpl.db"
 EXPORT_DIR = PROJECT_ROOT / "predictions" / "fpl"
@@ -267,9 +267,7 @@ def lock(dry_run: bool = False) -> dict:
         "bank_after": bank_after,
         "expected_points": round(float(result["expected_points"]), 2),
     }
-    payload["squad_hash"] = hashlib.sha256(
-        json.dumps(squad_rows, sort_keys=True).encode()
-    ).hexdigest()[:16]
+    payload["squad_hash"] = compute_squad_hash(squad_rows)
 
     if dry_run:
         print(json.dumps(payload, indent=2))
@@ -279,19 +277,29 @@ def lock(dry_run: bool = False) -> dict:
     conn.execute(
         "INSERT INTO model_squad_log VALUES (?,?,?,?,?,?,?,?,?)",
         (gw, payload["locked_at_utc"], deadline,
-         json.dumps(squad_rows), json.dumps(transfers),
+         json.dumps(squad_rows, **CANONICAL), json.dumps(transfers),
          free_transfers_after, bank_after,
          payload["expected_points"], payload["squad_hash"]),
     )
     conn.commit()
     conn.close()
 
+    # Pre-deadline public export: commitment only — no squad details.
+    # Anyone who sees this file before the deadline cannot copy the team.
+    # The full reveal (squad + result) is written by grade_model_gw.py
+    # post-deadline, after the hash is verified against this commitment.
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    commitment = {
+        "gameweek": gw,
+        "locked_at_utc": payload["locked_at_utc"],
+        "deadline_utc": deadline,
+        "squad_hash": payload["squad_hash"],
+    }
     out = EXPORT_DIR / f"gw{gw:02d}.json"
-    out.write_text(json.dumps(payload, indent=2))
-    print(f"GW{gw} locked at {payload['locked_at_utc']} "
-          f"(deadline {deadline}).\nExported {out} — COMMIT AND PUSH THIS "
-          f"BEFORE THE DEADLINE; the push is the public timestamp.")
+    out.write_text(json.dumps(commitment, indent=2))
+    print(f"GW{gw} committed: {payload['squad_hash']} (deadline {deadline}).\n"
+          f"Exported {out} — COMMIT AND PUSH THIS BEFORE THE DEADLINE; "
+          f"the push is the public timestamp.")
     return payload
 
 
