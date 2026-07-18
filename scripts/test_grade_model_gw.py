@@ -23,6 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import scripts.grade_model_gw as g  # noqa: E402
+from src.squad_commit import CANONICAL, compute_squad_hash  # noqa: E402
 
 # Squad layout (player_id: position): 3-5-2 XI + bench
 # XI: GK 1 | DEF 2,3,4 | MID 5,6,7,8,9 | FWD 10,11
@@ -59,8 +60,10 @@ def build_db(tmp: Path, stats: dict, hits: int = 0,
               "is_captain": int(pid == captain),
               "is_vice": int(pid == vice),
               "bench_order": BENCH_ORDER.get(pid, 0)} for pid in POS]
-    conn.execute("INSERT INTO model_squad_log VALUES (1,'t','t',?,?,1,0,0,'h')",
-                 (json.dumps(squad), json.dumps({"hits": hits})))
+    squad_hash = compute_squad_hash(squad)
+    conn.execute("INSERT INTO model_squad_log VALUES (1,'t','t',?,?,1,0,0,?)",
+                 (json.dumps(squad, **CANONICAL), json.dumps({"hits": hits}),
+                  squad_hash))
     conn.commit()
     conn.close()
     return db
@@ -142,6 +145,28 @@ def main():
         ok &= check("G7 double-grading refused", False)
     except RuntimeError as e:
         ok &= check("G7 double-grading refused", "already graded" in str(e))
+
+    # G8: tamper check — mutate bench_order in stored squad_json AFTER the
+    # commitment is written; grader must refuse, not produce a silently wrong score.
+    db = build_db(Path(tempfile.mkdtemp()), base_stats())
+    conn = sqlite3.connect(db)
+    row = conn.execute(
+        "SELECT squad_json FROM model_squad_log WHERE gameweek_id = 1"
+    ).fetchone()
+    tampered = json.loads(row[0])
+    tampered[0]["bench_order"] = 99   # mutate one field post-commitment
+    conn.execute(
+        "UPDATE model_squad_log SET squad_json = ? WHERE gameweek_id = 1",
+        (json.dumps(tampered, **CANONICAL),),
+    )
+    conn.commit()
+    conn.close()
+    try:
+        g.grade(gw=1, dry_run=True, db_path=db)
+        ok &= check("G8 tampered squad_json rejected", False)
+    except RuntimeError as e:
+        ok &= check("G8 tampered squad_json rejected",
+                    "mismatch" in str(e).lower(), str(e))
 
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)

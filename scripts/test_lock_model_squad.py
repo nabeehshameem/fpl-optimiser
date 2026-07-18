@@ -105,6 +105,11 @@ def main():
     ok &= check("L1 purchase prices recorded",
                 all(r["purchase_price"] > 0 for r in p1["squad"]))
     ok &= check("L1 export written", (lock_mod.EXPORT_DIR / "gw01.json").exists())
+    _COMMITMENT_KEYS = {"gameweek", "locked_at_utc", "deadline_utc", "squad_hash"}
+    exported = json.loads((lock_mod.EXPORT_DIR / "gw01.json").read_text())
+    ok &= check("L1 commitment export has no squad details",
+                set(exported.keys()) == _COMMITMENT_KEYS,
+                f"keys={set(exported.keys())}")
     ok &= check("L1 exactly one captain",
                 sum(r["is_captain"] for r in p1["squad"]) == 1)
 
