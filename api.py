@@ -180,8 +180,10 @@ app.add_middleware(
 
 from src.fpl_api import router as fpl_router  # noqa: E402
 from src.fpl_receipts import router as receipts_router  # noqa: E402
+from src.fpl_cards import router as cards_router  # noqa: E402
 app.include_router(fpl_router)
 app.include_router(receipts_router)
+app.include_router(cards_router)
 
 
 def _build_lookup_caches() -> None:
