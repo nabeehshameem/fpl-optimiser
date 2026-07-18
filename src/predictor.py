@@ -115,6 +115,23 @@ class NaivePredictor:
         """
         return pd.read_sql_query(query, conn, params=(target_gw, target_gw))
 
+    def _get_qualifying_counts(self, conn: sqlite3.Connection,
+                               as_of_gw_exclusive: int) -> pd.DataFrame:
+        return pd.read_sql_query("""
+            SELECT player_id,
+                   SUM(CASE WHEN rn <= 3 AND minutes >= 60 THEN 1 ELSE 0 END) AS qualifying_games_3,
+                   SUM(CASE WHEN rn <= 5 AND minutes >= 60 THEN 1 ELSE 0 END) AS qualifying_games_5
+            FROM (
+                SELECT player_id, minutes,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY player_id ORDER BY gameweek_id DESC
+                       ) AS rn
+                FROM player_gameweek_history
+                WHERE gameweek_id < ?
+            )
+            GROUP BY player_id
+        """, conn, params=(as_of_gw_exclusive,))
+
     def _get_player_meta(self, conn: sqlite3.Connection, target_gw: int) -> pd.DataFrame:
         """
         For each player, fetch their team and best-available availability signal.
@@ -164,12 +181,14 @@ class NaivePredictor:
             form_df = self._get_recent_form(conn, as_of_gameweek + 1)
             fdr_df = self._get_fixture_difficulty(conn, target_gw)
             meta_df = self._get_player_meta(conn, as_of_gameweek + 1)
+            qual_df = self._get_qualifying_counts(conn, as_of_gameweek + 1)
         finally:
             conn.close()
 
-        # Join: player meta + recent form + fixture difficulty
+        # Join: player meta + recent form + fixture difficulty + eligibility
         df = meta_df.merge(form_df, on="player_id", how="left")
         df = df.merge(fdr_df, on="team_id", how="left")
+        df = df.merge(qual_df, on="player_id", how="left")
 
         # Fill missing values defensively
         df["recent_form"] = df["recent_form"].fillna(0.0)
@@ -198,6 +217,11 @@ class NaivePredictor:
 
         # Players with no fixtures next gameweek -> 0 (blank gameweek)
         df.loc[df["num_fixtures"] == 0, "predicted_points"] = 0.0
+
+        # Eligibility columns required by the bake-off schema contract
+        df["qualifying_games_3"] = df["qualifying_games_3"].fillna(0).astype(int)
+        df["qualifying_games_5"] = df["qualifying_games_5"].fillna(0).astype(int)
+        df["chance_of_playing_next"] = df["availability"]
 
         return df
 
