@@ -517,34 +517,100 @@ function WidgetMatches() {
 }
 
 function WidgetBracket() {
-  const knockouts = [
-    { round: 'QF', a: 'Spain',   b: 'Brazil',    score: '2-1', winner: 'Spain' },
-    { round: 'QF', a: 'England', b: 'Germany',   score: '2-1', winner: 'England' },
-    { round: 'SF', a: 'Spain',   b: 'England',   score: '1-2', winner: 'England' },
-    { round: 'FINAL', a: 'England', b: 'Argentina', score: '2-1', winner: 'England' },
-  ];
+  const [bracket, setBracket] = React.useState(null);
+
+  React.useEffect(() => {
+    const base = import.meta.env.VITE_API_URL || '';
+    fetch(`${base}/api/wc/bracket`)
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(setBracket)
+      .catch(() => setBracket(false));
+  }, []);
+
+  if (!bracket) {
+    return <div style={{ color: v4.textVeryDim, fontFamily: mono, fontSize: 11 }}>{bracket === false ? 'unavailable' : 'loading...'}</div>;
+  }
+
+  const { sf_matches = [], finalists = [], pending_finalists = [], third_place_teams = [] } = bracket;
+
+  const BracketRow = ({ label, teamA, teamB, score, winner, isFinal, teamAWinPct, teamBWinPct }) => {
+    const pending = !winner;
+    return (
+      <div style={{
+        display: 'grid', gridTemplateColumns: '38px 1fr auto 1fr', gap: 10, alignItems: 'center',
+        padding: '6px 8px', borderRadius: 6,
+        background: isFinal ? 'rgba(0,255,135,0.08)' : 'transparent',
+        border: isFinal ? `1px solid rgba(0,255,135,0.25)` : '1px solid transparent',
+      }}>
+        <span style={{ color: isFinal ? v4.electric : v4.textVeryDim, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.05em' }}>{label}</span>
+        <span style={{ color: (!pending && winner === teamA) ? v4.text : pending ? v4.textDim : v4.textVeryDim, fontFamily: display, fontWeight: (!pending && winner === teamA) ? 700 : 500, fontSize: 12, textAlign: 'right' }}>{teamA}</span>
+        <span style={{ color: v4.electric, fontFamily: mono, fontSize: 11, fontWeight: 700, padding: '2px 8px', background: 'rgba(0,0,0,0.4)', borderRadius: 4 }}>
+          {pending ? (teamAWinPct != null ? `${teamAWinPct}%` : 'vs') : score}
+        </span>
+        <span style={{ color: (!pending && winner === teamB) ? v4.text : pending ? v4.textDim : v4.textVeryDim, fontFamily: display, fontWeight: (!pending && winner === teamB) ? 700 : 500, fontSize: 12 }}>{teamB}</span>
+      </div>
+    );
+  };
+
+  const finalist1 = finalists[0];
+  const finalist2 = finalists[1];
+  const pendingF1 = pending_finalists[0];
+  const pendingF2 = pending_finalists[1];
+  const third1 = third_place_teams[0];
+  const third2 = third_place_teams[1];
+
+  const thirdSet = new Set(third_place_teams.map(t => t.toLowerCase()));
+  const thirdMatch = sf_matches.find(m =>
+    thirdSet.has((m.team_a || '').toLowerCase()) && thirdSet.has((m.team_b || '').toLowerCase())
+  );
+  const sfOnly = sf_matches.filter(m => m !== thirdMatch);
+
+  const topWinner = finalist1 || (pendingF1 ? { team: pendingF1.team, win_pct: pendingF1.win_pct } : null);
+  const topWinner2 = finalist2 || (pendingF2 ? { team: pendingF2.team, win_pct: pendingF2.win_pct } : null);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {knockouts.map((k, i) => {
-        const last = i === knockouts.length - 1;
-        return (
-          <div key={i} style={{
-            display: 'grid', gridTemplateColumns: '38px 1fr auto 1fr', gap: 10, alignItems: 'center',
-            padding: '6px 8px', borderRadius: 6,
-            background: last ? 'rgba(0,255,135,0.08)' : 'transparent',
-            border: last ? `1px solid rgba(0,255,135,0.25)` : '1px solid transparent',
-          }}>
-            <span style={{ color: last ? v4.electric : v4.textVeryDim, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.05em' }}>{k.round}</span>
-            <span style={{ color: k.winner === k.a ? v4.text : v4.textDim, fontFamily: display, fontWeight: k.winner === k.a ? 700 : 500, fontSize: 12, textAlign: 'right' }}>{k.a}</span>
-            <span style={{ color: v4.electric, fontFamily: mono, fontSize: 11, fontWeight: 700, padding: '2px 8px', background: 'rgba(0,0,0,0.4)', borderRadius: 4 }}>{k.score}</span>
-            <span style={{ color: k.winner === k.b ? v4.text : v4.textDim, fontFamily: display, fontWeight: k.winner === k.b ? 700 : 500, fontSize: 12 }}>{k.b}</span>
-          </div>
-        );
-      })}
-      <div style={{ marginTop: 6, fontSize: 11, color: v4.textVeryDim, fontFamily: mono, display: 'flex', justifyContent: 'space-between' }}>
-        <span>🏆 ENGLAND</span>
-        <span>32% win prob.</span>
-      </div>
+      {sfOnly.map((m, i) => (
+        <BracketRow
+          key={i}
+          label="SF"
+          teamA={m.team_a} teamB={m.team_b}
+          score={m.score} winner={m.winner}
+          teamAWinPct={m.team_a_win_pct} teamBWinPct={m.team_b_win_pct}
+        />
+      ))}
+      {(finalist1 || pendingF1) && (finalist2 || pendingF2) ? (
+        <BracketRow
+          label="FINAL"
+          teamA={(finalist1 || pendingF1).team}
+          teamB={(finalist2 || pendingF2).team}
+          score={null} winner={null}
+          isFinal={true}
+        />
+      ) : (finalist1 || pendingF1) ? (
+        <BracketRow
+          label="FINAL"
+          teamA={(finalist1 || pendingF1).team}
+          teamB="TBD"
+          score={null} winner={null}
+          isFinal={true}
+        />
+      ) : null}
+      {(third1 || third2) && (
+        <BracketRow
+          label="3RD"
+          teamA={thirdMatch ? thirdMatch.team_a : (third1 || 'TBD')}
+          teamB={thirdMatch ? thirdMatch.team_b : (third2 || 'TBD')}
+          score={thirdMatch?.score ?? null}
+          winner={thirdMatch?.winner ?? null}
+        />
+      )}
+      {topWinner && (
+        <div style={{ marginTop: 6, fontSize: 11, color: v4.textVeryDim, fontFamily: mono, display: 'flex', justifyContent: 'space-between' }}>
+          <span>🏆 {topWinner.team.toUpperCase()}{topWinner2 ? ` / ${topWinner2.team.toUpperCase()}` : ''}</span>
+          <span>{topWinner.win_pct}% win prob.</span>
+        </div>
+      )}
     </div>
   );
 }
