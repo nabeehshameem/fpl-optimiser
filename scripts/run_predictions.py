@@ -12,7 +12,7 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.predictor import NaivePredictor
+from src.dc_predictor import DCPredictor
 
 
 DB_PATH = PROJECT_ROOT / "data" / "fpl.db"
@@ -40,13 +40,13 @@ def main():
     target_gw = get_target_gameweek()
     print(f"Predicting for gameweek {target_gw}")
 
-    predictor = NaivePredictor()
+    predictor = DCPredictor()
     predictions_df = predictor.predict_all(target_gw)
 
     print(f"\nGenerated {len(predictions_df)} predictions.")
     print(f"\nTop 15 predicted scorers for GW{target_gw}:")
     top = predictions_df.nlargest(15, "predicted_points")[
-        ["player_id", "predicted_points", "recent_form", "fdr", "availability", "num_fixtures"]
+        ["player_id", "predicted_points"]
     ]
     print(top.to_string(index=False))
 
