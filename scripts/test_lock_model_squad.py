@@ -73,7 +73,7 @@ def build_world(tmpdir: Path) -> Path:
     conn.executemany(
         "INSERT INTO predictions (player_id, gameweek_id, model_name, "
         "predicted_points, prediction_time) VALUES (?,?,?,?,?)",
-        [(pid, 1, "lightgbm_v1", p, iso(now)) for pid, p in pts.items()])
+        [(pid, 1, "dc_projection_v1", p, iso(now)) for pid, p in pts.items()])
     conn.commit()
     conn.close()
     return db
@@ -134,7 +134,7 @@ def main():
     conn.executemany(
         "INSERT INTO predictions (player_id, gameweek_id, model_name, "
         "predicted_points, prediction_time) VALUES (?,?,?,?,?)",
-        [(pid, 2, "lightgbm_v1", p, iso(now)) for pid, p in pts2.items()])
+        [(pid, 2, "dc_projection_v1", p, iso(now)) for pid, p in pts2.items()])
     conn.commit(); conn.close()
 
     p2 = lock_mod.lock()

@@ -90,16 +90,16 @@ def load_predictions(conn, gw: int):
         FROM predictions p
         JOIN (
             SELECT player_id, MAX(prediction_time) AS mt
-            FROM predictions WHERE gameweek_id = ?
+            FROM predictions WHERE gameweek_id = ? AND model_name = ?
             GROUP BY player_id
         ) latest ON latest.player_id = p.player_id AND latest.mt = p.prediction_time
-        WHERE p.gameweek_id = ?
+        WHERE p.gameweek_id = ? AND p.model_name = ?
         """,
-        conn, params=(gw, gw),
+        conn, params=(gw, MODEL_NAME, gw, MODEL_NAME),
     )
     if df.empty:
         raise RuntimeError(
-            f"No predictions for GW{gw}. Run scripts/run_predictions.py first."
+            f"No {MODEL_NAME} predictions for GW{gw}. Run scripts/run_predictions.py first."
         )
     hist = pd.read_sql_query(
         """
