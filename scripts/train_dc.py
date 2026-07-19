@@ -5,10 +5,18 @@ sys.stdout.reconfigure(encoding="utf-8")
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import argparse
 from src.dc_model import FPLDCPredictor
 
-print("Fitting FPL Dixon-Coles model on PL 2025/26 data...")
-p = FPLDCPredictor()
+ap = argparse.ArgumentParser()
+ap.add_argument("--db", type=Path, default=None,
+                help="fit on this DB instead of data/fpl.db "
+                     "(e.g. --db data/fpl_2526.db after rollover)")
+args = ap.parse_args()
+
+src = args.db or "data/fpl.db (default)"
+print(f"Fitting FPL Dixon-Coles model on {src} ...")
+p = FPLDCPredictor(db_path=args.db)
 diag = p.fit()
 
 print(f"\nFit complete:")

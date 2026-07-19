@@ -65,7 +65,10 @@ class FPLDCPredictor:
     Fits on one full PL season (380 games); predicts any team-pair scoreline.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, db_path: Path | None = None,
+                 model_path: Path | None = None) -> None:
+        self.db_path = Path(db_path) if db_path else DB_PATH
+        self.model_path = Path(model_path) if model_path else MODEL_PATH
         self.team_params: dict[int, dict]   = {}   # {team_id: {attack, defense}}
         self.team_names:  dict[int, str]    = {}   # {team_id: name}
         self.home_adv: float  = 1.20
@@ -77,7 +80,7 @@ class FPLDCPredictor:
     # ── Data loading ──────────────────────────────────────────────────────────
 
     def _load_fixtures(self) -> list[dict]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(self.db_path)
         rows = conn.execute("""
             SELECT f.fixture_id, f.home_team_id, f.away_team_id,
                    f.home_score, f.away_score, f.kickoff_time,
@@ -106,7 +109,7 @@ class FPLDCPredictor:
         return out
 
     def _load_team_names(self) -> dict[int, str]:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(self.db_path)
         rows = conn.execute("SELECT team_id, name FROM teams").fetchall()
         conn.close()
         return {r[0]: r[1] for r in rows}
@@ -395,8 +398,8 @@ class FPLDCPredictor:
 
     def save(self) -> None:
         import datetime as _dt
-        MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-        MODEL_PATH.write_text(json.dumps(
+        self.model_path.parent.mkdir(parents=True, exist_ok=True)
+        self.model_path.write_text(json.dumps(
             {
                 "trained_at":       _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "home_adv":         self.home_adv,
@@ -408,14 +411,14 @@ class FPLDCPredictor:
             },
             indent=2,
         ))
-        print(f"FPL DC model saved: {MODEL_PATH}")
+        print(f"FPL DC model saved: {self.model_path}")
 
     def load(self) -> None:
-        if not MODEL_PATH.exists():
+        if not self.model_path.exists():
             raise FileNotFoundError(
-                f"No FPL DC model at {MODEL_PATH}. Run: python fpl/scripts/train_dc.py"
+                f"No FPL DC model at {self.model_path}. Run: python scripts/train_dc.py"
             )
-        data = json.loads(MODEL_PATH.read_text())
+        data = json.loads(self.model_path.read_text())
         self.home_adv         = data["home_adv"]
         self.rho              = data["rho"]
         self.team_params      = {int(k): v for k, v in data["team_params"].items()}
