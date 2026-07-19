@@ -2,32 +2,29 @@ WC2026 MODEL RETROSPECTIVE — walk-forward reconstruction from git history
 
 Frozen pre-tournament model: commit 5739f8ef (2026-06-10 06:04 UTC)
 
-ALL MATCHES (n=102)
-  Walk-forward : Brier 0.5365 | logloss 0.9043 | outcome acc 60.8% | exact score 10.8%
-  Frozen 10-Jun: Brier 0.5208 | outcome acc 66.7% | exact 9.8%
-  Baselines    : uniform Brier 0.6667 | WC-base-rate Brier 0.6487
+ALL MATCHES (n=104)
+  Walk-forward : Brier 0.5406 | logloss 0.9102 | outcome acc 59.6% | exact score 11.5%
+  Frozen 10-Jun: Brier 0.5220 | outcome acc 66.3% | exact 9.6%
+  Baselines    : uniform Brier 0.6667 | WC-base-rate Brier 0.6513
 
 GROUP STAGE (n=72)
   Walk-forward : Brier 0.5277 | logloss 0.9039 | outcome acc 62.5% | exact score 11.1%
   Frozen 10-Jun: Brier 0.5182 | outcome acc 65.3% | exact 11.1%
   Baselines    : uniform Brier 0.6667 | WC-base-rate Brier 0.6530
 
-KNOCKOUTS (90-min result) (n=30)
-  Walk-forward : Brier 0.5578 | logloss 0.9053 | outcome acc 56.7% | exact score 10.0%
-  Frozen 10-Jun: Brier 0.5272 | outcome acc 70.0% | exact 6.7%
-  Baselines    : uniform Brier 0.6667 | WC-base-rate Brier 0.6384
+KNOCKOUTS (90-min result) (n=32)
+  Walk-forward : Brier 0.5696 | logloss 0.9245 | outcome acc 53.1% | exact score 12.5%
+  Frozen 10-Jun: Brier 0.5306 | outcome acc 68.8% | exact 6.2%
+  Baselines    : uniform Brier 0.6667 | WC-base-rate Brier 0.6476
 
 Calibration (predicted prob -> observed frequency):
    0- 10%  n= 35  observed 8.6%
-  10- 20%  n= 52  observed 11.5%
-  20- 30%  n= 63  observed 17.5%
-  30- 40%  n= 62  observed 35.5%
-  40- 50%  n= 39  observed 61.5%
+  10- 20%  n= 53  observed 11.3%
+  20- 30%  n= 64  observed 18.8%
+  30- 40%  n= 64  observed 35.9%
+  40- 50%  n= 41  observed 58.5%
   50- 60%  n= 20  observed 65.0%
   60- 70%  n= 13  observed 53.8%
   70- 80%  n=  9  observed 88.9%
   80- 90%  n=  7  observed 71.4%
   90-100%  n=  6  observed 50.0%
-
-Note: calibration buckets all three W/D/L probability estimates per match (306 pairs total).
-Generated: 2026-07-17. Covers 102 of 104 WC2026 matches. Final + 3rd place not yet played.

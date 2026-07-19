@@ -26,6 +26,7 @@ import csv
 import importlib.util
 import json
 import math
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -45,7 +46,8 @@ N_GROUP_MATCHES = 72  # 48-team format: 72 group matches, then knockouts
 
 
 def sh(*args: str) -> str:
-    return subprocess.run(args, cwd=REPO, capture_output=True, text=True, check=True).stdout
+    return subprocess.run(args, cwd=REPO, capture_output=True, text=True,
+                          encoding="utf-8", check=True).stdout
 
 
 # ── 1. Commit timeline for dc_params.json ────────────────────────────────────
@@ -93,10 +95,13 @@ def load_model_at(commit: str):
 
     code = sh("git", "show", f"{commit}:wc/src/score_predictor.py")
     params = sh("git", "show", f"{commit}:wc/models/dc_params.json")
-    (tmp / "wc" / "src" / "score_predictor.py").write_text(code)
-    (tmp / "wc" / "models" / "dc_params.json").write_text(params)
+    (tmp / "wc" / "src" / "score_predictor.py").write_text(code, encoding="utf-8")
+    (tmp / "wc" / "models" / "dc_params.json").write_text(params, encoding="utf-8")
     # point DB at HEAD db (only used for rank priors / display names)
-    (tmp / "wc" / "data" / "wc.db").symlink_to(DB_HEAD)
+    try:
+        (tmp / "wc" / "data" / "wc.db").symlink_to(DB_HEAD)
+    except OSError:
+        shutil.copy2(DB_HEAD, tmp / "wc" / "data" / "wc.db")
 
     spec = importlib.util.spec_from_file_location(
         f"sp_{commit[:8]}", tmp / "wc" / "src" / "score_predictor.py"
@@ -308,7 +313,7 @@ def main() -> None:
         block("KNOCKOUTS (90-min result)", ko),
         "\n".join(calib_lines),
     ])
-    (OUT_DIR / "summary.txt").write_text(summary)
+    (OUT_DIR / "summary.txt").write_text(summary, encoding="utf-8")
     print(summary)
     print(f"\nWrote {csv_path} and {OUT_DIR/'summary.txt'}")
 
