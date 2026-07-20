@@ -126,7 +126,7 @@ class DCPredictor:
                    AVG(minutes)      AS avg_min,
                    AVG(goals_scored) AS avg_goals,
                    AVG(assists)      AS avg_assists,
-                   AVG(CASE WHEN clean_sheets = 1 AND minutes >= 60
+                   AVG(CASE WHEN clean_sheets >= 1 AND minutes >= 60  -- >=: DGW rows sum to 2
                             THEN 1.0 ELSE 0.0 END) AS cs_rate,
                    AVG(bonus)            AS avg_bonus,
                    COUNT(*)              AS gw_count,
