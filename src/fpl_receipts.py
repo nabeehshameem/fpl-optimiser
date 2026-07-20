@@ -23,6 +23,8 @@ Read-only toward the ledger; writes only to its own receipts cache table.
 
 from __future__ import annotations
 
+import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,7 +33,10 @@ import httpx
 from fastapi import APIRouter, HTTPException
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-FPL_DB_PATH = PROJECT_ROOT / "data" / "fpl.db"
+EXPORT_DIR = PROJECT_ROOT / "predictions" / "fpl"
+RECEIPTS_DB_PATH = Path(
+    os.getenv("RECEIPTS_DB", str(PROJECT_ROOT / "data" / "receipts.db"))
+)
 
 FPL_BASE = "https://fantasy.premierleague.com/api"
 _HEADERS = {"User-Agent": "themodelsays.com receipt service"}
@@ -53,7 +58,8 @@ CREATE TABLE IF NOT EXISTS receipts (
 
 
 def _connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(FPL_DB_PATH)
+    RECEIPTS_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(RECEIPTS_DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute(RECEIPTS_SQL)
     return conn
@@ -84,10 +90,17 @@ def _fetch_gw_points(team_id: int, gw: int) -> tuple[int, int]:
     return int(eh.get("points", 0)), int(eh.get("event_transfers_cost", 0))
 
 
-def _graded_gws(conn) -> dict[int, int]:
-    """{gameweek_id: model_net_points} for every graded GW."""
-    return {int(r["gameweek_id"]): int(r["net_points"]) for r in
-            conn.execute("SELECT gameweek_id, net_points FROM model_gw_results")}
+def _graded_gws() -> dict[int, int]:
+    """{gameweek_id: model_net_points} from committed result JSON files."""
+    out: dict[int, int] = {}
+    if not EXPORT_DIR.exists():
+        return out
+    for f in sorted(EXPORT_DIR.glob("gw*_result.json")):
+        data = json.loads(f.read_text())
+        gw = data.get("gameweek")
+        if gw is not None:
+            out[int(gw)] = int(data.get("net_points", 0))
+    return out
 
 
 def _cached_receipts(conn, team_id: int) -> dict[int, sqlite3.Row]:
@@ -119,7 +132,7 @@ def _ensure_receipt(conn, team_id: int, gw: int,
 def receipt(gw: int, team_id: int) -> dict:
     conn = _connect()
     try:
-        graded = _graded_gws(conn)
+        graded = _graded_gws()
         if gw not in graded:
             raise HTTPException(
                 409, f"GW{gw} is not graded yet — receipts exist only for "

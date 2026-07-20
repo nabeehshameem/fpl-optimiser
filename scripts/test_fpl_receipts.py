@@ -16,7 +16,6 @@ R6  Draw counted as draw, not a win for either side
 from __future__ import annotations
 
 import json
-import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -30,19 +29,16 @@ from fastapi.testclient import TestClient  # noqa: E402
 import src.fpl_receipts as fr  # noqa: E402
 
 
-def build_db(tmp: Path, graded: dict[int, int]) -> Path:
-    """graded: {gw: model_net_points}"""
-    db = tmp / "fpl.db"
-    conn = sqlite3.connect(db)
-    conn.execute("""CREATE TABLE model_gw_results (gameweek_id INT PRIMARY KEY,
-        graded_at_utc TEXT, gross_points INT, hit_points INT, net_points INT,
-        effective_captain INT, autosubs_json TEXT, detail_json TEXT)""")
+def build_fixture(tmp: Path, graded: dict[int, int]) -> tuple[Path, Path]:
+    """Returns (export_dir, receipts_db_path). Writes minimal result JSONs."""
+    export_dir = tmp / "fpl"
+    export_dir.mkdir(exist_ok=True)
     for gw, net in graded.items():
-        conn.execute("INSERT INTO model_gw_results VALUES (?,?,?,?,?,?,?,?)",
-                     (gw, "t", net, 0, net, 1, "[]", "[]"))
-    conn.commit()
-    conn.close()
-    return db
+        (export_dir / f"gw{gw:02d}_result.json").write_text(json.dumps({
+            "gameweek": gw, "net_points": net,
+        }))
+    receipts_db = tmp / "receipts.db"
+    return export_dir, receipts_db
 
 
 class MockFPL:
@@ -66,8 +62,9 @@ class MockFPL:
         return {"name": self.entry_name}
 
 
-def client(db: Path, mock: MockFPL) -> TestClient:
-    fr.FPL_DB_PATH = db
+def client(export_dir: Path, receipts_db: Path, mock: MockFPL) -> TestClient:
+    fr.EXPORT_DIR = export_dir
+    fr.RECEIPTS_DB_PATH = receipts_db
     fr._fetch_json = mock
     app = FastAPI()
     app.include_router(fr.router)
@@ -84,15 +81,16 @@ def main():
 
     # R1: ungraded GW
     mock = MockFPL()
-    c = client(build_db(Path(tempfile.mkdtemp()), {1: 60}), mock)
+    export_dir, receipts_db = build_fixture(Path(tempfile.mkdtemp()), {1: 60})
+    c = client(export_dir, receipts_db, mock)
     r = c.get("/api/fpl/receipt/2/12345")
     ok &= check("R1 ungraded GW -> 409", r.status_code == 409, str(r.status_code))
     ok &= check("R1 no fetch attempted", mock.calls == [], f"calls={mock.calls}")
 
     # R2: happy path — user 70 gross, 8 hits -> 62 net vs model 60 -> user wins
-    db = build_db(Path(tempfile.mkdtemp()), {1: 60})
+    export_dir, receipts_db = build_fixture(Path(tempfile.mkdtemp()), {1: 60})
     mock = MockFPL(gw_points={1: (70, 8)})
-    c = client(db, mock)
+    c = client(export_dir, receipts_db, mock)
     j = c.get("/api/fpl/receipt/1/12345").json()
     ok &= check("R2 user net = gross - hits", j["user"]["points_net"] == 62,
                 json.dumps(j["user"]))
@@ -110,9 +108,9 @@ def main():
                 and j["user"]["points_net"] == 62)
 
     # R4: backfill — GW1+GW2 graded; fresh team requests GW2 only
-    db = build_db(Path(tempfile.mkdtemp()), {1: 60, 2: 55})
+    export_dir, receipts_db = build_fixture(Path(tempfile.mkdtemp()), {1: 60, 2: 55})
     mock = MockFPL(gw_points={1: (50, 0), 2: (58, 0)})
-    c = client(db, mock)
+    c = client(export_dir, receipts_db, mock)
     j = c.get("/api/fpl/receipt/2/777").json()
     picks_calls = [u for u in mock.calls if u.endswith("/picks/")]
     ok &= check("R4 both graded GWs fetched", len(picks_calls) == 2,
@@ -123,14 +121,14 @@ def main():
                 and j["user"]["points_net"] == 58)
 
     # R5: FPL 404
-    db = build_db(Path(tempfile.mkdtemp()), {1: 60})
-    c = client(db, MockFPL(status=404))
+    export_dir, receipts_db = build_fixture(Path(tempfile.mkdtemp()), {1: 60})
+    c = client(export_dir, receipts_db, MockFPL(status=404))
     r = c.get("/api/fpl/receipt/1/99999999")
     ok &= check("R5 FPL 404 -> 404", r.status_code == 404, str(r.status_code))
 
     # R6: draw
-    db = build_db(Path(tempfile.mkdtemp()), {1: 60})
-    c = client(db, MockFPL(gw_points={1: (60, 0)}))
+    export_dir, receipts_db = build_fixture(Path(tempfile.mkdtemp()), {1: 60})
+    c = client(export_dir, receipts_db, MockFPL(gw_points={1: (60, 0)}))
     j = c.get("/api/fpl/receipt/1/555").json()
     ok &= check("R6 draw is a draw", j["winner"] == "draw"
                 and j["h2h_season"]["draws"] == 1)

@@ -1,21 +1,20 @@
 """
 test_fpl_api.py
 
-TestClient tests for src/fpl_api.py against a synthetic DB.
+TestClient tests for src/fpl_api.py against a synthetic JSON export directory.
 Run: python scripts/test_fpl_api.py
 
 A1  Unlocked GW -> 404
-A2  Locked, BEFORE deadline -> commitment only: hash present, NO squad,
-    NO transfers — the endpoint must not leak what commit-reveal withholds
-A3  Locked, AFTER deadline, ungraded -> squad revealed with names, result null
-A4  Graded -> result present: net/gross/hits, named effective captain, autosubs
+A2  Locked, BEFORE deadline -> commitment only: hash present, revealed=False,
+    NO squad — file physically contains only the hash, no leakage possible
+A3  Locked, AFTER deadline, no result file -> revealed=True, no squad yet
+A4  Graded (result file present) -> squad revealed with names, result present
 A5  Season -> per-GW rows, cumulative, vs-average record
 """
 
 from __future__ import annotations
 
 import json
-import sqlite3
 import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
@@ -38,6 +37,7 @@ POS = {1: 1, 2: 2, 3: 2, 4: 2, 5: 3, 6: 3, 7: 3, 8: 3, 9: 3,
        10: 4, 11: 4, 12: 1, 13: 3, 14: 2, 15: 4}
 XI = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 BENCH_ORDER = {12: 1, 13: 2, 14: 3, 15: 4}
+_POS_NAMES = {1: "GK", 2: "DEF", 3: "MID", 4: "FWD"}
 
 
 def squad_rows():
@@ -48,51 +48,59 @@ def squad_rows():
              "bench_order": BENCH_ORDER.get(pid, 0)} for pid in POS]
 
 
-def build_db(tmp: Path) -> Path:
-    db = tmp / "fpl.db"
-    conn = sqlite3.connect(db)
-    conn.executescript("""
-        CREATE TABLE teams (team_id INTEGER PRIMARY KEY, name TEXT,
-            short_name TEXT, strength INT);
-        CREATE TABLE players (player_id INTEGER PRIMARY KEY, web_name TEXT,
-            position INT, team_id INT, current_cost INT);
-        CREATE TABLE gameweeks (gameweek_id INTEGER PRIMARY KEY,
-            deadline_time TEXT, is_current INT, is_next INT, finished INT,
-            average_score INT);
-        CREATE TABLE model_squad_log (gameweek_id INT PRIMARY KEY,
-            locked_at_utc TEXT, deadline_utc TEXT, squad_json TEXT,
-            transfers_json TEXT, free_transfers INT, bank INT,
-            expected_points REAL, squad_hash TEXT);
-        CREATE TABLE model_gw_results (gameweek_id INT PRIMARY KEY,
-            graded_at_utc TEXT, gross_points INT, hit_points INT,
-            net_points INT, effective_captain INT, autosubs_json TEXT,
-            detail_json TEXT);
-    """)
-    conn.execute("INSERT INTO teams VALUES (1,'Testers FC','TST',3)")
-    conn.executemany("INSERT INTO players VALUES (?,?,?,?,?)",
-                     [(pid, f"P{pid}", pos, 1, 50) for pid, pos in POS.items()])
-    conn.executemany("INSERT INTO gameweeks VALUES (?,?,0,0,?,?)",
-                     [(1, PAST, 1, 52), (2, PAST, 1, 60), (3, FUTURE, 0, None)])
+def build_export_dir(tmp: Path) -> Path:
+    export_dir = tmp / "fpl"
+    export_dir.mkdir()
 
     sq = squad_rows()
     h = compute_squad_hash(sq)
-    # GW1: locked (deadline past) + graded
-    conn.execute("INSERT INTO model_squad_log VALUES (1,?,?,?,?,1,5,62.4,?)",
-                 (PAST, PAST, json.dumps(sq, **CANONICAL),
-                  json.dumps({"in": [10], "out": [15], "hits": 4}), h))
-    conn.execute("INSERT INTO model_gw_results VALUES (1,?,66,4,62,10,?,?)",
-                 (PAST, json.dumps([{"out": 2, "in": 14}]), json.dumps([])))
-    # GW2: locked (deadline past), NOT graded
-    conn.execute("INSERT INTO model_squad_log VALUES (2,?,?,?,?,2,0,58.1,?)",
-                 (PAST, PAST, json.dumps(sq, **CANONICAL),
-                  json.dumps({"in": [], "out": [], "hits": 0}), h))
-    # GW3: locked, deadline in the FUTURE (commitment phase)
-    conn.execute("INSERT INTO model_squad_log VALUES (3,?,?,?,?,1,0,59.9,?)",
-                 (PAST, FUTURE, json.dumps(sq, **CANONICAL),
-                  json.dumps({"in": [], "out": [], "hits": 0}), h))
-    conn.commit()
-    conn.close()
-    return db
+    disp = [{"player_id": pid, "name": f"P{pid}",
+              "position": _POS_NAMES.get(POS[pid], "?"), "team": "TST"}
+            for pid in sorted(POS)]
+
+    # GW1: commitment + result (graded)
+    (export_dir / "gw01.json").write_text(json.dumps({
+        "gameweek": 1, "locked_at_utc": PAST, "deadline_utc": PAST,
+        "squad_hash": h,
+    }))
+    (export_dir / "gw01_result.json").write_text(json.dumps({
+        "gameweek": 1,
+        "squad": sq,
+        "squad_display": disp,
+        "squad_hash": h,
+        "graded_at_utc": PAST,
+        "gross_points": 66, "hit_points": 4, "net_points": 62,
+        "effective_captain": 10,
+        "effective_captain_display": {
+            "player_id": 10, "name": "P10", "position": "FWD", "team": "TST"},
+        "autosubs": [{"out": 2, "in": 14}],
+        "autosubs_display": [{
+            "out": {"player_id": 2, "name": "P2", "position": "DEF", "team": "TST"},
+            "in": {"player_id": 14, "name": "P14", "position": "DEF", "team": "TST"},
+        }],
+        "transfers": {"in": [10], "out": [15], "hits": 4},
+        "transfers_display": {
+            "in": [{"player_id": 10, "name": "P10", "position": "FWD", "team": "TST"}],
+            "out": [{"player_id": 15, "name": "P15", "position": "FWD", "team": "TST"}],
+        },
+        "average_score": 52,
+        "expected_points": 62.4,
+        "detail": [],
+    }))
+
+    # GW2: commitment only, deadline past -> revealed=True, no squad yet
+    (export_dir / "gw02.json").write_text(json.dumps({
+        "gameweek": 2, "locked_at_utc": PAST, "deadline_utc": PAST,
+        "squad_hash": h,
+    }))
+
+    # GW3: commitment only, deadline future -> revealed=False
+    (export_dir / "gw03.json").write_text(json.dumps({
+        "gameweek": 3, "locked_at_utc": PAST, "deadline_utc": FUTURE,
+        "squad_hash": h,
+    }))
+
+    return export_dir
 
 
 def check(label, cond, detail=""):
@@ -102,7 +110,7 @@ def check(label, cond, detail=""):
 
 def main():
     tmp = Path(tempfile.mkdtemp())
-    fpl_api.FPL_DB_PATH = build_db(tmp)
+    fpl_api.EXPORT_DIR = build_export_dir(tmp)
     fpl_api._now = lambda: NOW
 
     app = FastAPI()
@@ -117,21 +125,23 @@ def main():
     # A2: GW3 deadline is in the future
     r = c.get("/api/fpl/model/gw/3")
     j = r.json()
-    ok &= check("A2 commitment phase: revealed=false", j.get("revealed") is False)
+    ok &= check("A2 commitment phase: revealed=False", j.get("revealed") is False)
     ok &= check("A2 hash present, 64 chars", len(j.get("squad_hash", "")) == 64)
     leak = [k for k in ("squad", "transfers", "expected_points", "bank") if k in j]
     ok &= check("A2 no squad leakage pre-deadline", not leak, f"leaked={leak}")
 
-    # A3: GW2 past deadline, ungraded
+    # A3: GW2 past deadline, no result file
     r = c.get("/api/fpl/model/gw/2")
     j = r.json()
-    ok &= check("A3 revealed with named squad", j["revealed"] is True
-                and len(j["squad"]) == 15 and j["squad"][0]["name"] == "P1")
-    ok &= check("A3 ungraded -> result null", j["result"] is None)
+    ok &= check("A3 post-deadline pre-grade: revealed=True", j.get("revealed") is True)
+    ok &= check("A3 no squad until result file written", "squad" not in j)
 
     # A4: GW1 graded
     r = c.get("/api/fpl/model/gw/1")
     j = r.json()
+    ok &= check("A4 revealed with named squad",
+                j["revealed"] is True and len(j["squad"]) == 15
+                and j["squad"][0]["name"] == "P1")
     res = j["result"]
     ok &= check("A4 result present", res is not None and res["net_points"] == 62)
     ok &= check("A4 effective captain named",

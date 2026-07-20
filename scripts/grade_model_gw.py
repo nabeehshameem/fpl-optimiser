@@ -38,6 +38,8 @@ from src.squad_commit import compute_squad_hash  # noqa: E402
 DB_PATH = PROJECT_ROOT / "data" / "fpl.db"
 EXPORT_DIR = PROJECT_ROOT / "predictions" / "fpl"
 
+POS_NAMES = {1: "GK", 2: "DEF", 3: "MID", 4: "FWD"}
+
 # formation minimums for a legal XI (position_id: min count)
 XI_MINIMUMS = {1: 1, 2: 3, 3: 2, 4: 1}
 
@@ -86,13 +88,13 @@ def grade(gw: int | None = None, dry_run: bool = False,
         raise RuntimeError(f"GW{gw} already graded at {already[0]} (append-only).")
 
     lock_row = conn.execute(
-        "SELECT squad_json, transfers_json, squad_hash FROM model_squad_log "
-        "WHERE gameweek_id = ?",
+        "SELECT squad_json, transfers_json, squad_hash, expected_points "
+        "FROM model_squad_log WHERE gameweek_id = ?",
         (gw,),
     ).fetchone()
     if not lock_row:
         raise RuntimeError(f"GW{gw} was never locked — nothing to grade.")
-    squad_json, transfers_json, stored_hash = lock_row
+    squad_json, transfers_json, stored_hash, lock_expected_pts = lock_row
 
     # Verify the pre-deadline commitment before revealing the graded result.
     # src.squad_commit is the single source of truth for canonicalisation —
@@ -106,19 +108,35 @@ def grade(gw: int | None = None, dry_run: bool = False,
         )
 
     squad = json.loads(squad_json)
-    hits = int(json.loads(transfers_json).get("hits", 0))
+    transfers_data = json.loads(transfers_json)
+    hits = int(transfers_data.get("hits", 0))
 
-    # ── pull results + positions ─────────────────────────────────────────────
+    # ── pull results + positions + display names ─────────────────────────────
     ids = [p["player_id"] for p in squad]
+    out_ids = transfers_data.get("out", [])
+    all_ids = list({*ids, *out_ids})
     ph = ",".join("?" * len(ids))
+    ph_all = ",".join("?" * len(all_ids)) if all_ids else "?"
+
     stats = {int(pid): (int(mins or 0), int(pts or 0)) for pid, mins, pts in
              conn.execute(f"SELECT player_id, minutes, total_points "
                           f"FROM player_gameweek_history "
                           f"WHERE gameweek_id = ? AND player_id IN ({ph})",
                           [gw] + ids)}
-    positions = {int(pid): int(pos) for pid, pos in
-                 conn.execute(f"SELECT player_id, position FROM players "
-                              f"WHERE player_id IN ({ph})", ids)}
+    player_info: dict[int, dict] = {}
+    for pid, pos, name, team in conn.execute(
+        f"SELECT p.player_id, p.position, p.web_name, t.short_name "
+        f"FROM players p LEFT JOIN teams t ON t.team_id = p.team_id "
+        f"WHERE p.player_id IN ({ph_all})",
+        all_ids or [0]
+    ).fetchall():
+        player_info[int(pid)] = {"position": int(pos or 0), "name": name, "team": team}
+    positions = {pid: info["position"] for pid, info in player_info.items()}
+
+    avg_row = conn.execute(
+        "SELECT average_score FROM gameweeks WHERE gameweek_id = ?", (gw,)
+    ).fetchone()
+    average_score = int(avg_row[0]) if avg_row and avg_row[0] is not None else None
 
     def minutes(pid): return stats.get(pid, (0, 0))[0]
     def points(pid): return stats.get(pid, (0, 0))[1]
@@ -183,6 +201,14 @@ def grade(gw: int | None = None, dry_run: bool = False,
                  "xi" if pid in final_xi else "bench"),
     } for pid in ids]
 
+    def _pinfo(pid: int) -> dict:
+        info = player_info.get(pid, {})
+        return {
+            "name": info.get("name") or f"#{pid}",
+            "position": POS_NAMES.get(info.get("position"), "?"),
+            "team": info.get("team"),
+        }
+
     result = {
         "gameweek": gw,
         # THE REVEAL: the exact rows the pre-deadline hash committed to.
@@ -190,13 +216,29 @@ def grade(gw: int | None = None, dry_run: bool = False,
         # sort_keys=True, separators=(",",":"), ensure_ascii=True must equal
         # squad_hash in the pre-deadline gwNN.json. See src/squad_commit.py.
         "squad": squad,
+        "squad_display": [{"player_id": pid, **_pinfo(pid)} for pid in ids],
         "squad_hash": stored_hash,
         "graded_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "gross_points": int(gross),
         "hit_points": hits,
         "net_points": int(net),
         "effective_captain": effective_captain,
+        "effective_captain_display": (
+            {"player_id": effective_captain, **_pinfo(effective_captain)}
+            if effective_captain is not None else None
+        ),
         "autosubs": autosubs,
+        "autosubs_display": [
+            {"out": {"player_id": s["out"], **_pinfo(s["out"])},
+             "in": {"player_id": s["in"], **_pinfo(s["in"])}}
+            for s in autosubs
+        ],
+        "transfers_display": {
+            "in": [{"player_id": p, **_pinfo(p)} for p in transfers_data.get("in", [])],
+            "out": [{"player_id": p, **_pinfo(p)} for p in transfers_data.get("out", [])],
+        },
+        "average_score": average_score,
+        "expected_points": float(lock_expected_pts) if lock_expected_pts is not None else None,
         "detail": detail,
     }
 

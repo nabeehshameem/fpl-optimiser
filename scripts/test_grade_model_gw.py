@@ -40,7 +40,9 @@ def build_db(tmp: Path, stats: dict, hits: int = 0,
     db = tmp / "fpl.db"
     conn = sqlite3.connect(db)
     conn.executescript("""
-        CREATE TABLE players (player_id INT PRIMARY KEY, position INT);
+        CREATE TABLE teams (team_id INT PRIMARY KEY, short_name TEXT);
+        CREATE TABLE players (player_id INT PRIMARY KEY, position INT,
+            web_name TEXT, team_id INT);
         CREATE TABLE gameweeks (gameweek_id INT PRIMARY KEY, deadline_time TEXT,
             is_current INT, is_next INT, finished INT, average_score INT);
         CREATE TABLE player_gameweek_history (player_id INT, gameweek_id INT,
@@ -50,7 +52,9 @@ def build_db(tmp: Path, stats: dict, hits: int = 0,
             transfers_json TEXT, free_transfers INT, bank INT,
             expected_points REAL, squad_hash TEXT);
     """)
-    conn.executemany("INSERT INTO players VALUES (?,?)", list(POS.items()))
+    conn.execute("INSERT INTO teams VALUES (1, 'TST')")
+    conn.executemany("INSERT INTO players VALUES (?,?,?,1)",
+                     [(pid, pos, f"P{pid}") for pid, pos in POS.items()])
     conn.execute("INSERT INTO gameweeks VALUES (1,'x',0,0,?,NULL)", (finished,))
     conn.executemany(
         "INSERT INTO player_gameweek_history VALUES (?,1,?,?)",
@@ -61,8 +65,9 @@ def build_db(tmp: Path, stats: dict, hits: int = 0,
               "is_vice": int(pid == vice),
               "bench_order": BENCH_ORDER.get(pid, 0)} for pid in POS]
     squad_hash = compute_squad_hash(squad)
-    conn.execute("INSERT INTO model_squad_log VALUES (1,'t','t',?,?,1,0,0,?)",
-                 (json.dumps(squad, **CANONICAL), json.dumps({"hits": hits}),
+    conn.execute("INSERT INTO model_squad_log VALUES (1,'t','t',?,?,1,0,62.0,?)",
+                 (json.dumps(squad, **CANONICAL),
+                  json.dumps({"in": [], "out": [], "hits": hits}),
                   squad_hash))
     conn.commit()
     conn.close()
