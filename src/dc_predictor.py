@@ -41,6 +41,10 @@ import numpy as np
 import pandas as pd
 
 from src.features import build_prediction_features
+from src.cold_start import (
+    COLD_START_MIN_GWS, fit_positional_priors, is_cold_start, prior_for,
+    resolve_archive,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT_ROOT / "data" / "fpl.db"
@@ -56,6 +60,7 @@ PT_SAVE3 = 1.0
 PT_CONCEDE = -1.0  # per 2 goals conceded (GK/DEF)
 
 POSITION_MAP = {1: "GK", 2: "DEF", 3: "MID", 4: "FWD"}
+POSITION_IDS = {v: k for k, v in POSITION_MAP.items()}
 MIN_APP_MINUTES = 1
 
 
@@ -64,9 +69,13 @@ class DCPredictor:
 
     MODEL_NAME = "dc_projection_v1"
 
-    def __init__(self, db_path: Path = DB_PATH, model_path: Path = MODEL_PATH):
+    def __init__(self, db_path: Path = DB_PATH, model_path: Path = MODEL_PATH,
+                 archive_db_path: Path | None = None):
         self.db_path = db_path
         self.model_path = model_path
+        # Only consulted while the live DB holds < COLD_START_MIN_GWS
+        # gameweeks of history; auto-resolved from data/fpl_*.db if None.
+        self.archive_db_path = archive_db_path
 
     # ── public interface ─────────────────────────────────────────────────────
 
@@ -78,7 +87,14 @@ class DCPredictor:
         computed from player_gameweek_history, which the evaluation harness
         restricts to pre-target data by construction.
         """
-        df = build_prediction_features(target_gw=target_gw)
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cold = is_cold_start(conn)
+        finally:
+            conn.close()
+
+        df = (self._cold_start_frame(target_gw) if cold
+              else build_prediction_features(target_gw=target_gw))
         projections = self._project(target_gw)
         df["predicted_points"] = df["player_id"].map(projections).fillna(0.0)
         if "num_fixtures" in df.columns:
@@ -104,6 +120,46 @@ class DCPredictor:
         finally:
             conn.close()
         return len(rows)
+
+    def _cold_start_frame(self, target_gw: int) -> pd.DataFrame:
+        """Minimal frame with the required schema, built without form history.
+
+        Eligibility gates are opened: with no current-season appearances,
+        qualifying-games filters would exclude every player. This mirrors the
+        gate lock_model_squad.py already applies when max_hist_gw < 3.
+        """
+        conn = sqlite3.connect(self.db_path)
+        try:
+            players = pd.read_sql_query(
+                "SELECT player_id, team_id FROM players "
+                "WHERE position IS NOT NULL", conn)
+            fixtures = pd.read_sql_query(
+                "SELECT home_team_id, away_team_id FROM fixtures "
+                "WHERE gameweek_id = ?", conn, params=(target_gw,))
+            try:
+                snaps = pd.read_sql_query(
+                    "SELECT player_id, chance_of_playing_next FROM ("
+                    "  SELECT player_id, chance_of_playing_next,"
+                    "         ROW_NUMBER() OVER (PARTITION BY player_id"
+                    "           ORDER BY gameweek_id DESC) rn"
+                    "  FROM player_snapshots) WHERE rn = 1", conn)
+            except Exception:
+                snaps = pd.DataFrame(columns=["player_id",
+                                              "chance_of_playing_next"])
+        finally:
+            conn.close()
+
+        playing = set(fixtures["home_team_id"]) | set(fixtures["away_team_id"])
+        df = players.copy()
+        df["num_fixtures"] = df["team_id"].isin(playing).astype(int)
+        df["qualifying_games_3"] = COLD_START_MIN_GWS
+        df["qualifying_games_5"] = 5
+        if not snaps.empty:
+            df = df.merge(snaps, on="player_id", how="left")
+        else:
+            df["chance_of_playing_next"] = 100
+        df["chance_of_playing_next"] = df["chance_of_playing_next"].fillna(100)
+        return df
 
     # ── projection internals (ported) ────────────────────────────────────────
 
@@ -217,7 +273,21 @@ class DCPredictor:
         conn = sqlite3.connect(self.db_path)
         try:
             positions = self._player_positions(conn)
-            rates = self._compute_player_rates(conn)
+            costs = dict(conn.execute(
+                "SELECT player_id, current_cost FROM players"))
+            cold = is_cold_start(conn)
+            if cold:
+                # Rates and priors from the archived season; everything else
+                # (fixtures, prices, availability) stays live.
+                arch = sqlite3.connect(resolve_archive(self.archive_db_path))
+                try:
+                    rates = self._compute_player_rates(arch)
+                    priors = fit_positional_priors(arch)
+                finally:
+                    arch.close()
+            else:
+                rates = self._compute_player_rates(conn)
+                priors = fit_positional_priors(conn)
             team_avgs = self._compute_team_season_avgs(conn)
             fixture_rows = conn.execute(
                 "SELECT home_team_id, away_team_id FROM fixtures "
@@ -243,7 +313,12 @@ class DCPredictor:
         for pid, (pos, tid) in positions.items():
             r = rates.get(pid)
             if r is None:
-                continue
+                # No history in the rates source: promoted-side player, new
+                # signing, or rookie. Use the fitted (position, price) prior
+                # rather than projecting zero and hiding them from the
+                # optimiser entirely.
+                r = dict(prior_for(priors, POSITION_IDS[pos], costs.get(pid, 45)))
+                r.setdefault("gw_count", 0)
             avg_min = r["avg_minutes"]
 
             if avg_min >= 75:

@@ -139,6 +139,17 @@ def _compute_form_for_targets(
     left["_key"] = left["gameweek_id"].astype(float) - 0.5
     left = left.sort_values("_key")
 
+    if right.empty:
+        # Reached only when there is no player history at all (a freshly
+        # rolled-over season DB). merge_asof would raise an opaque dtype
+        # error here; this says what actually happened.
+        raise RuntimeError(
+            "no player history — cold-start path not taken. "
+            "build_prediction_features() cannot compute form on an empty "
+            "history table; the caller should have used the cold-start "
+            "branch (see src/cold_start.py)."
+        )
+
     merged = pd.merge_asof(left, right, on="_key", by="player_id", direction="backward")
 
     # Restore targets' original row order, then fill players with no prior history.
