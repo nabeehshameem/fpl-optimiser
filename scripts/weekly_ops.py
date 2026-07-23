@@ -48,6 +48,27 @@ EXPORT_DIR = PROJECT_ROOT / "predictions" / "fpl"
 BRANCH = os.getenv("GIT_BRANCH", "main")
 ALERT_WEBHOOK = os.getenv("ALERT_WEBHOOK")
 
+# Dead-man's switch. An on-failure alert only fires if the job RUNS; it is
+# structurally blind to the likeliest failure of all — the job never
+# executing (machine asleep, scheduler misconfigured, laptop shut). Set
+# HEARTBEAT_URL_<PHASE> to a healthchecks.io-style check URL and the phase
+# pings it on success; if the ping doesn't arrive, that service alerts you.
+def heartbeat_url(phase: str) -> str | None:
+    return os.getenv(f"HEARTBEAT_URL_{phase.upper()}") or os.getenv("HEARTBEAT_URL")
+
+
+def heartbeat(phase: str) -> None:
+    """Ping the dead-man's switch. Never let this failure mask a real success."""
+    url = heartbeat_url(phase)
+    if not url:
+        return
+    try:
+        urllib.request.urlopen(url, timeout=10)
+        print(f"heartbeat sent ({phase})")
+    except Exception as exc:
+        print(f"[WARN] heartbeat failed: {exc}", file=sys.stderr)
+
+
 REFRESH_STEPS = [
     "scripts/ingest_bootstrap.py",
     "scripts/ingest_fixtures.py",
@@ -148,6 +169,7 @@ def phase_refresh() -> None:
     for s in REFRESH_STEPS:
         run_step(s, "refresh")
     print("\nrefresh OK — predictions written for the next gameweek")
+    heartbeat("refresh")
 
 
 def phase_lock() -> None:
@@ -188,6 +210,7 @@ def phase_lock() -> None:
     sha = commit_push_verify([export], f"GW{conn_gw} lock", "lock")
     print(f"\nlock OK — GW{conn_gw} commitment public at {sha[:9]}, "
           f"{remaining:.1f}h before deadline")
+    heartbeat("lock")
 
 
 def phase_grade() -> None:
@@ -217,6 +240,7 @@ def phase_grade() -> None:
     result = EXPORT_DIR / f"gw{gw:02d}_result.json"
     sha = commit_push_verify([result], f"GW{gw} graded", "grade")
     print(f"\ngrade OK — GW{gw} result public at {sha[:9]}")
+    heartbeat("grade")
 
 
 PHASES = {"refresh": phase_refresh, "lock": phase_lock, "grade": phase_grade}
