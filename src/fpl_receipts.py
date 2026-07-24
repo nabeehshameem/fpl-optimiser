@@ -83,11 +83,28 @@ def _fetch_entry_name(team_id: int) -> str | None:
     return data.get("name")
 
 
+# Fields this service depends on. If FPL renames them, every receipt would
+# quietly read 0 and publish "You 0 - 74 The Model" as though the user had
+# blanked. A wrong receipt is worse than no receipt, so a missing field is a
+# hard failure with a message naming exactly what changed.
+REQUIRED_ENTRY_HISTORY_FIELDS = ("points", "event_transfers_cost")
+
+
 def _fetch_gw_points(team_id: int, gw: int) -> tuple[int, int]:
     """(gross_points, hit_cost) for a team's finished gameweek."""
     data = _fetch_json(f"{FPL_BASE}/entry/{team_id}/event/{gw}/picks/")
-    eh = data.get("entry_history", {})
-    return int(eh.get("points", 0)), int(eh.get("event_transfers_cost", 0))
+    eh = data.get("entry_history")
+    if not isinstance(eh, dict):
+        raise HTTPException(
+            502, "FPL response has no 'entry_history' object — the picks "
+                 f"endpoint shape has changed. Keys seen: {sorted(data)[:12]}")
+    missing = [f for f in REQUIRED_ENTRY_HISTORY_FIELDS if f not in eh]
+    if missing:
+        raise HTTPException(
+            502, f"FPL entry_history is missing {missing} — the picks endpoint "
+                 f"shape has changed. Keys seen: {sorted(eh)[:12]}. Receipts "
+                 "are disabled until src/fpl_receipts.py is updated.")
+    return int(eh["points"]), int(eh["event_transfers_cost"])
 
 
 def _graded_gws() -> dict[int, int]:

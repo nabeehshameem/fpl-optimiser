@@ -44,7 +44,9 @@ def build_fixture(tmp: Path, graded: dict[int, int]) -> tuple[Path, Path]:
 class MockFPL:
     """Programmable stand-in for _fetch_json with call accounting."""
 
-    def __init__(self, entry_name="Test XI", gw_points=None, status=200):
+    def __init__(self, entry_name="Test XI", gw_points=None, status=200,
+                 shape="ok"):
+        self.shape = shape
         self.entry_name = entry_name
         self.gw_points = gw_points or {}   # {gw: (gross, hits)}
         self.status = status
@@ -56,6 +58,10 @@ class MockFPL:
             raise HTTPException(404, "FPL team not found.")
         if url.endswith("/picks/"):
             gw = int(url.rstrip("/").split("/")[-2])
+            if self.shape == "renamed":       # FPL renames the fields
+                return {"entry_history": {"total_points": 61, "transfers_cost": 4}}
+            if self.shape == "missing":       # entry_history gone entirely
+                return {"picks": [], "active_chip": None}
             gross, hits = self.gw_points[gw]
             return {"entry_history": {"points": gross,
                                       "event_transfers_cost": hits}}
@@ -132,6 +138,17 @@ def main():
     j = c.get("/api/fpl/receipt/1/555").json()
     ok &= check("R6 draw is a draw", j["winner"] == "draw"
                 and j["h2h_season"]["draws"] == 1)
+
+    # R7/R8: a changed FPL response shape must FAIL LOUDLY, never publish a 0.
+    for shape, label in [("renamed", "renamed fields"),
+                         ("missing", "no entry_history")]:
+        exp, rdb = build_fixture(Path(tempfile.mkdtemp()), {1: 60})
+        c = client(exp, rdb, MockFPL(gw_points={1: (70, 8)}, shape=shape))
+        r = c.get("/api/fpl/receipt/1/12345")
+        body = r.text
+        ok &= check(f"R7 {label} -> 502, not a silent zero",
+                    r.status_code == 502 and "shape has changed" in body,
+                    f"{r.status_code}: {body[:70]}")
 
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
