@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -36,8 +37,14 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from src.optimiser import SquadOptimiser  # noqa: E402
 from src.squad_commit import CANONICAL, compute_squad_hash  # noqa: E402
 
-DB_PATH = PROJECT_ROOT / "data" / "fpl.db"
-EXPORT_DIR = PROJECT_ROOT / "predictions" / "fpl"
+# Overridable so a DRY RUN can point at copies. Rehearsing against the real
+# database and export directory would write a row into the append-only ledger
+# and publish a commitment hash — the real lock would then be refused, and the
+# public record would carry a squad built at rehearsal time.
+#   FPL_DB_PATH=data/fpl_dryrun.db FPL_EXPORT_DIR=/tmp/dryrun GIT_BRANCH=dryrun \
+#       python scripts/weekly_ops.py lock
+DB_PATH = Path(os.getenv("FPL_DB_PATH", PROJECT_ROOT / "data" / "fpl.db"))
+EXPORT_DIR = Path(os.getenv("FPL_EXPORT_DIR", PROJECT_ROOT / "predictions" / "fpl"))
 
 MAX_BANKED_FT = 5
 MODEL_NAME = "dc_projection_v1"  # clean OOS bake-off winner; see scripts/run_evaluation.py
