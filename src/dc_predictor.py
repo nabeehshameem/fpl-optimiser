@@ -268,7 +268,8 @@ class DCPredictor:
         from scipy.stats import poisson
         return float(poisson.pmf(0, max(mu_against, 0.01)))
 
-    def _project(self, target_gw: int) -> dict[int, float]:
+    def _project(self, target_gw: int,
+                 explain: set | None = None) -> dict[int, float]:
         """{player_id: projected_points} for target_gw."""
         conn = sqlite3.connect(self.db_path)
         try:
@@ -279,10 +280,38 @@ class DCPredictor:
             if cold:
                 # Rates and priors from the archived season; everything else
                 # (fixtures, prices, availability) stays live.
+                #
+                # FPL reassigns player_ids between seasons, so archive rates
+                # must be matched by (web_name, position), not by player_id.
+                # Keying by id silently gives a 26/27 GK the xG of whoever
+                # happened to hold that id in 25/26 (e.g. an attacking MID).
                 arch = sqlite3.connect(resolve_archive(self.archive_db_path))
                 try:
-                    rates = self._compute_player_rates(arch)
+                    archive_rates_by_id = self._compute_player_rates(arch)
+                    arch_names = {
+                        int(pid): (web_name, pos)
+                        for pid, web_name, pos in arch.execute(
+                            "SELECT player_id, web_name, position FROM players")
+                    }
+                    # {(web_name, position): rates}
+                    archive_rates_by_name = {
+                        arch_names[pid]: r
+                        for pid, r in archive_rates_by_id.items()
+                        if pid in arch_names
+                    }
                     priors = fit_positional_priors(arch)
+                    # Re-key to 26/27 player_ids via name+position match
+                    # (conn is still open here, inside the outer try block)
+                    live_names = {
+                        int(pid): (web_name, pos)
+                        for pid, web_name, pos in conn.execute(
+                            "SELECT player_id, web_name, position FROM players")
+                    }
+                    rates = {
+                        pid: archive_rates_by_name[key]
+                        for pid, key in live_names.items()
+                        if key in archive_rates_by_name
+                    }
                 finally:
                     arch.close()
             else:
@@ -310,6 +339,7 @@ class DCPredictor:
             team_fixture_adj[int(a)] = self._fixture_adjustments(h, a, dc, team_avgs, False)
 
         out: dict[int, float] = {}
+        self.explained: dict[int, dict] = {}
         for pid, (pos, tid) in positions.items():
             r = rates.get(pid)
             if r is None:
@@ -370,4 +400,24 @@ class DCPredictor:
             total = (app_pts + cs_pts + concede_pts + goal_pts
                      + assist_pts + save_pts + bonus_pts)
             out[pid] = round(max(0.0, total), 2)
+
+            if explain and pid in explain:
+                self.explained[pid] = {
+                    "position": pos, "team_id": tid,
+                    "from_prior": rates.get(pid) is None,
+                    "avg_minutes": round(avg_min, 1),
+                    "start_prob": round(start_prob, 3), "p60": round(p60, 3),
+                    "xg_adj": round(xg_adj, 3), "xga_adj": round(xga_adj, 3),
+                    "adjusted_xga": round(adjusted_xga, 3),
+                    "cs_prob": round(cs_prob, 3),
+                    "eff_xg": round(eff_xg, 4), "eff_xa": round(eff_xa, 4),
+                    "PTS_appearance": round(app_pts, 2),
+                    "PTS_clean_sheet": round(cs_pts, 2),
+                    "PTS_concede": round(concede_pts, 2),
+                    "PTS_goals": round(goal_pts, 2),
+                    "PTS_assists": round(assist_pts, 2),
+                    "PTS_saves": round(save_pts, 2),
+                    "PTS_bonus": round(bonus_pts, 2),
+                    "TOTAL": round(max(0.0, total), 2),
+                }
         return out
