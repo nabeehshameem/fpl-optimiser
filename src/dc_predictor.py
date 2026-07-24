@@ -294,11 +294,24 @@ class DCPredictor:
                             "SELECT player_id, web_name, position FROM players")
                     }
                     # {(web_name, position): rates}
-                    archive_rates_by_name = {
-                        arch_names[pid]: r
-                        for pid, r in archive_rates_by_id.items()
-                        if pid in arch_names
-                    }
+                    # Build with collision detection: if two archive players
+                    # share a name+position key (e.g. two "Gray" MIDs from
+                    # different clubs), mark the key ambiguous so we fall back
+                    # to prior rather than silently picking whichever row was
+                    # read last.
+                    _seen: set = set()
+                    _ambiguous: set = set()
+                    archive_rates_by_name: dict = {}
+                    for pid, r in archive_rates_by_id.items():
+                        if pid not in arch_names:
+                            continue
+                        key = arch_names[pid]
+                        if key in _seen:
+                            _ambiguous.add(key)
+                            archive_rates_by_name.pop(key, None)
+                        elif key not in _ambiguous:
+                            _seen.add(key)
+                            archive_rates_by_name[key] = r
                     priors = fit_positional_priors(arch)
                     # Re-key to 26/27 player_ids via name+position match
                     # (conn is still open here, inside the outer try block)

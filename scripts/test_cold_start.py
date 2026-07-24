@@ -123,15 +123,16 @@ def build_archive(tmp: Path) -> Path:
     return db
 
 
-def build_live(tmp: Path, live_gws: int = 0) -> Path:
+def build_live(tmp: Path, live_gws: int = 0, id_map: dict | None = None) -> Path:
     """New season: everyone present, `live_gws` gameweeks of history."""
     db = tmp / "fpl.db"
     conn = sqlite3.connect(db)
     _base(conn)
+    m = id_map or {}
     conn.executemany(
         "INSERT INTO players (player_id, web_name, team_id, position, "
         "current_cost) VALUES (?,?,?,?,?)",
-        [(pid, nm, tm, pos, cost) for pid, nm, tm, pos, cost
+        [(m.get(pid, pid), nm, tm, pos, cost) for pid, nm, tm, pos, cost
          in RETURNING + PROMOTED])
     for gw in range(1, 9):
         conn.execute("INSERT INTO gameweeks VALUES (?,?,0,?,?,NULL)",
@@ -150,6 +151,7 @@ def build_live(tmp: Path, live_gws: int = 0) -> Path:
         rows = []
         for gw in range(1, live_gws + 1):
             for pid, _nm, _tm, _pos, cost in RETURNING + PROMOTED:
+                pid = m.get(pid, pid)
                 # live season: flat, low output — deliberately unlike archive
                 rows.append((pid, gw, None, 90, 0, 0, 0, 2, 0, 10,
                              0.05, 0.05, 0, cost, 100))
@@ -253,6 +255,31 @@ def main():
     except Exception as e:
         ok &= check("K6 empty history raises the diagnosis", False,
                     f"wrong type: {type(e).__name__}")
+
+    # ── K7/K8: FPL reassigns player_ids between seasons ─────────────────
+    # Archive: id 10 = "Star FWD" (FWD, high xG), id 16 = "First GK" (GK).
+    # Live:    "First GK" now holds id 10; "Star FWD" moved to 916.
+    # Matching by id would hand the GOALKEEPER a striker's expected goals —
+    # multiplied by PT_GOAL["GK"], the largest coefficient in the table.
+    shifted = tmp / "shifted"
+    shifted.mkdir(exist_ok=True)
+    live_s = build_live(shifted, live_gws=0, id_map={16: 10, 10: 916})
+    feat.DB_PATH = live_s
+    dcp.DB_PATH = live_s
+    ps = DCPredictor(db_path=live_s, model_path=model, archive_db_path=archive)
+    dfs = ps.predict_all(target_gw=8)
+    ps._project(8, explain={10, 916})
+    gk = ps.explained[10]
+    fwd = ps.explained[916]
+
+    ok &= check("K7 rates follow the PLAYER across reassigned ids",
+                not gk["from_prior"] and not fwd["from_prior"],
+                f"gk_prior={gk['from_prior']} fwd_prior={fwd['from_prior']}")
+    ok &= check("K8 GK holding a striker's old id gets NO striker xG",
+                gk["eff_xg"] < 0.2 and gk["PTS_goals"] < 2.0,
+                f"eff_xg={gk['eff_xg']} PTS_goals={gk['PTS_goals']}")
+    ok &= check("K8 the striker keeps his own xG at his new id",
+                fwd["eff_xg"] > 0.4, f"eff_xg={fwd['eff_xg']}")
 
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
