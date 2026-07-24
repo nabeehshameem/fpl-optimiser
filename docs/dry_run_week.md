@@ -11,14 +11,17 @@ Point everything at copies instead. All three variables must be set.
 
     cd C:\Users\GGPC\Projects\fpl-optimiser
     Copy-Item data\fpl.db data\fpl_dryrun.db
-    New-Item -ItemType Directory -Force -Path C:\temp\fpl-dryrun | Out-Null
+    New-Item -ItemType Directory -Force -Path predictions\fpl-dryrun | Out-Null
     git checkout -b dryrun ; git push -u origin dryrun
 
 ## 2. Set the overrides for THIS SHELL ONLY
 
     $env:FPL_DB_PATH   = "data\fpl_dryrun.db"
-    $env:FPL_EXPORT_DIR= "C:\temp\fpl-dryrun"
+    $env:FPL_EXPORT_DIR= "predictions\fpl-dryrun"
     $env:GIT_BRANCH    = "dryrun"
+
+FPL_EXPORT_DIR must be a subdirectory of the project root so git can stage
+the output files. C:\temp or any external path will be rejected.
 
 Do NOT put these in the Task Scheduler actions or in user environment
 variables — the real jobs must use the defaults.
@@ -34,8 +37,15 @@ Check, in order:
   * the commit landed on the dryrun branch: git ls-remote origin dryrun
   * healthchecks.io shows a ping for the lock check
   * data\fpl.db is UNCHANGED: the real ledger must have no GW1 row —
-    python -c "import sqlite3;print(sqlite3.connect('data/fpl.db').execute('SELECT COUNT(*) FROM model_squad_log').fetchone())"
-    must print (0,)
+    python -c "
+    import sqlite3; c=sqlite3.connect('data/fpl.db')
+    tables = {r[0] for r in c.execute(\"SELECT name FROM sqlite_master WHERE type='table'\")}
+    if 'model_squad_log' not in tables:
+        print('CLEAN: model_squad_log does not exist (no lock ever run on real DB)')
+    else:
+        print(c.execute('SELECT COUNT(*) FROM model_squad_log').fetchone())
+    "
+    must print CLEAN or (0,)
 
 ## 4. Rehearse grading
 

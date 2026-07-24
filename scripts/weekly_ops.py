@@ -44,7 +44,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-EXPORT_DIR = PROJECT_ROOT / "predictions" / "fpl"
+EXPORT_DIR = Path(os.getenv("FPL_EXPORT_DIR", PROJECT_ROOT / "predictions" / "fpl"))
 BRANCH = os.getenv("GIT_BRANCH", "main")
 ALERT_WEBHOOK = os.getenv("ALERT_WEBHOOK")
 
@@ -133,7 +133,16 @@ def git(*args: str, check: bool = True) -> str:
 
 def commit_push_verify(paths: list[Path], message: str, phase: str) -> str:
     """Stage, commit, push, then PROVE the remote has it. Returns commit sha."""
-    existing = [str(p.relative_to(PROJECT_ROOT)) for p in paths if p.exists()]
+    def _rel(p: Path) -> str:
+        try:
+            return str(p.resolve().relative_to(PROJECT_ROOT))
+        except ValueError:
+            raise ValueError(
+                f"{p} is outside the project root — FPL_EXPORT_DIR must be a "
+                f"subdirectory of the project for git to stage it. "
+                f"Use e.g. predictions/fpl-dryrun/ for dry runs."
+            ) from None
+    existing = [_rel(p) for p in paths if p.exists()]
     if not existing:
         die(phase, f"expected export file(s) missing: "
                    f"{[str(p) for p in paths]} — nothing to publish")
@@ -217,7 +226,9 @@ def phase_grade() -> None:
     import sqlite3
     import scripts.lock_model_squad as lk
 
+    import scripts.grade_model_gw as grd
     conn = sqlite3.connect(lk.DB_PATH)
+    conn.execute(grd.RESULTS_SQL)
     row = conn.execute("""
         SELECT l.gameweek_id FROM model_squad_log l
         JOIN gameweeks g ON g.gameweek_id = l.gameweek_id
