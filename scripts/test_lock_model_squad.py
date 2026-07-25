@@ -1,4 +1,4 @@
-"""
+﻿"""
 End-to-end test of scripts/lock_model_squad.py over a synthetic two-GW season.
 No real fpl.db required. Run: python scripts/test_lock_model_squad.py
 
@@ -51,7 +51,7 @@ def build_world(tmpdir: Path) -> Path:
     """)
     conn.executemany("INSERT INTO teams VALUES (?,?)",
                      [(i, f"T{i}") for i in range(1, 11)])
-    # (id, name, pos, team, cost) — enough depth in every position
+    # (id, name, pos, team, cost) â€” enough depth in every position
     players = [
         (1, "GK1", 1, 1, 45), (2, "GK2", 1, 2, 40),
         (3, "D1", 2, 1, 55), (4, "D2", 2, 2, 55), (5, "D3", 2, 3, 50),
@@ -92,7 +92,7 @@ def main():
     lock_mod.DB_PATH = db
     lock_mod.EXPORT_DIR = tmp / "predictions"
 
-    # Isolate from real config/player_exclusions.txt — the production file
+    # Isolate from real config/player_exclusions.txt â€” the production file
     # contains IDs that collide with the synthetic world's player numbering.
     empty_excl = tmp / "exclusions_empty.txt"
     empty_excl.write_text("")
@@ -100,7 +100,7 @@ def main():
 
     ok = True
 
-    # ── L1: GW1 fresh lock ──────────────────────────────────────────────────
+    # â”€â”€ L1: GW1 fresh lock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     p1 = lock_mod.lock()
     conn = sqlite3.connect(db)
     squad_cost = sum(
@@ -122,14 +122,14 @@ def main():
     ok &= check("L1 exactly one captain",
                 sum(r["is_captain"] for r in p1["squad"]) == 1)
 
-    # ── L2: append-only ─────────────────────────────────────────────────────
+    # â”€â”€ L2: append-only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try:
         lock_mod.lock()
         ok &= check("L2 re-lock refused", False)
     except RuntimeError as e:
         ok &= check("L2 re-lock refused", "append-only" in str(e))
 
-    # ── L3: GW2 with a price rise ───────────────────────────────────────────
+    # â”€â”€ L3: GW2 with a price rise â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # advance world: GW1 done, GW2 next; every squad player rises 3 (0.3m)
     squad_ids = [r["player_id"] for r in p1["squad"]]
     conn.execute("UPDATE gameweeks SET is_next=0, finished=1 WHERE gameweek_id=1")
@@ -180,7 +180,7 @@ def main():
                 all(r["purchase_price"] == prev_purchase[r["player_id"]]
                     for r in p2["squad"] if r["player_id"] in prev_purchase))
 
-    # ── L4: deadline guard ──────────────────────────────────────────────────
+    # â”€â”€ L4: deadline guard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     conn = sqlite3.connect(db)
     conn.execute("DELETE FROM model_squad_log WHERE gameweek_id=2")
     conn.execute("UPDATE gameweeks SET deadline_time=? WHERE gameweek_id=2",
@@ -192,7 +192,7 @@ def main():
     except RuntimeError as e:
         ok &= check("L4 post-deadline lock refused", "deadline" in str(e).lower())
 
-    # ── L5: excluded player cannot appear in optimised squad ─────────────────
+    # â”€â”€ L5: excluded player cannot appear in optimised squad â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     import src.availability as avail
 
     tmp5 = Path(tempfile.mkdtemp())
@@ -200,10 +200,13 @@ def main():
     lock_mod.DB_PATH = db5
     lock_mod.EXPORT_DIR = tmp5 / "predictions"
 
-    # Exclude F1 (player_id=15), the highest-scored forward — it would be in
+    # Exclude F1 (player_id=15), the highest-scored forward â€” it would be in
     # any unconstrained squad given pts=9. After exclusion it must not appear.
     excl_file = tmp5 / "exclusions.txt"
-    excl_file.write_text("15\n")
+    # Labelled form is mandatory: the loader validates the comment against the
+    # database so a stale or reassigned id fails loudly instead of removing
+    # the wrong player.
+    excl_file.write_text("15  # F1 (T8) -- deliberately excluded for L5\n", encoding="utf-8")
     avail.EXCLUSIONS_FILE = excl_file
 
     p5 = lock_mod.lock()
@@ -229,3 +232,4 @@ def dict_cost(db, pid):
 
 if __name__ == "__main__":
     main()
+
