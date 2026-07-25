@@ -1,0 +1,11 @@
+# Manual player exclusions — add a line when you know someone won't play
+# Format: player_id  # web_name (team) — reason
+# One entry per line. Lines starting with # are comments.
+
+# ARS — Raya is the confirmed starter; Arrizabalaga and Meslier are backups
+2    # Arrizabalaga (ARS) — backup behind Raya
+3    # Meslier (ARS) — backup behind Raya
+
+# MCI — Donnarumma is the confirmed starter post-Kelleher departure
+385  # Trafford (MCI) — backup behind Donnarumma
+386  # Bettinelli (MCI) — backup behind Donnarumma
