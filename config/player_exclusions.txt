@@ -9,3 +9,6 @@
 # MCI — Donnarumma is the confirmed starter post-Kelleher departure
 385  # Trafford (MCI) — backup behind Donnarumma
 386  # Bettinelli (MCI) — backup behind Donnarumma
+
+# IPS — Walton is the starter; Button (37) is 3rd choice
+302  # Button (IPS) — 3rd choice GK, age 37
