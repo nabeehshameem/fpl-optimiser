@@ -85,10 +85,19 @@ def check(label, cond, detail=""):
 
 
 def main():
+    import src.availability as avail
+
     tmp = Path(tempfile.mkdtemp())
     db = build_world(tmp)
     lock_mod.DB_PATH = db
     lock_mod.EXPORT_DIR = tmp / "predictions"
+
+    # Isolate from real config/player_exclusions.txt — the production file
+    # contains IDs that collide with the synthetic world's player numbering.
+    empty_excl = tmp / "exclusions_empty.txt"
+    empty_excl.write_text("")
+    avail.EXCLUSIONS_FILE = empty_excl
+
     ok = True
 
     # ── L1: GW1 fresh lock ──────────────────────────────────────────────────
@@ -182,6 +191,29 @@ def main():
         ok &= check("L4 post-deadline lock refused", False)
     except RuntimeError as e:
         ok &= check("L4 post-deadline lock refused", "deadline" in str(e).lower())
+
+    # ── L5: excluded player cannot appear in optimised squad ─────────────────
+    import src.availability as avail
+
+    tmp5 = Path(tempfile.mkdtemp())
+    db5 = build_world(tmp5)
+    lock_mod.DB_PATH = db5
+    lock_mod.EXPORT_DIR = tmp5 / "predictions"
+
+    # Exclude F1 (player_id=15), the highest-scored forward — it would be in
+    # any unconstrained squad given pts=9. After exclusion it must not appear.
+    excl_file = tmp5 / "exclusions.txt"
+    excl_file.write_text("15\n")
+    avail.EXCLUSIONS_FILE = excl_file
+
+    p5 = lock_mod.lock()
+    squad5 = {r["player_id"] for r in p5["squad"]}
+    ok &= check("L5 excluded player absent from squad", 15 not in squad5,
+                f"squad={sorted(squad5)}")
+    ok &= check("L5 squad still has 15 players", len(p5["squad"]) == 15,
+                f"len={len(p5['squad'])}")
+
+    avail.EXCLUSIONS_FILE = PROJECT_ROOT / "config" / "player_exclusions.txt"
 
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)

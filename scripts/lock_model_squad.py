@@ -34,6 +34,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.availability import get_excluded_ids  # noqa: E402
 from src.optimiser import SquadOptimiser  # noqa: E402
 from src.squad_commit import CANONICAL, compute_squad_hash  # noqa: E402
 
@@ -190,6 +191,12 @@ def lock(dry_run: bool = False) -> dict:
         )
 
     preds = load_predictions(conn, gw)
+    excluded = get_excluded_ids(DB_PATH, gw)
+    if excluded:
+        before = len(preds)
+        preds = preds[~preds["player_id"].isin(excluded)].copy()
+        print(f"  Availability filter: {before - len(preds)} players removed "
+              f"({len(preds)} eligible)")
     prices = current_prices(conn)
     prev = previous_state(conn)
     opt = SquadOptimiser(db_path=DB_PATH)

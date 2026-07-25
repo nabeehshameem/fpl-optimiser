@@ -4,7 +4,7 @@ availability.py
 Returns the set of player_ids to exclude from squad optimisation.
 
 Two sources:
-  1. data/player_exclusions.txt  — manual list (backup GKs, known non-starters)
+  1. config/player_exclusions.txt — manual list (backup GKs, known non-starters)
   2. player_snapshots.chance_of_playing_next < CHANCE_THRESHOLD — FPL injury flag
 
 Pre-season the FPL field is usually NULL (unpopulated), so the manual list
