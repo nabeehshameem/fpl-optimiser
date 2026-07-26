@@ -16,6 +16,7 @@ R6  Draw counted as draw, not a win for either side
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -149,6 +150,27 @@ def main():
         ok &= check(f"R7 {label} -> 502, not a silent zero",
                     r.status_code == 502 and "shape has changed" in body,
                     f"{r.status_code}: {body[:70]}")
+
+    # R8: a cache written under the previous schema (no season column) must be
+    # rebuilt rather than served — its rows' season is unknowable, and FPL may
+    # reassign team ids between seasons.
+    exp, rdb = build_fixture(Path(tempfile.mkdtemp()), {1: 60})
+    old = sqlite3.connect(rdb)
+    old.execute("""CREATE TABLE receipts (gameweek_id INTEGER NOT NULL,
+        team_id INTEGER NOT NULL, fetched_at TEXT NOT NULL, team_name TEXT,
+        points_gross INTEGER NOT NULL, hit_points INTEGER NOT NULL,
+        points_net INTEGER NOT NULL, PRIMARY KEY (gameweek_id, team_id))""")
+    old.execute("INSERT INTO receipts VALUES (1,12345,'t','Stale XI',999,0,999)")
+    old.commit(); old.close()
+
+    c = client(exp, rdb, MockFPL(gw_points={1: (70, 8)}))
+    j = c.get("/api/fpl/receipt/1/12345").json()
+    ok &= check("R8 pre-season-column cache discarded, not served",
+                j["user"]["points_net"] == 62, f"got {j['user']['points_net']}")
+    cols = [r[1] for r in sqlite3.connect(rdb).execute(
+        "PRAGMA table_info(receipts)")]
+    ok &= check("R8 rebuilt table carries the season column", "season" in cols,
+                str(cols))
 
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)

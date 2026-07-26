@@ -43,8 +43,19 @@ _HEADERS = {"User-Agent": "themodelsays.com receipt service"}
 
 router = APIRouter(prefix="/api/fpl", tags=["fpl-receipts"])
 
+# FPL appears to issue a NEW entry id per season — registration reopens each
+# year and ids are handed out in signup order, which is why there is an annual
+# scramble for low numbers. Sources disagree (some claim ids are permanent), so
+# treat reassignment as possible rather than proven. Either way, keying the
+# cache on (gameweek_id, team_id) alone is unsafe: gameweek ids restart at 1
+# every season, so next season's (GW1, 123) would collide with this season's,
+# and receipts are cached as immutable-forever. That is the same collision the
+# player history table had. The season column costs nothing now.
+SEASON = os.getenv("FPL_SEASON", "2026-27")
+
 RECEIPTS_SQL = """
 CREATE TABLE IF NOT EXISTS receipts (
+    season        TEXT NOT NULL,
     gameweek_id   INTEGER NOT NULL,
     team_id       INTEGER NOT NULL,
     fetched_at    TEXT NOT NULL,
@@ -52,15 +63,30 @@ CREATE TABLE IF NOT EXISTS receipts (
     points_gross  INTEGER NOT NULL,
     hit_points    INTEGER NOT NULL,
     points_net    INTEGER NOT NULL,
-    PRIMARY KEY (gameweek_id, team_id)
+    PRIMARY KEY (season, gameweek_id, team_id)
 )
 """
+
+
+def _migrate_if_needed(conn: sqlite3.Connection) -> None:
+    """Drop a pre-season-column cache rather than serving ambiguous rows.
+
+    Safe because receipts are a pure cache: anything discarded is refetched on
+    the next request. Keeping the old rows would mean rows whose season is
+    unknown, which is exactly the ambiguity the column exists to remove.
+    """
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(receipts)")]
+    if cols and "season" not in cols:
+        conn.execute("DROP TABLE receipts")
+        conn.commit()
+        print("receipts cache rebuilt: added season column (rows refetch on demand)")
 
 
 def _connect() -> sqlite3.Connection:
     RECEIPTS_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(RECEIPTS_DB_PATH)
     conn.row_factory = sqlite3.Row
+    _migrate_if_needed(conn)
     conn.execute(RECEIPTS_SQL)
     return conn
 
@@ -122,27 +148,28 @@ def _graded_gws() -> dict[int, int]:
 
 def _cached_receipts(conn, team_id: int) -> dict[int, sqlite3.Row]:
     return {int(r["gameweek_id"]): r for r in conn.execute(
-        "SELECT * FROM receipts WHERE team_id = ?", (team_id,))}
+        "SELECT * FROM receipts WHERE season = ? AND team_id = ?",
+        (SEASON, team_id))}
 
 
 def _ensure_receipt(conn, team_id: int, gw: int,
                     team_name: str | None) -> sqlite3.Row:
     """Fetch-and-cache a single (team, gw) receipt if absent. Immutable after."""
     row = conn.execute(
-        "SELECT * FROM receipts WHERE gameweek_id = ? AND team_id = ?",
-        (gw, team_id)).fetchone()
+        "SELECT * FROM receipts WHERE season = ? AND gameweek_id = ? "
+        "AND team_id = ?", (SEASON, gw, team_id)).fetchone()
     if row is not None:
         return row
     gross, hits = _fetch_gw_points(team_id, gw)
     conn.execute(
-        "INSERT INTO receipts VALUES (?,?,?,?,?,?,?)",
-        (gw, team_id,
+        "INSERT INTO receipts VALUES (?,?,?,?,?,?,?,?)",
+        (SEASON, gw, team_id,
          datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
          team_name, gross, hits, gross - hits))
     conn.commit()
     return conn.execute(
-        "SELECT * FROM receipts WHERE gameweek_id = ? AND team_id = ?",
-        (gw, team_id)).fetchone()
+        "SELECT * FROM receipts WHERE season = ? AND gameweek_id = ? "
+        "AND team_id = ?", (SEASON, gw, team_id)).fetchone()
 
 
 @router.get("/receipt/{gw}/{team_id}")
