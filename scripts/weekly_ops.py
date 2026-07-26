@@ -47,6 +47,10 @@ sys.path.insert(0, str(PROJECT_ROOT))
 EXPORT_DIR = Path(os.getenv("FPL_EXPORT_DIR", PROJECT_ROOT / "predictions" / "fpl"))
 BRANCH = os.getenv("GIT_BRANCH", "main")
 ALERT_WEBHOOK = os.getenv("ALERT_WEBHOOK")
+# Vercel deploy hook URL. POST triggers a rebuild so the prerendered HTML
+# gains the new graded gameweek. Get it from Vercel Project Settings →
+# Git → Deploy Hooks, add to Railway env alongside ALERT_WEBHOOK.
+VERCEL_DEPLOY_HOOK = os.getenv("VERCEL_DEPLOY_HOOK")
 
 # Dead-man's switch. An on-failure alert only fires if the job RUNS; it is
 # structurally blind to the likeliest failure of all — the job never
@@ -67,6 +71,23 @@ def heartbeat(phase: str) -> None:
         print(f"heartbeat sent ({phase})")
     except Exception as exc:
         print(f"[WARN] heartbeat failed: {exc}", file=sys.stderr)
+
+
+def trigger_vercel_rebuild() -> None:
+    """POST to the Vercel deploy hook so the prerendered HTML gains the new result.
+
+    Never let a failed hook mask a successful grade — log and move on.
+    """
+    if not VERCEL_DEPLOY_HOOK:
+        return
+    try:
+        req = urllib.request.Request(
+            VERCEL_DEPLOY_HOOK, data=b"",
+            headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=15)
+        print("Vercel rebuild triggered")
+    except Exception as exc:
+        print(f"[WARN] Vercel deploy hook failed: {exc}", file=sys.stderr)
 
 
 REFRESH_STEPS = [
@@ -251,6 +272,7 @@ def phase_grade() -> None:
     result = EXPORT_DIR / f"gw{gw:02d}_result.json"
     sha = commit_push_verify([result], f"GW{gw} graded", "grade")
     print(f"\ngrade OK — GW{gw} result public at {sha[:9]}")
+    trigger_vercel_rebuild()
     heartbeat("grade")
 
 
