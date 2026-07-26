@@ -34,7 +34,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.availability import get_excluded_ids  # noqa: E402
+from src.availability import (  # noqa: E402
+    CHANCE_THRESHOLD, get_excluded_ids, validate_exclusions,
+)
 from src.optimiser import SquadOptimiser  # noqa: E402
 from src.squad_commit import CANONICAL, compute_squad_hash  # noqa: E402
 
@@ -63,13 +65,18 @@ CREATE TABLE IF NOT EXISTS model_squad_log (
     free_transfers  INTEGER NOT NULL,
     bank            INTEGER NOT NULL, -- tenths of GBP 1m, AFTER transfers
     expected_points REAL,
-    squad_hash      TEXT NOT NULL
+    squad_hash      TEXT NOT NULL,
+    excluded_json   TEXT             -- {manual:[...], unavailable:[...]} — see reveal
 )
 """
 
 
 def ensure_ledger(conn: sqlite3.Connection) -> None:
     conn.execute(LEDGER_SQL)
+    try:
+        conn.execute("ALTER TABLE model_squad_log ADD COLUMN excluded_json TEXT")
+    except sqlite3.OperationalError:
+        pass  # column already exists
     conn.commit()
 
 
@@ -271,6 +278,33 @@ def lock(dry_run: bool = False) -> dict:
         "bench_order": bench_order.get(int(pid), 0),
     } for pid in squad_ids]
 
+    # Build the excluded-player disclosure that travels with the lock.
+    # validate_exclusions already ran (inside get_excluded_ids) and passed,
+    # so this second call is guaranteed to succeed without a new ExclusionError.
+    manual_entries = validate_exclusions(DB_PATH)
+    manual_excluded = [
+        {"player_id": pid, "web_name": name, "team": team}
+        for pid, name, team in manual_entries
+    ]
+    unavailable_excluded = []
+    try:
+        for pid, name, team, chance in conn.execute(
+            "SELECT p.player_id, p.web_name, t.short_name, s.chance_of_playing_next "
+            "FROM player_snapshots s "
+            "JOIN players p ON p.player_id = s.player_id "
+            "LEFT JOIN teams t ON t.team_id = p.team_id "
+            "WHERE s.gameweek_id = ? AND s.chance_of_playing_next IS NOT NULL "
+            "AND s.chance_of_playing_next < ?",
+            (gw, CHANCE_THRESHOLD),
+        ).fetchall():
+            unavailable_excluded.append(
+                {"player_id": int(pid), "web_name": name, "team": team,
+                 "chance_of_playing": int(chance)}
+            )
+    except Exception:
+        pass
+    excluded_data = {"manual": manual_excluded, "unavailable": unavailable_excluded}
+
     payload = {
         "gameweek": gw,
         "locked_at_utc": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -280,6 +314,7 @@ def lock(dry_run: bool = False) -> dict:
         "free_transfers_after": free_transfers_after,
         "bank_after": bank_after,
         "expected_points": round(float(result["expected_points"]), 2),
+        "excluded_from_pool": excluded_data,
     }
     payload["squad_hash"] = compute_squad_hash(squad_rows)
 
@@ -289,11 +324,12 @@ def lock(dry_run: bool = False) -> dict:
         return payload
 
     conn.execute(
-        "INSERT INTO model_squad_log VALUES (?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO model_squad_log VALUES (?,?,?,?,?,?,?,?,?,?)",
         (gw, payload["locked_at_utc"], deadline,
          json.dumps(squad_rows, **CANONICAL), json.dumps(transfers),
          free_transfers_after, bank_after,
-         payload["expected_points"], payload["squad_hash"]),
+         payload["expected_points"], payload["squad_hash"],
+         json.dumps(excluded_data)),
     )
     conn.commit()
     conn.close()

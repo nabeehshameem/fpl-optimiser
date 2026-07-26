@@ -50,7 +50,7 @@ def build_db(tmp: Path, stats: dict, hits: int = 0,
         CREATE TABLE model_squad_log (gameweek_id INT PRIMARY KEY,
             locked_at_utc TEXT, deadline_utc TEXT, squad_json TEXT,
             transfers_json TEXT, free_transfers INT, bank INT,
-            expected_points REAL, squad_hash TEXT);
+            expected_points REAL, squad_hash TEXT, excluded_json TEXT);
     """)
     conn.execute("INSERT INTO teams VALUES (1, 'TST')")
     conn.executemany("INSERT INTO players VALUES (?,?,?,1)",
@@ -65,7 +65,7 @@ def build_db(tmp: Path, stats: dict, hits: int = 0,
               "is_vice": int(pid == vice),
               "bench_order": BENCH_ORDER.get(pid, 0)} for pid in POS]
     squad_hash = compute_squad_hash(squad)
-    conn.execute("INSERT INTO model_squad_log VALUES (1,'t','t',?,?,1,0,62.0,?)",
+    conn.execute("INSERT INTO model_squad_log VALUES (1,'t','t',?,?,1,0,62.0,?,NULL)",
                  (json.dumps(squad, **CANONICAL),
                   json.dumps({"in": [], "out": [], "hits": hits}),
                   squad_hash))

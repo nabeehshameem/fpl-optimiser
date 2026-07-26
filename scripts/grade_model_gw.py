@@ -95,13 +95,14 @@ def grade(gw: int | None = None, dry_run: bool = False,
         raise RuntimeError(f"GW{gw} already graded at {already[0]} (append-only).")
 
     lock_row = conn.execute(
-        "SELECT squad_json, transfers_json, squad_hash, expected_points "
+        "SELECT squad_json, transfers_json, squad_hash, expected_points, excluded_json "
         "FROM model_squad_log WHERE gameweek_id = ?",
         (gw,),
     ).fetchone()
     if not lock_row:
         raise RuntimeError(f"GW{gw} was never locked — nothing to grade.")
-    squad_json, transfers_json, stored_hash, lock_expected_pts = lock_row
+    squad_json, transfers_json, stored_hash, lock_expected_pts, excluded_json = lock_row
+    excluded_from_pool = json.loads(excluded_json) if excluded_json else None
 
     # Verify the pre-deadline commitment before revealing the graded result.
     # src.squad_commit is the single source of truth for canonicalisation —
@@ -247,6 +248,13 @@ def grade(gw: int | None = None, dry_run: bool = False,
         "average_score": average_score,
         "expected_points": float(lock_expected_pts) if lock_expected_pts is not None else None,
         "detail": detail,
+        # Players removed from the optimiser's pool at lock time.
+        # manual: hand-maintained config/player_exclusions.txt (validated
+        #   against the DB at lock time; the file's state is pinned by the
+        #   same git commit that pushed this result).
+        # unavailable: FPL's chance_of_playing_next < 50 at lock time.
+        # None on squads locked before this field was introduced.
+        "excluded_from_pool": excluded_from_pool,
     }
 
     if dry_run:
