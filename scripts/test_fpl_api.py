@@ -159,6 +159,38 @@ def main():
         "above": 1, "below": 0, "equal": 0})
     ok &= check("A5 cumulative tracks", j["gameweeks"][0]["cumulative"] == 62)
 
+    # A6: projections are published at LOCK time and are readable BEFORE the
+    # deadline — the one pre-deadline useful endpoint. They must never carry the
+    # squad or the hash, or they would defeat the commitment they ship beside.
+    r = c.get("/api/fpl/projections/9")
+    ok &= check("A6 unpublished projections -> 404", r.status_code == 404,
+                str(r.status_code))
+
+    proj = {
+        "gameweek": 3, "deadline_utc": FUTURE,
+        "generated_at_utc": PAST, "model": "dc_projection_v1",
+        "captain_candidates": [{"player_id": 10, "name": "P10", "team": "TST",
+                                "position": "FWD", "price": 12.5,
+                                "projected_points": 9.1, "opponent": "T2",
+                                "venue": "H"}],
+        "by_position": {"GK": [], "DEF": [], "MID": [], "FWD": []},
+        "excluded": [{"player_id": 12, "name": "P12", "team": "TST"}],
+        "note": "not its selection",
+    }
+    (fpl_api.EXPORT_DIR / "gw03_projections.json").write_text(json.dumps(proj))
+
+    r = c.get("/api/fpl/projections/3")
+    j = r.json()
+    ok &= check("A6 projections served pre-deadline", r.status_code == 200
+                and j["captain_candidates"][0]["name"] == "P10")
+    leaked = [k for k in ("squad", "squad_hash", "transfers") if k in j]
+    ok &= check("A6 projections leak neither squad nor hash", not leaked,
+                f"leaked={leaked}")
+    # GW3's own commitment must still be withheld — projections do not unlock it
+    g = c.get("/api/fpl/model/gw/3").json()
+    ok &= check("A6 squad still withheld for the same GW",
+                g["revealed"] is False and "squad" not in g)
+
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
 

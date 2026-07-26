@@ -50,6 +50,7 @@ DB_PATH = Path(os.getenv("FPL_DB_PATH", PROJECT_ROOT / "data" / "fpl.db"))
 EXPORT_DIR = Path(os.getenv("FPL_EXPORT_DIR", PROJECT_ROOT / "predictions" / "fpl"))
 
 MAX_BANKED_FT = 5
+POSITION_MAP = {1: "GK", 2: "DEF", 3: "MID", 4: "FWD"}
 MODEL_NAME = "dc_projection_v1"  # clean OOS bake-off winner; see scripts/run_evaluation.py
 
 
@@ -174,6 +175,95 @@ def previous_state(conn) -> dict | None:
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
+
+PROJECTION_TOP_N = 8          # per position
+PROJECTION_CAPTAIN_N = 5
+
+
+def build_projections(gw: int, deadline: str, preds, excluded: set,
+                      conn_for_meta: Path) -> dict:
+    """The model's per-player view for `gw`, safe to publish pre-deadline.
+
+    `preds` is the frame the optimiser actually saw (post-exclusion), so the
+    published projections cannot disagree with the squad that was locked from
+    them. Excluded players are listed separately rather than silently dropped —
+    a reader is entitled to disagree with a judgement call, and the exclusions
+    file is public anyway.
+    """
+    conn = sqlite3.connect(conn_for_meta)
+    try:
+        meta = {int(r[0]): {"name": r[1], "position": int(r[2]),
+                            "team": r[3], "price": int(r[4])}
+                for r in conn.execute(
+                    "SELECT p.player_id, p.web_name, p.position, t.short_name, "
+                    "p.current_cost FROM players p "
+                    "LEFT JOIN teams t ON t.team_id = p.team_id")}
+        team_of = {int(r[0]): int(r[1]) for r in
+                   conn.execute("SELECT player_id, team_id FROM players")}
+        opponent: dict[int, tuple[str, bool]] = {}
+        try:
+            rows = conn.execute(
+                "SELECT f.home_team_id, f.away_team_id, th.short_name, "
+                "ta.short_name FROM fixtures f "
+                "JOIN teams th ON th.team_id = f.home_team_id "
+                "JOIN teams ta ON ta.team_id = f.away_team_id "
+                "WHERE f.gameweek_id = ?", (gw,)).fetchall()
+        except sqlite3.Error:
+            rows = []          # fixtures unavailable: omit opponent, keep going
+        for h, a, hn, an in rows:
+            opponent[int(h)] = (an, True)
+            opponent[int(a)] = (hn, False)
+    finally:
+        conn.close()
+
+    def row(pid: int, pts: float) -> dict:
+        m = meta.get(pid, {"name": f"#{pid}", "position": 0,
+                           "team": "?", "price": 0})
+        opp, home = opponent.get(team_of.get(pid, -1), (None, None))
+        return {
+            "player_id": pid, "name": m["name"], "team": m["team"],
+            "position": POSITION_MAP.get(m["position"], "?"),
+            "price": m["price"] / 10.0,
+            "projected_points": round(float(pts), 2),
+            "opponent": opp,
+            "venue": None if home is None else ("H" if home else "A"),
+        }
+
+    ranked = sorted(
+        ((int(r.player_id), float(r.predicted_points)) for r in preds.itertuples()),
+        key=lambda t: t[1], reverse=True)
+
+    by_pos: dict[str, list[dict]] = {"GK": [], "DEF": [], "MID": [], "FWD": []}
+    for pid, pts in ranked:
+        pos = POSITION_MAP.get(meta.get(pid, {}).get("position", 0), "?")
+        if pos in by_pos and len(by_pos[pos]) < PROJECTION_TOP_N:
+            by_pos[pos].append(row(pid, pts))
+
+    conn = sqlite3.connect(conn_for_meta)
+    try:
+        excl_meta = {int(r[0]): (r[1], r[2]) for r in conn.execute(
+            f"SELECT p.player_id, p.web_name, t.short_name FROM players p "
+            f"LEFT JOIN teams t ON t.team_id = p.team_id "
+            f"WHERE p.player_id IN ({','.join('?' * len(excluded)) or 'NULL'})",
+            list(excluded))} if excluded else {}
+    finally:
+        conn.close()
+
+    return {
+        "gameweek": gw,
+        "deadline_utc": deadline,
+        "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "model": MODEL_NAME,
+        "captain_candidates": [row(pid, pts) for pid, pts in
+                               ranked[:PROJECTION_CAPTAIN_N]],
+        "by_position": by_pos,
+        "excluded": [{"player_id": pid, "name": n, "team": t}
+                     for pid, (n, t) in sorted(excl_meta.items())],
+        "note": ("The model's own squad for this gameweek is committed but not "
+                 "revealed until the deadline passes; these projections are its "
+                 "view of every player, not its selection."),
+    }
+
 
 def lock(dry_run: bool = False) -> dict:
     conn = sqlite3.connect(DB_PATH)
@@ -347,6 +437,31 @@ def lock(dry_run: bool = False) -> dict:
     }
     out = EXPORT_DIR / f"gw{gw:02d}.json"
     out.write_text(json.dumps(commitment, indent=2))
+
+    # Projections, published alongside the commitment.
+    #
+    # These are what makes the site useful BEFORE a deadline, which is when FPL
+    # managers actually decide anything. The commitment scheme is untouched: the
+    # hash still pins the squad, and the squad itself stays hidden until the
+    # deadline. What is published is the model's view of every player, by
+    # position — a superset of its picks that reveals neither the budget split
+    # nor the formation.
+    #
+    # Exported here rather than at D-24h so the projections and the hash come
+    # from provably the same model state, in one commit. A published projection
+    # is also gradeable after the fact ("we said 9.15, he scored 12"), so this
+    # adds accountability rather than trading it away.
+    # Wrapped deliberately. The lock exists to commit a squad before a deadline;
+    # projections are an enrichment. A bug in the nice-to-have must never stop
+    # the commitment being published, so this degrades to a warning.
+    proj_out = EXPORT_DIR / f"gw{gw:02d}_projections.json"
+    try:
+        proj_out.write_text(json.dumps(
+            build_projections(gw, deadline, preds, excluded, conn_for_meta=DB_PATH),
+            indent=2))
+    except Exception as exc:            # noqa: BLE001 - never fail the lock
+        print(f"WARNING: projections export failed ({exc}); the commitment "
+              f"itself is unaffected.", file=sys.stderr)
     print(f"GW{gw} committed: {payload['squad_hash']} (deadline {deadline}).\n"
           f"Exported {out} — COMMIT AND PUSH THIS BEFORE THE DEADLINE; "
           f"the push is the public timestamp.")

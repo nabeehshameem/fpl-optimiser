@@ -219,11 +219,17 @@ def phase_lock() -> None:
         die("lock", f"could not read ledger state: {exc}")
 
     export = EXPORT_DIR / f"gw{conn_gw:02d}.json"
+    # Projections ship in the same commit as the commitment, so the two are
+    # provably from one model state. Listed second: commit_push_verify skips
+    # files that do not exist, so a failed projections export still publishes
+    # the commitment.
+    projections = EXPORT_DIR / f"gw{conn_gw:02d}_projections.json"
 
     if already:
         print(f"GW{conn_gw} already locked at {already[0]} — idempotent no-op")
         # Still verify the commitment actually reached origin.
-        commit_push_verify([export], f"GW{conn_gw} lock (re-verify)", "lock")
+        commit_push_verify([export, projections],
+                           f"GW{conn_gw} lock (re-verify)", "lock")
         return
 
     deadline_dt = datetime.fromisoformat(str(deadline).replace("Z", "+00:00"))
@@ -237,7 +243,8 @@ def phase_lock() -> None:
               f"only {remaining:.1f}h to the GW{conn_gw} deadline")
 
     run_step("scripts/lock_model_squad.py", "lock", timeout=600)
-    sha = commit_push_verify([export], f"GW{conn_gw} lock", "lock")
+    sha = commit_push_verify([export, projections],
+                             f"GW{conn_gw} lock + projections", "lock")
     print(f"\nlock OK — GW{conn_gw} commitment public at {sha[:9]}, "
           f"{remaining:.1f}h before deadline")
     heartbeat("lock")

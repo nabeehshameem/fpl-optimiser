@@ -129,6 +129,27 @@ def model_gw(gw: int) -> dict:
     }
 
 
+@router.get("/projections/{gw}")
+def projections(gw: int) -> dict:
+    """The model's per-player view for a gameweek, published at lock time.
+
+    Deliberately available BEFORE the deadline, unlike the squad. This is the
+    only endpoint that is useful while a manager is still deciding, which is
+    when anybody actually cares; everything else here is retrospective. It
+    reveals the model's opinion of every player, not which fifteen it bought,
+    so the commitment scheme is untouched.
+    """
+    p = EXPORT_DIR / f"gw{gw:02d}_projections.json"
+    if not p.exists():
+        raise HTTPException(
+            404, f"No projections published for GW{gw} yet. They appear when "
+                 "the model locks its squad, about ten hours before the deadline.")
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise HTTPException(502, f"projections file unreadable: {exc}") from exc
+
+
 @router.get("/model/season")
 def model_season() -> dict:
     gws: list[dict] = []
