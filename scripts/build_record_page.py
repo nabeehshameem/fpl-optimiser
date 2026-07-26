@@ -42,6 +42,25 @@ SUMMARY_PATH = PROJECT_ROOT / "wc" / "retrospective" / "summary.txt"
 SITE = "https://www.themodelsays.com"
 REPO = "https://github.com/nabeehshameem/fpl-optimiser"
 
+
+def grader_path() -> str:
+    """Locate grade_retrospective.py and return its repo-relative path.
+
+    Never hardcode this. The page instructs readers to run this exact command
+    to reproduce the numbers, so a stale path turns the site's central
+    verifiability claim into a file-not-found error — the most damaging
+    possible typo on a page about checkable evidence. Discover it, and fail
+    the build if it is missing rather than publishing a command that cannot
+    work.
+    """
+    hits = sorted(PROJECT_ROOT.rglob("grade_retrospective.py"))
+    hits = [h for h in hits if ".git" not in h.parts]
+    if not hits:
+        raise SystemExit(
+            "cannot find grade_retrospective.py anywhere in the repo — refusing "
+            "to publish a verification command that does not work")
+    return hits[0].relative_to(PROJECT_ROOT).as_posix()
+
 RESULT_WORD = {"H": "home win", "D": "draw", "A": "away win"}
 
 
@@ -179,6 +198,7 @@ def esc(s: str) -> str:
 
 
 def render(rows: list[dict]) -> str:
+    grader = grader_path()
     all_s = block_stats(rows)
     groups = [r for r in rows if r["stage"] == "group"]
     knock = [r for r in rows if r["stage"] != "group"]
@@ -374,7 +394,8 @@ reconstructs each prediction from the model parameters as they existed at least
 sixteen hours before the match — a walk-forward rebuild from git history, not a
 retrospective fit:</p>
 <pre><code>git clone {REPO}
-python wc/scripts/grade_retrospective.py</code></pre>
+cd fpl-optimiser
+python {grader}</code></pre>
 <p>That regenerates <code>per_match.csv</code> and <code>summary.txt</code>,
 which are the only inputs to this page. If your numbers differ from the ones
 above, the numbers above are wrong.</p>
