@@ -333,7 +333,7 @@ function V4Marquee() {
   );
 }
 
-// ── Features (4 cards) ─────────────────────────────────────────────
+// ── Features (3 cards) ─────────────────────────────────────────────
 function V4Features() {
   return (
     <div style={{ padding: '120px 56px', position: 'relative' }}>
@@ -344,11 +344,11 @@ function V4Features() {
             Every gameweek. Every match. <span style={{ color: v4.electric }}>Every call.</span>
           </h2>
           <p style={{ color: v4.textDim, fontSize: 17, lineHeight: 1.5, marginTop: 20, maxWidth: 680 }}>
-            FPL is the main event — but the same model that picks your XV also calls every Premier League fixture and the 2026 World Cup, end to end.
+            FPL is the main event — but the same model that picks your XV also calls every Premier League fixture, week in, week out.
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
           <V4FeatureCard
             num="01" tag="FPL · SQUAD"
             title="The optimal XV. Every gameweek."
@@ -372,14 +372,6 @@ function V4Features() {
             footer={[['32 matches/week', 'updated Friday']]}
             widget={<WidgetMatches />}
             widgetLabel="THIS WEEKEND'S MATCHES"
-          />
-          <V4FeatureCard
-            num="04" tag="WORLD CUP 2026"
-            title="From group stage to lifting the trophy."
-            body="The model has run the whole tournament 50,000 times. Group standings, knockouts, the final, the golden boot — all live, all updating as games are played."
-            footer={[['48 teams · 64 games', 'group → final']]}
-            widget={<WidgetBracket />}
-            widgetLabel="MODEL'S WORLD CUP CALL"
           />
         </div>
       </div>
@@ -424,28 +416,45 @@ function V4FeatureCard({ num, tag, title, body, footer, widget, widgetLabel }) {
 
 // ── Widgets ────────────────────────────────────────────────────────
 function WidgetCaptain() {
-  const rows = [
-    ['Haaland', 9.8, v4.electric, '(C)'],
-    ['Salah',   8.4, v4.text,    ''],
-    ['Palmer',  6.9, v4.textDim, ''],
-    ['Saka',    5.2, v4.textVeryDim, ''],
+  const [data, setData] = React.useState(null);
+
+  React.useEffect(() => {
+    const base = import.meta.env.VITE_API_URL || '';
+    fetch(`${base}/api/wc/fantasy/captains?top_n=4`)
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(setData)
+      .catch(() => setData(false));
+  }, []);
+
+  if (data === null) {
+    return <div style={{ color: v4.textVeryDim, fontFamily: mono, fontSize: 11 }}>loading...</div>;
+  }
+
+  const picks = data && data.picks ? data.picks.slice(0, 4) : [];
+  const staticRows = [
+    ['Haaland', 9.8], ['Salah', 8.4], ['Palmer', 6.9], ['Saka', 5.2],
   ];
-  const max = rows[0][1];
+  const rows = picks.length > 0
+    ? picks.map((p, i) => [p.name, p.projected_pts, i])
+    : staticRows.map(([n, pt], i) => [n, pt, i]);
+  const max = rows[0][1] || 1;
+  const colors = [v4.electric, v4.text, v4.textDim, v4.textVeryDim];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {rows.map(([n, p, c, mark]) => (
-        <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {rows.map(([name, pts, i]) => (
+        <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 90, fontSize: 13, color: v4.text, fontWeight: 600, fontFamily: display }}>
-            {n}{mark && <span style={{ color: v4.electric, fontFamily: mono, marginLeft: 6, fontSize: 11, fontWeight: 800 }}>{mark}</span>}
+            {name}{i === 0 && <span style={{ color: v4.electric, fontFamily: mono, marginLeft: 6, fontSize: 11, fontWeight: 800 }}>(C)</span>}
           </div>
           <div style={{ flex: 1, height: 8, background: v4.border, borderRadius: 99, overflow: 'hidden' }}>
-            <div style={{ width: `${(p / max) * 100}%`, height: '100%', background: c, borderRadius: 99, boxShadow: c === v4.electric ? `0 0 12px ${v4.electric}80` : 'none' }} />
+            <div style={{ width: `${(pts / max) * 100}%`, height: '100%', background: colors[i], borderRadius: 99, boxShadow: i === 0 ? `0 0 12px ${v4.electric}80` : 'none' }} />
           </div>
-          <div style={{ width: 50, textAlign: 'right', fontFamily: mono, fontSize: 13, color: c === v4.electric ? v4.electric : v4.textDim, fontWeight: 700 }}>{p.toFixed(1)} pts</div>
+          <div style={{ width: 50, textAlign: 'right', fontFamily: mono, fontSize: 13, color: i === 0 ? v4.electric : v4.textDim, fontWeight: 700 }}>{Number(pts).toFixed(1)} pts</div>
         </div>
       ))}
       <div style={{ marginTop: 4, fontSize: 11, color: v4.textVeryDim, fontFamily: mono }}>
-        Captain pick · expected points this GW
+        Captain pick · expected points
       </div>
     </div>
   );
@@ -516,104 +525,6 @@ function WidgetMatches() {
   );
 }
 
-function WidgetBracket() {
-  const [bracket, setBracket] = React.useState(null);
-
-  React.useEffect(() => {
-    const base = import.meta.env.VITE_API_URL || '';
-    fetch(`${base}/api/wc/bracket`)
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then(setBracket)
-      .catch(() => setBracket(false));
-  }, []);
-
-  if (!bracket) {
-    return <div style={{ color: v4.textVeryDim, fontFamily: mono, fontSize: 11 }}>{bracket === false ? 'unavailable' : 'loading...'}</div>;
-  }
-
-  const { sf_matches = [], finalists = [], pending_finalists = [], third_place_teams = [] } = bracket;
-
-  const BracketRow = ({ label, teamA, teamB, score, winner, isFinal, teamAWinPct, teamBWinPct }) => {
-    const pending = !winner;
-    return (
-      <div style={{
-        display: 'grid', gridTemplateColumns: '38px 1fr auto 1fr', gap: 10, alignItems: 'center',
-        padding: '6px 8px', borderRadius: 6,
-        background: isFinal ? 'rgba(0,255,135,0.08)' : 'transparent',
-        border: isFinal ? `1px solid rgba(0,255,135,0.25)` : '1px solid transparent',
-      }}>
-        <span style={{ color: isFinal ? v4.electric : v4.textVeryDim, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.05em' }}>{label}</span>
-        <span style={{ color: (!pending && winner === teamA) ? v4.text : pending ? v4.textDim : v4.textVeryDim, fontFamily: display, fontWeight: (!pending && winner === teamA) ? 700 : 500, fontSize: 12, textAlign: 'right' }}>{teamA}</span>
-        <span style={{ color: v4.electric, fontFamily: mono, fontSize: 11, fontWeight: 700, padding: '2px 8px', background: 'rgba(0,0,0,0.4)', borderRadius: 4 }}>
-          {pending ? (teamAWinPct != null ? `${teamAWinPct}%` : 'vs') : score}
-        </span>
-        <span style={{ color: (!pending && winner === teamB) ? v4.text : pending ? v4.textDim : v4.textVeryDim, fontFamily: display, fontWeight: (!pending && winner === teamB) ? 700 : 500, fontSize: 12 }}>{teamB}</span>
-      </div>
-    );
-  };
-
-  const finalist1 = finalists[0];
-  const finalist2 = finalists[1];
-  const pendingF1 = pending_finalists[0];
-  const pendingF2 = pending_finalists[1];
-  const third1 = third_place_teams[0];
-  const third2 = third_place_teams[1];
-
-  const thirdSet = new Set(third_place_teams.map(t => t.toLowerCase()));
-  const thirdMatch = sf_matches.find(m =>
-    thirdSet.has((m.team_a || '').toLowerCase()) && thirdSet.has((m.team_b || '').toLowerCase())
-  );
-  const sfOnly = sf_matches.filter(m => m !== thirdMatch);
-
-  const topWinner = finalist1 || (pendingF1 ? { team: pendingF1.team, win_pct: pendingF1.win_pct } : null);
-  const topWinner2 = finalist2 || (pendingF2 ? { team: pendingF2.team, win_pct: pendingF2.win_pct } : null);
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {sfOnly.map((m, i) => (
-        <BracketRow
-          key={i}
-          label="SF"
-          teamA={m.team_a} teamB={m.team_b}
-          score={m.score} winner={m.winner}
-          teamAWinPct={m.team_a_win_pct} teamBWinPct={m.team_b_win_pct}
-        />
-      ))}
-      {(finalist1 || pendingF1) && (finalist2 || pendingF2) ? (
-        <BracketRow
-          label="FINAL"
-          teamA={(finalist1 || pendingF1).team}
-          teamB={(finalist2 || pendingF2).team}
-          score={null} winner={null}
-          isFinal={true}
-        />
-      ) : (finalist1 || pendingF1) ? (
-        <BracketRow
-          label="FINAL"
-          teamA={(finalist1 || pendingF1).team}
-          teamB="TBD"
-          score={null} winner={null}
-          isFinal={true}
-        />
-      ) : null}
-      {(third1 || third2) && (
-        <BracketRow
-          label="3RD"
-          teamA={thirdMatch ? thirdMatch.team_a : (third1 || 'TBD')}
-          teamB={thirdMatch ? thirdMatch.team_b : (third2 || 'TBD')}
-          score={thirdMatch?.score ?? null}
-          winner={thirdMatch?.winner ?? null}
-        />
-      )}
-      {topWinner && (
-        <div style={{ marginTop: 6, fontSize: 11, color: v4.textVeryDim, fontFamily: mono, display: 'flex', justifyContent: 'space-between' }}>
-          <span>🏆 {topWinner.team.toUpperCase()}{topWinner2 ? ` / ${topWinner2.team.toUpperCase()}` : ''}</span>
-          <span>{topWinner.win_pct}% win prob.</span>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Accuracy snapshot ─────────────────────────────────────────────
 function V4Accuracy() {

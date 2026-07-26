@@ -68,6 +68,75 @@ put the machine to sleep. This is the only test of the two failure modes
 nothing else covers: whether the machine wakes, and whether git can
 authenticate without a logged-in interactive session.
 
+### Exact steps
+
+**a. Open Task Scheduler — not schtasks.** Search "Task Scheduler" in Start.
+Click "Create Task" (not "Create Basic Task") from the right pane.
+
+**b. General tab:**
+- Name: `FPL_DryRun_Lock`
+- Security options: check "Run whether user is logged on or not"
+- Check "Run with highest privileges"
+
+**c. Triggers tab → New:**
+- Begin the task: On a schedule
+- One time
+- Set time to NOW + 5 minutes (check the clock and add 5)
+- Enabled: checked
+
+**d. Actions tab → New:**
+- Action: Start a program
+- Program/script: `powershell.exe`
+- Add arguments (paste this as one line):
+
+```
+-NonInteractive -Command "$env:FPL_DB_PATH='data\fpl_dryrun.db'; $env:FPL_EXPORT_DIR='predictions\fpl-dryrun'; $env:GIT_BRANCH='dryrun'; Set-Location 'C:\Users\GGPC\Projects\fpl-optimiser'; python scripts\weekly_ops.py lock >> logs\dryrun_lock.txt 2>&1"
+```
+
+- Start in: `C:\Users\GGPC\Projects\fpl-optimiser`
+
+**e. Conditions tab:**
+- Uncheck "Start the task only if the computer is on AC power" (so it runs on battery after wake)
+- Check "Wake the computer to run this task"
+
+**f. Settings tab:**
+- Check "Run task as soon as possible after a scheduled start is missed"
+
+**g. Click OK.** Enter your Windows password when prompted.
+
+**h. Put the machine to sleep immediately:**
+```powershell
+rundll32.exe powrprof.dll,SetSuspendState 0,1,0
+```
+
+**i. After wake, check:**
+```powershell
+Get-Content logs\dryrun_lock.txt
+```
+Expect: lock output including "Exported predictions\fpl-dryrun\gw01.json"
+
+```powershell
+Get-Content predictions\fpl-dryrun\gw01.json
+```
+Must contain ONLY `{gameweek, locked_at_utc, deadline_utc, squad_hash}` — no player names.
+
+```powershell
+git ls-remote origin dryrun
+git log --oneline -3 origin/dryrun
+```
+Commit must exist and be NEWER than the sleep time, proving git push happened outside an interactive session.
+
+**What success looks like:**
+- `gw01.json` contains only the hash (no squad details)
+- The commit timestamp is after you went to sleep
+- `data\fpl.db` still shows 0 rows in `model_squad_log` (real DB untouched)
+- Task Scheduler shows "Last Run Result: 0x0" (success)
+
+**j. Delete the task after a successful run:**
+
+Task Scheduler → right-click `FPL_DryRun_Lock` → Delete. Don't leave a
+stale scheduled lock task pointing at a dryrun DB.
+
 ## 6. Tear down
 
     Remove-Item data\fpl_dryrun.db
