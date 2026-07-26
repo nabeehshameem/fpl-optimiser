@@ -1,14 +1,27 @@
-# Manual player exclusions — add a line when you know someone won't play
-# Format: player_id  # web_name (team) — reason
-# One entry per line. Lines starting with # are comments.
+# Manual player exclusions -- confirmed non-starters the FPL injury flag does
+# not capture pre-season. Format: player_id  # Name (TEAM) -- reason
+#
+# Two categories with different review disciplines:
+#
+# SAFETY -- players who cannot appear. Stable until a transfer occurs.
+#   Review action: check for transfers; remove if player has moved on.
+#
+# BETS (max 3) -- option-value judgments. Volatile; re-examine every lock week.
+#   Each entry MUST state a falsifier: the condition that removes the line.
+#   If you cannot write a falsifier, it belongs in SAFETY or not at all.
+#   The ceiling exists because a long bets block means the published squad is
+#   hand-picked, and the receipt's "The Model" claim does quiet work.
 
-# ARS — Raya is the confirmed starter; Arrizabalaga and Meslier are backups
-2    # Arrizabalaga (ARS) — backup behind Raya
-3    # Meslier (ARS) — backup behind Raya
+# ---- SAFETY: confirmed non-starters -----------------------------------------
 
-# MCI — Donnarumma is the confirmed starter post-Kelleher departure
-385  # Trafford (MCI) — backup behind Donnarumma
-386  # Bettinelli (MCI) — backup behind Donnarumma
+# ARS -- Raya is the confirmed starter; Arrizabalaga and Meslier are backups
+2    # Arrizabalaga (ARS) -- backup behind Raya
+3    # Meslier (ARS) -- backup behind Raya
 
-# IPS — Walton is the starter; Button (37) is 3rd choice
-302  # Button (IPS) — 3rd choice GK, age 37
+# MCI -- Donnarumma is the confirmed starter post-Kelleher departure
+385  # Trafford (MCI) -- backup behind Donnarumma
+386  # Bettinelli (MCI) -- backup behind Donnarumma
+
+# ---- BETS: option-value judgments (max 3, each needs a falsifier) -----------
+# (none -- Button removed: bench GK option value is near zero because a free
+# transfer is the correct response to a Walton injury, not bench reliance)

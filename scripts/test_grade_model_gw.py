@@ -35,7 +35,8 @@ BENCH_ORDER = {12: 1, 13: 2, 14: 3, 15: 4}
 
 
 def build_db(tmp: Path, stats: dict, hits: int = 0,
-             captain: int = 10, vice: int = 5, finished: int = 1) -> Path:
+             captain: int = 10, vice: int = 5, finished: int = 1,
+             excluded_json: str | None = None) -> Path:
     """stats: {player_id: (minutes, points)}"""
     db = tmp / "fpl.db"
     conn = sqlite3.connect(db)
@@ -65,10 +66,10 @@ def build_db(tmp: Path, stats: dict, hits: int = 0,
               "is_vice": int(pid == vice),
               "bench_order": BENCH_ORDER.get(pid, 0)} for pid in POS]
     squad_hash = compute_squad_hash(squad)
-    conn.execute("INSERT INTO model_squad_log VALUES (1,'t','t',?,?,1,0,62.0,?,NULL)",
+    conn.execute("INSERT INTO model_squad_log VALUES (1,'t','t',?,?,1,0,62.0,?,?)",
                  (json.dumps(squad, **CANONICAL),
                   json.dumps({"in": [], "out": [], "hits": hits}),
-                  squad_hash))
+                  squad_hash, excluded_json))
     conn.commit()
     conn.close()
     return db
@@ -184,6 +185,22 @@ def main():
     ok &= check("G9 published reveal verifies against commitment",
                 independent == r["squad_hash"],
                 f"independent={independent[:16]}... stored={r['squad_hash'][:16]}...")
+
+    # G10: the excluded pool is part of the published record. Both sources must
+    # round-trip labelled, and a squad locked before the field existed must
+    # reveal null -- NOT [], which would falsely assert nothing was filtered.
+    payload = json.dumps({"manual": [12, 17], "unavailable": [13]})
+    db = build_db(Path(tempfile.mkdtemp()), base_stats(), excluded_json=payload)
+    r = g.grade(gw=1, dry_run=True, db_path=db)
+    efp = r.get("excluded_from_pool")
+    ok &= check("G10 excluded pool revealed with both sources labelled",
+                efp == {"manual": [12, 17], "unavailable": [13]}, str(efp))
+
+    db = build_db(Path(tempfile.mkdtemp()), base_stats(), excluded_json=None)
+    r = g.grade(gw=1, dry_run=True, db_path=db)
+    ok &= check("G10 pre-change squad reveals null, not empty list",
+                r.get("excluded_from_pool", "MISSING") is None,
+                repr(r.get("excluded_from_pool", "MISSING")))
 
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
