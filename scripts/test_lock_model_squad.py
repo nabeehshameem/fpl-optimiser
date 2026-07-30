@@ -114,11 +114,22 @@ def main():
     ok &= check("L1 purchase prices recorded",
                 all(r["purchase_price"] > 0 for r in p1["squad"]))
     ok &= check("L1 export written", (lock_mod.EXPORT_DIR / "gw01.json").exists())
-    _COMMITMENT_KEYS = {"gameweek", "locked_at_utc", "deadline_utc", "squad_hash"}
     exported = json.loads((lock_mod.EXPORT_DIR / "gw01.json").read_text())
-    ok &= check("L1 commitment export has no squad details",
-                set(exported.keys()) == _COMMITMENT_KEYS,
-                f"keys={set(exported.keys())}")
+    # The squad is now published openly at lock time. The accountability claim
+    # is "here is the team, pushed to a public repo before the deadline" — so
+    # the export must carry the squad and locked_at_utc must be before deadline.
+    ok &= check("L1 export publishes the squad openly",
+                len(exported.get("squad", [])) == 15,
+                f"{len(exported.get('squad', []))} rows")
+    ok &= check("L1 export carries display names for the site",
+                len(exported.get("squad_display", [])) == 15)
+    locked_at = datetime.fromisoformat(
+        exported["locked_at_utc"].replace("Z", "+00:00"))
+    deadline_dt = datetime.fromisoformat(
+        exported["deadline_utc"].replace("Z", "+00:00"))
+    ok &= check("L1 published BEFORE the deadline (the whole proof)",
+                locked_at < deadline_dt,
+                f"{exported['locked_at_utc']} < {exported['deadline_utc']}")
     ok &= check("L1 exactly one captain",
                 sum(r["is_captain"] for r in p1["squad"]) == 1)
 

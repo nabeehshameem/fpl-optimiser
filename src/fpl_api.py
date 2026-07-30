@@ -8,16 +8,16 @@ Read-only FPL "Beat the Model" endpoints. Mounted into the main api.py app:
 
 Data source: committed JSON files in predictions/fpl/
   gw{NN}.json         — written by lock_model_squad.py before the deadline;
-                        contains only the squad hash (commitment phase)
+                        carries the full squad openly (open publication scheme)
   gw{NN}_result.json  — written by grade_model_gw.py after the GW finishes;
-                        contains the full squad reveal, result, and display names
+                        carries result, effective captain, autosubs, display names
 
-Disclosure rule:
+Disclosure rule (simple):
   * No gw{NN}.json            -> 404 (never locked)
-  * gw{NN}.json, no result    -> commitment only: hash + revealed flag.
-                                  revealed=True when deadline has passed so the
-                                  frontend can show "result pending" vs "pre-lock"
-  * gw{NN}_result.json exists -> full squad, transfers, result (named)
+  * gw{NN}.json exists        -> squad visible immediately, deadline_passed flag
+                                  indicates whether the deadline has passed (used
+                                  for "still time to change yours" UI copy only)
+  * gw{NN}_result.json exists -> merges result data into the same response
 
 No DB connection: the API is a reader of git-committed artifacts. Railway gets
 the data via redeploy-on-push — the lock/grade pushes that already happen for
@@ -62,17 +62,25 @@ def model_gw(gw: int) -> dict:
     if commitment is None:
         raise HTTPException(404, f"GW{gw} has not been locked.")
 
+    # One state, not three. The squad is published when it is locked — before
+    # the deadline — because the git-timestamped commit is itself the proof that
+    # it was not changed afterwards. deadline_passed is for UI copy only.
     base = {
         "gameweek": gw,
         "locked_at_utc": commitment["locked_at_utc"],
         "deadline_utc": commitment["deadline_utc"],
         "squad_hash": commitment["squad_hash"],
+        "squad": _named_squad(commitment),
+        "transfers": commitment.get("transfers", {"in": [], "out": [], "hits": 0}),
+        "free_transfers": commitment.get("free_transfers"),
+        "bank": commitment.get("bank"),
+        "expected_points": commitment.get("expected_points"),
+        "deadline_passed": _now() >= _parse_deadline(commitment["deadline_utc"]),
     }
 
     result_data = _load_result(gw)
     if result_data is None:
-        revealed = _now() >= _parse_deadline(commitment["deadline_utc"])
-        return {**base, "revealed": revealed}
+        return {**base, "result": None}
 
     # squad_display carries names from the grader; fall back to "#pid" if absent
     display = {d["player_id"]: d for d in result_data.get("squad_display", [])}
@@ -114,7 +122,6 @@ def model_gw(gw: int) -> dict:
 
     return {
         **base,
-        "revealed": True,
         "squad": squad,
         "transfers": transfers,
         "expected_points": result_data.get("expected_points"),
@@ -127,6 +134,27 @@ def model_gw(gw: int) -> dict:
             "graded_at_utc": result_data["graded_at_utc"],
         },
     }
+
+
+def _named_squad(commitment: dict) -> list[dict]:
+    """Merge the hashed squad rows with their display names for the site."""
+    display = {d["player_id"]: d for d in commitment.get("squad_display", [])}
+    out = []
+    for r in commitment.get("squad", []):
+        pid = r["player_id"]
+        d = display.get(pid, {})
+        out.append({
+            "player_id": pid,
+            "name": d.get("name", f"#{pid}"),
+            "position": d.get("position", "?"),
+            "team": d.get("team"),
+            "price": d.get("price"),
+            "is_xi": bool(r.get("is_xi")),
+            "is_captain": bool(r.get("is_captain")),
+            "is_vice": bool(r.get("is_vice")),
+            "bench_order": r.get("bench_order", 0),
+        })
+    return out
 
 
 @router.get("/projections/{gw}")

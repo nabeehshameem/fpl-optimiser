@@ -176,6 +176,25 @@ def previous_state(conn) -> dict | None:
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
+def _squad_display(squad_ids: list, db_path) -> list[dict]:
+    """Names/teams/positions for the squad, so the site needs no second lookup."""
+    conn = sqlite3.connect(db_path)
+    try:
+        ph = ",".join("?" * len(squad_ids))
+        rows = conn.execute(
+            f"SELECT p.player_id, p.web_name, p.position, t.short_name, "
+            f"p.current_cost FROM players p "
+            f"LEFT JOIN teams t ON t.team_id = p.team_id "
+            f"WHERE p.player_id IN ({ph})", list(squad_ids)).fetchall()
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()
+    return [{"player_id": int(r[0]), "name": r[1],
+             "position": POSITION_MAP.get(int(r[2] or 0), "?"),
+             "team": r[3], "price": (r[4] or 0) / 10.0} for r in rows]
+
+
 PROJECTION_TOP_N = 8          # per position
 PROJECTION_CAPTAIN_N = 5
 
@@ -259,9 +278,9 @@ def build_projections(gw: int, deadline: str, preds, excluded: set,
         "by_position": by_pos,
         "excluded": [{"player_id": pid, "name": n, "team": t}
                      for pid, (n, t) in sorted(excl_meta.items())],
-        "note": ("The model's own squad for this gameweek is committed but not "
-                 "revealed until the deadline passes; these projections are its "
-                 "view of every player, not its selection."),
+        "note": ("These projections are the model's view of every player — "
+                 "not its selection. The squad itself is published at lock time "
+                 "alongside these projections."),
     }
 
 
@@ -424,36 +443,41 @@ def lock(dry_run: bool = False) -> dict:
     conn.commit()
     conn.close()
 
-    # Pre-deadline public export: commitment only — no squad details.
-    # Anyone who sees this file before the deadline cannot copy the team.
-    # The full reveal (squad + result) is written by grade_model_gw.py
-    # post-deadline, after the hash is verified against this commitment.
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    # Publish the squad OPENLY at lock time, before the deadline.
+    #
+    # This replaces the old two-file commit-reveal scheme (hash first, squad
+    # after the deadline). The hash only ever existed so the model could commit
+    # to a squad while keeping it hidden; publishing the squad itself, pushed to
+    # a public repo before the deadline, proves the same thing more directly —
+    # the git commit timestamp IS the commitment. Same guarantee, one artifact,
+    # and nothing a visitor has to have explained to them.
+    #
+    # squad_hash stays in the payload as a cheap integrity check on the ledger,
+    # but it is no longer load-bearing for accountability.
     commitment = {
         "gameweek": gw,
         "locked_at_utc": payload["locked_at_utc"],
         "deadline_utc": deadline,
         "squad_hash": payload["squad_hash"],
+        "squad": squad_rows,
+        "squad_display": _squad_display(squad_ids, DB_PATH),
+        "transfers": transfers,
+        "free_transfers": free_transfers_after,
+        "bank": bank_after,
+        "expected_points": payload["expected_points"],
     }
     out = EXPORT_DIR / f"gw{gw:02d}.json"
     out.write_text(json.dumps(commitment, indent=2))
 
     # Projections, published alongside the commitment.
     #
-    # These are what makes the site useful BEFORE a deadline, which is when FPL
-    # managers actually decide anything. The commitment scheme is untouched: the
-    # hash still pins the squad, and the squad itself stays hidden until the
-    # deadline. What is published is the model's view of every player, by
-    # position — a superset of its picks that reveals neither the budget split
-    # nor the formation.
-    #
-    # Exported here rather than at D-24h so the projections and the hash come
-    # from provably the same model state, in one commit. A published projection
-    # is also gradeable after the fact ("we said 9.15, he scored 12"), so this
-    # adds accountability rather than trading it away.
-    # Wrapped deliberately. The lock exists to commit a squad before a deadline;
-    # projections are an enrichment. A bug in the nice-to-have must never stop
-    # the commitment being published, so this degrades to a warning.
+    # These are the model's view of every player for the GW — a superset of its
+    # picks that does not duplicate the squad payload. Published at lock time so
+    # projections and squad come from the same model state in one commit, making
+    # them gradeable after the fact ("we said 9.15, he scored 12").
+    # Wrapped deliberately — a bug in the enrichment must never stop the
+    # commitment being published.
     proj_out = EXPORT_DIR / f"gw{gw:02d}_projections.json"
     try:
         proj_out.write_text(json.dumps(

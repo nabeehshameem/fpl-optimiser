@@ -58,11 +58,18 @@ def build_export_dir(tmp: Path) -> Path:
               "position": _POS_NAMES.get(POS[pid], "?"), "team": "TST"}
             for pid in sorted(POS)]
 
-    # GW1: commitment + result (graded)
-    (export_dir / "gw01.json").write_text(json.dumps({
-        "gameweek": 1, "locked_at_utc": PAST, "deadline_utc": PAST,
-        "squad_hash": h,
-    }))
+    # Every lock file now carries the squad openly — the git commit timestamp
+    # is what proves the squad existed before the deadline.
+    def lock_file(gw, deadline):
+        return json.dumps({
+            "gameweek": gw, "locked_at_utc": PAST, "deadline_utc": deadline,
+            "squad_hash": h, "squad": sq, "squad_display": disp,
+            "transfers": {"in": [10], "out": [15], "hits": 4},
+            "free_transfers": 1, "bank": 5, "expected_points": 62.4,
+        })
+
+    # GW1: locked + graded
+    (export_dir / "gw01.json").write_text(lock_file(1, PAST))
     (export_dir / "gw01_result.json").write_text(json.dumps({
         "gameweek": 1,
         "squad": sq,
@@ -88,17 +95,11 @@ def build_export_dir(tmp: Path) -> Path:
         "detail": [],
     }))
 
-    # GW2: commitment only, deadline past -> revealed=True, no squad yet
-    (export_dir / "gw02.json").write_text(json.dumps({
-        "gameweek": 2, "locked_at_utc": PAST, "deadline_utc": PAST,
-        "squad_hash": h,
-    }))
+    # GW2: locked, deadline past, not yet graded
+    (export_dir / "gw02.json").write_text(lock_file(2, PAST))
 
-    # GW3: commitment only, deadline future -> revealed=False
-    (export_dir / "gw03.json").write_text(json.dumps({
-        "gameweek": 3, "locked_at_utc": PAST, "deadline_utc": FUTURE,
-        "squad_hash": h,
-    }))
+    # GW3: locked, deadline still ahead — squad visible anyway
+    (export_dir / "gw03.json").write_text(lock_file(3, FUTURE))
 
     return export_dir
 
@@ -122,26 +123,32 @@ def main():
     r = c.get("/api/fpl/model/gw/9")
     ok &= check("A1 unlocked GW -> 404", r.status_code == 404, str(r.status_code))
 
-    # A2: GW3 deadline is in the future
+    # A2: GW3 deadline is still in the future — squad is shown anyway.
+    # The pre-deadline git timestamp is the proof; nothing is withheld.
     r = c.get("/api/fpl/model/gw/3")
     j = r.json()
-    ok &= check("A2 commitment phase: revealed=False", j.get("revealed") is False)
-    ok &= check("A2 hash present, 64 chars", len(j.get("squad_hash", "")) == 64)
-    leak = [k for k in ("squad", "transfers", "expected_points", "bank") if k in j]
-    ok &= check("A2 no squad leakage pre-deadline", not leak, f"leaked={leak}")
+    ok &= check("A2 squad published before the deadline",
+                len(j.get("squad", [])) == 15
+                and j["squad"][0]["name"] == "P1", str(r.status_code))
+    ok &= check("A2 deadline_passed flag is false", j.get("deadline_passed") is False)
+    ok &= check("A2 hash still published as integrity check",
+                len(j.get("squad_hash", "")) == 64)
+    ok &= check("A2 captain and bench order visible",
+                any(p["is_captain"] for p in j["squad"])
+                and any(p["bench_order"] for p in j["squad"]))
 
-    # A3: GW2 past deadline, no result file
+    # A3: GW2 past deadline, not yet graded — squad visible, result null
     r = c.get("/api/fpl/model/gw/2")
     j = r.json()
-    ok &= check("A3 post-deadline pre-grade: revealed=True", j.get("revealed") is True)
-    ok &= check("A3 no squad until result file written", "squad" not in j)
+    ok &= check("A3 past deadline: deadline_passed true", j.get("deadline_passed") is True)
+    ok &= check("A3 squad visible, result still null",
+                len(j.get("squad", [])) == 15 and j.get("result") is None)
 
     # A4: GW1 graded
     r = c.get("/api/fpl/model/gw/1")
     j = r.json()
-    ok &= check("A4 revealed with named squad",
-                j["revealed"] is True and len(j["squad"]) == 15
-                and j["squad"][0]["name"] == "P1")
+    ok &= check("A4 graded GW keeps its named squad",
+                len(j["squad"]) == 15 and j["squad"][0]["name"] == "P1")
     res = j["result"]
     ok &= check("A4 result present", res is not None and res["net_points"] == 62)
     ok &= check("A4 effective captain named",
@@ -186,10 +193,10 @@ def main():
     leaked = [k for k in ("squad", "squad_hash", "transfers") if k in j]
     ok &= check("A6 projections leak neither squad nor hash", not leaked,
                 f"leaked={leaked}")
-    # GW3's own commitment must still be withheld — projections do not unlock it
-    g = c.get("/api/fpl/model/gw/3").json()
-    ok &= check("A6 squad still withheld for the same GW",
-                g["revealed"] is False and "squad" not in g)
+    # Projections are a distinct artifact (model's view of all players) and
+    # must not duplicate the squad payload published alongside them.
+    ok &= check("A6 projections stay a distinct artifact",
+                "by_position" in j and "is_captain" not in json.dumps(j))
 
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
