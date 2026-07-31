@@ -150,10 +150,30 @@ def check_predictions(gw: int) -> None:
 
 def check_models() -> None:
     dc = PROJECT_ROOT / "models" / "fpl_dc_params.json"
-    if dc.exists():
-        ok("DC parameters present")
-    else:
+    if not dc.exists():
         fail("models/fpl_dc_params.json missing", "run train_dc.py --db <archive>")
+    else:
+        ok("DC parameters present")
+        # Existing is not enough: the lock reads this file, so whatever is on
+        # disk determines the published squad AND the published projections. If
+        # it differs from what is committed, nobody can reproduce either, and
+        # "verify this yourself" quietly stops being true. This has already
+        # happened once - the committed params were three weeks older than the
+        # ones the model was actually using.
+        rel = str(dc.relative_to(PROJECT_ROOT))
+        r = subprocess.run(["git", "status", "--porcelain", "--", rel],
+                           cwd=PROJECT_ROOT, capture_output=True, text=True)
+        if r.returncode != 0:
+            warn("cannot check whether DC parameters are committed")
+        elif r.stdout.strip():
+            fail("DC parameters differ from the committed copy",
+                 "the published squad would be unreproducible - commit "
+                 f"{rel} before the lock")
+        else:
+            r2 = subprocess.run(
+                ["git", "log", "-1", "--format=%ad", "--date=short", "--", rel],
+                cwd=PROJECT_ROOT, capture_output=True, text=True)
+            ok("DC parameters committed", f"last change {r2.stdout.strip()}")
 
     # Cold start reads the archive while the live DB has <3 gameweeks.
     conn = sqlite3.connect(DB_PATH) if DB_PATH.exists() else None
