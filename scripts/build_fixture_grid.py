@@ -65,11 +65,13 @@ def load_dc() -> tuple[dict, float, float, float]:
     return tp, mean_atk, mean_def, float(d.get("home_adv", 1.20))
 
 
-def expected_goals(tp: dict, mean_atk: float, mean_def: float, home_adv: float,
-                   team_id: int, opp_id: int, at_home: bool) -> float:
+def expected_goals(tp: dict, teams: dict[int, str], mean_atk: float, mean_def: float,
+                   home_adv: float, team_id: int, opp_id: int, at_home: bool) -> float:
     """Goals the model expects `team_id` to score against `opp_id`."""
-    t = tp.get(str(team_id), {"attack": mean_atk, "defense": mean_def})
-    o = tp.get(str(opp_id), {"attack": mean_atk, "defense": mean_def})
+    t_sn = teams.get(team_id, str(team_id))
+    o_sn = teams.get(opp_id, str(opp_id))
+    t = tp.get(t_sn, {"attack": mean_atk, "defense": mean_def})
+    o = tp.get(o_sn, {"attack": mean_atk, "defense": mean_def})
     mu = t["attack"] * o["defense"]
     return mu * home_adv if at_home else mu
 
@@ -103,10 +105,10 @@ def build(from_gw: int, to_gw: int, db_path: Path = DB_PATH) -> str:
         gw, h, a = int(gw), int(h), int(a)
         if h in grid:
             grid[h][gw] = (teams.get(a, "?"), True,
-                           expected_goals(tp, mean_atk, mean_def, home_adv, h, a, True))
+                           expected_goals(tp, teams, mean_atk, mean_def, home_adv, h, a, True))
         if a in grid:
             grid[a][gw] = (teams.get(h, "?"), False,
-                           expected_goals(tp, mean_atk, mean_def, home_adv, a, h, False))
+                           expected_goals(tp, teams, mean_atk, mean_def, home_adv, a, h, False))
 
     gws = list(range(from_gw, to_gw + 1))
     # Rank teams by total expected goals over the window — the model's own view

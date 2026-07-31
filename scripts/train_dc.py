@@ -29,14 +29,14 @@ print(f"  Converged: {diag['converged']} — {diag['message']}")
 print("\nTop 10 teams by attack strength:")
 for t in p.team_strengths()[:10]:
     form = f"form_atk={t['form_atk']:.2f} form_def={t['form_def']:.2f}"
-    print(f"  {t['name']:<25} atk={t['attack']:.3f}  def={t['defense']:.3f}  {form}")
+    print(f"  {t['short_name']:<6} atk={t['attack']:.3f}  def={t['defense']:.3f}  {form}")
 
-# Quick sanity check — last season's top fixtures
+# Quick sanity check — last season's top fixtures (pass short_name directly)
 print("\nSanity check predictions (a few top-team fixtures):")
 strengths = p.team_strengths()
-top4_ids = [t["team_id"] for t in strengths[:4]]
-for i in range(min(3, len(top4_ids))):
-    h, a = top4_ids[i], top4_ids[i + 1]
+top4 = [t["short_name"] for t in strengths[:4]]
+for i in range(min(3, len(top4))):
+    h, a = top4[i], top4[i + 1]
     r = p.predict(h, a)
     print(f"  {r['home_name']} vs {r['away_name']}: "
           f"xG {r['home_xg']:.2f}-{r['away_xg']:.2f}  "

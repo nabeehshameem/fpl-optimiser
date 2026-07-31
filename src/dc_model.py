@@ -69,13 +69,14 @@ class FPLDCPredictor:
                  model_path: Path | None = None) -> None:
         self.db_path = Path(db_path) if db_path else DB_PATH
         self.model_path = Path(model_path) if model_path else MODEL_PATH
-        self.team_params: dict[int, dict]   = {}   # {team_id: {attack, defense}}
+        self.team_params: dict[str, dict]   = {}   # {short_name: {attack, defense}}
         self.team_names:  dict[int, str]    = {}   # {team_id: name}
+        self.team_short_names: dict[int, str] = {}  # {archive_team_id: short_name}
         self.home_adv: float  = 1.20
         self.rho:      float  = -0.10
         self._fitted:  bool   = False
         self.elo_ratings:      dict[int, float] = {}
-        self.form_adjustments: dict[int, tuple[float, float]] = {}  # {id: (atk_mult, def_mult)}
+        self.form_adjustments: dict[str, tuple[float, float]] = {}  # {short_name: (atk_mult, def_mult)}
 
     # ── Data loading ──────────────────────────────────────────────────────────
 
@@ -110,8 +111,9 @@ class FPLDCPredictor:
 
     def _load_team_names(self) -> dict[int, str]:
         conn = sqlite3.connect(self.db_path)
-        rows = conn.execute("SELECT team_id, name FROM teams").fetchall()
+        rows = conn.execute("SELECT team_id, name, short_name FROM teams").fetchall()
         conn.close()
+        self.team_short_names = {r[0]: r[2] for r in rows}
         return {r[0]: r[1] for r in rows}
 
     # ── ELO ───────────────────────────────────────────────────────────────────
@@ -228,7 +230,7 @@ class FPLDCPredictor:
         self.rho      = float(opt[2 * n + 1])
 
         self.team_params = {
-            tid: {
+            self.team_short_names.get(tid, str(tid)): {
                 "attack":  float(np.exp(log_atk[i])),
                 "defense": float(np.exp(log_def[i])),
             }
@@ -261,22 +263,24 @@ class FPLDCPredictor:
             key=lambda x: x["kickoff"],
         )
 
-        records: dict[int, list[tuple[float, float, float, float]]] = {}
+        records: dict[str, list[tuple[float, float, float, float]]] = {}
         for m in recent:
             h, a = m["home_id"], m["away_id"]
+            h_sn = self.team_short_names.get(h, str(h))
+            a_sn = self.team_short_names.get(a, str(a))
             hg_act, ag_act = float(m["home_goals"]), float(m["away_goals"])
 
-            h_p = self.team_params.get(h, {"attack": 1.0, "defense": 1.0})
-            a_p = self.team_params.get(a, {"attack": 1.0, "defense": 1.0})
+            h_p = self.team_params.get(h_sn, {"attack": 1.0, "defense": 1.0})
+            a_p = self.team_params.get(a_sn, {"attack": 1.0, "defense": 1.0})
 
             exp_h = h_p["attack"] * a_p["defense"] * self.home_adv
             exp_a = a_p["attack"] * h_p["defense"]
 
-            records.setdefault(h, []).append((hg_act, exp_h, ag_act, exp_a))
-            records.setdefault(a, []).append((ag_act, exp_a, hg_act, exp_h))
+            records.setdefault(h_sn, []).append((hg_act, exp_h, ag_act, exp_a))
+            records.setdefault(a_sn, []).append((ag_act, exp_a, hg_act, exp_h))
 
-        adjustments: dict[int, tuple[float, float]] = {}
-        for tid, team_records in records.items():
+        adjustments: dict[str, tuple[float, float]] = {}
+        for sn, team_records in records.items():
             last = team_records[-n_matches:]
             if len(last) < 4:
                 continue
@@ -291,15 +295,16 @@ class FPLDCPredictor:
 
             atk_mult = max(0.80, min(1.20, 1.0 + 0.50 * (raw_atk - 1.0)))
             def_mult = max(0.80, min(1.20, 1.0 + 0.50 * (raw_def - 1.0)))
-            adjustments[tid] = (atk_mult, def_mult)
+            adjustments[sn] = (atk_mult, def_mult)
 
         return adjustments
 
     # ── Prediction ────────────────────────────────────────────────────────────
 
     def _team_params(self, team_id: int) -> tuple[float, float]:
-        if team_id in self.team_params:
-            p = self.team_params[team_id]
+        sn = self.team_short_names.get(team_id, str(team_id))
+        if sn in self.team_params:
+            p = self.team_params[sn]
             return p["attack"], p["defense"]
         return 1.0, 1.0
 
@@ -325,8 +330,10 @@ class FPLDCPredictor:
         atk_h, def_h = self._team_params(home_id)
         atk_a, def_a = self._team_params(away_id)
 
-        h_atk_m, h_def_m = self.form_adjustments.get(home_id, (1.0, 1.0))
-        a_atk_m, a_def_m = self.form_adjustments.get(away_id, (1.0, 1.0))
+        h_sn = self.team_short_names.get(home_id, str(home_id))
+        a_sn = self.team_short_names.get(away_id, str(away_id))
+        h_atk_m, h_def_m = self.form_adjustments.get(h_sn, (1.0, 1.0))
+        a_atk_m, a_def_m = self.form_adjustments.get(a_sn, (1.0, 1.0))
 
         mu_h = atk_h * h_atk_m * def_a * a_def_m * self.home_adv
         mu_a = atk_a * a_atk_m * def_h * h_def_m
@@ -381,14 +388,13 @@ class FPLDCPredictor:
         return sorted(
             [
                 {
-                    "team_id":  tid,
-                    "name":     self.team_names.get(tid, str(tid)),
+                    "short_name": sn,
                     "attack":   round(p["attack"], 3),
                     "defense":  round(p["defense"], 3),
-                    "form_atk": round(self.form_adjustments.get(tid, (1.0, 1.0))[0], 3),
-                    "form_def": round(self.form_adjustments.get(tid, (1.0, 1.0))[1], 3),
+                    "form_atk": round(self.form_adjustments.get(sn, (1.0, 1.0))[0], 3),
+                    "form_def": round(self.form_adjustments.get(sn, (1.0, 1.0))[1], 3),
                 }
-                for tid, p in self.team_params.items()
+                for sn, p in self.team_params.items()
             ],
             key=lambda x: x["attack"],
             reverse=True,
@@ -404,10 +410,11 @@ class FPLDCPredictor:
                 "trained_at":       _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "home_adv":         self.home_adv,
                 "rho":              self.rho,
-                "team_params":      {str(k): v for k, v in self.team_params.items()},
+                "team_params":      {k: v for k, v in self.team_params.items()},
                 "team_names":       {str(k): v for k, v in self.team_names.items()},
+                "team_short_names": {str(k): v for k, v in self.team_short_names.items()},
                 "elo_ratings":      {str(k): v for k, v in self.elo_ratings.items()},
-                "form_adjustments": {str(k): list(v) for k, v in self.form_adjustments.items()},
+                "form_adjustments": {k: list(v) for k, v in self.form_adjustments.items()},
             },
             indent=2,
         ))
@@ -421,8 +428,9 @@ class FPLDCPredictor:
         data = json.loads(self.model_path.read_text())
         self.home_adv         = data["home_adv"]
         self.rho              = data["rho"]
-        self.team_params      = {int(k): v for k, v in data["team_params"].items()}
+        self.team_params      = {k: v for k, v in data["team_params"].items()}
         self.team_names       = {int(k): v for k, v in data.get("team_names", {}).items()}
+        self.team_short_names = {int(k): v for k, v in data.get("team_short_names", {}).items()}
         self.elo_ratings      = {int(k): v for k, v in data.get("elo_ratings", {}).items()}
-        self.form_adjustments = {int(k): tuple(v) for k, v in data.get("form_adjustments", {}).items()}
+        self.form_adjustments = {k: tuple(v) for k, v in data.get("form_adjustments", {}).items()}
         self._fitted          = True

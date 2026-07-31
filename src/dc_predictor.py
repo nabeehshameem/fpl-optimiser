@@ -231,7 +231,8 @@ class DCPredictor:
 
     @staticmethod
     def _fixture_adjustments(home_id: int, away_id: int, dc: dict,
-                             team_avgs: dict, is_home: bool) -> tuple[float, float]:
+                             team_avgs: dict, is_home: bool,
+                             live_snames: dict | None = None) -> tuple[float, float]:
         team_params = dc.get("team_params", {})
         form_adj = dc.get("form_adjustments", {})
         home_adv = dc.get("home_adv", 1.20)
@@ -239,12 +240,15 @@ class DCPredictor:
             return 1.0, 1.0
         mean_atk = float(np.mean([v["attack"] for v in team_params.values()]))
         mean_def = float(np.mean([v["defense"] for v in team_params.values()]))
+        sn = live_snames or {}
 
-        def p(tid): return team_params.get(str(tid),
-                                           {"attack": mean_atk, "defense": mean_def})
+        def p(tid):
+            k = sn.get(int(tid), str(tid))
+            return team_params.get(k, {"attack": mean_atk, "defense": mean_def})
 
         def form(tid):
-            f = form_adj.get(str(tid), [1.0, 1.0])
+            k = sn.get(int(tid), str(tid))
+            f = form_adj.get(k, [1.0, 1.0])
             return tuple(f) if len(f) == 2 else (1.0, 1.0)
 
         h_p, a_p = p(home_id), p(away_id)
@@ -335,6 +339,8 @@ class DCPredictor:
                 "SELECT home_team_id, away_team_id FROM fixtures "
                 "WHERE gameweek_id = ?", (target_gw,)
             ).fetchall()
+            live_snames = {int(r[0]): r[1] for r in conn.execute(
+                "SELECT team_id, short_name FROM teams")}
         finally:
             conn.close()
 
@@ -348,8 +354,8 @@ class DCPredictor:
 
         team_fixture_adj: dict[int, tuple[float, float]] = {}
         for h, a in fixture_rows:
-            team_fixture_adj[int(h)] = self._fixture_adjustments(h, a, dc, team_avgs, True)
-            team_fixture_adj[int(a)] = self._fixture_adjustments(h, a, dc, team_avgs, False)
+            team_fixture_adj[int(h)] = self._fixture_adjustments(h, a, dc, team_avgs, True, live_snames)
+            team_fixture_adj[int(a)] = self._fixture_adjustments(h, a, dc, team_avgs, False, live_snames)
 
         out: dict[int, float] = {}
         self.explained: dict[int, dict] = {}
@@ -382,8 +388,9 @@ class DCPredictor:
 
             # Expected goals against — fixture adjustment applied EXACTLY ONCE
             if team_params:
-                tp = team_params.get(str(tid), {"attack": mean_atk, "defense": mean_def})
-                fa = form_adj.get(str(tid), [1.0, 1.0])
+                tid_sn = live_snames.get(int(tid), str(tid))
+                tp = team_params.get(tid_sn, {"attack": mean_atk, "defense": mean_def})
+                fa = form_adj.get(tid_sn, [1.0, 1.0])
                 adjusted_xga = tp["defense"] * fa[1] * mean_atk * xga_adj
             else:
                 adjusted_xga = 1.2 * xga_adj
