@@ -91,15 +91,30 @@ def fetch(conn, from_gw: int, to_gw: int):
     return teams, rows
 
 
-def build(from_gw: int, to_gw: int, db_path: Path = DB_PATH) -> str:
-    tp, mean_atk, mean_def, home_adv = load_dc()
+def compute_ticker_data(
+    from_gw: int, to_gw: int, db_path: Path = DB_PATH, dc: dict | None = None,
+) -> dict:
+    """Data-only step: returns {teams, grid, gws, lo, hi} without any HTML.
+
+    Used by both build() (for fpl-preview.html) and build_gw_tools.py (for the
+    tools JSON) so the two renderings are guaranteed to use identical numbers.
+
+    dc: pre-loaded params dict; loads from DC_PARAMS if None.
+    """
+    if dc is None:
+        tp, mean_atk, mean_def, home_adv = load_dc()
+    else:
+        tp = dc.get("team_params", {})
+        mean_atk = sum(v["attack"] for v in tp.values()) / len(tp) if tp else 1.0
+        mean_def = sum(v["defense"] for v in tp.values()) / len(tp) if tp else 1.0
+        home_adv = float(dc.get("home_adv", 1.20))
+
     conn = sqlite3.connect(db_path)
     try:
         teams, rows = fetch(conn, from_gw, to_gw)
     finally:
         conn.close()
 
-    # team_id -> {gw: (opponent_short, at_home, expected_goals_for)}
     grid: dict[int, dict[int, tuple[str, bool, float]]] = {t: {} for t in teams}
     for gw, h, a in rows:
         gw, h, a = int(gw), int(h), int(a)
@@ -110,15 +125,30 @@ def build(from_gw: int, to_gw: int, db_path: Path = DB_PATH) -> str:
             grid[a][gw] = (teams.get(h, "?"), False,
                            expected_goals(tp, teams, mean_atk, mean_def, home_adv, a, h, False))
 
-    gws = list(range(from_gw, to_gw + 1))
+    all_xg = [v[2] for cells in grid.values() for v in cells.values()]
+    lo, hi = (min(all_xg), max(all_xg)) if all_xg else (0.0, 1.0)
+
+    return {
+        "teams": teams,
+        "grid": grid,
+        "gws": list(range(from_gw, to_gw + 1)),
+        "lo": lo,
+        "hi": hi,
+    }
+
+
+def build(from_gw: int, to_gw: int, db_path: Path = DB_PATH) -> str:
+    data = compute_ticker_data(from_gw, to_gw, db_path)
+    teams = data["teams"]
+    grid = data["grid"]
+    gws = data["gws"]
+    lo, hi = data["lo"], data["hi"]
     # Rank teams by total expected goals over the window — the model's own view
     # of who has the best run, rather than a hand-picked shortlist.
     ranked = sorted(
         grid.items(),
         key=lambda kv: sum(v[2] for v in kv[1].values()), reverse=True)
 
-    all_xg = [v[2] for cells in grid.values() for v in cells.values()]
-    lo, hi = (min(all_xg), max(all_xg)) if all_xg else (0.0, 1.0)
     span = (hi - lo) or 1.0
 
     def cell(entry) -> str:

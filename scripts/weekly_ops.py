@@ -128,6 +128,29 @@ def die(phase: str, message: str, severity: str = "CRITICAL") -> None:
 
 # ── shell helpers ────────────────────────────────────────────────────────────
 
+def warn_step(script: str, phase: str, timeout: int = 300) -> None:
+    """Like run_step but degrades to a WARNING on failure (rule 5).
+
+    Use for enrichment steps whose failure must not block a critical path
+    (predictions, lock commitment, grade publish).
+    """
+    print(f"--- {script} (optional)")
+    try:
+        r = subprocess.run(
+            [sys.executable, str(PROJECT_ROOT / script)],
+            cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=timeout)
+        if r.stdout:
+            print(r.stdout.rstrip())
+        if r.returncode != 0:
+            alert(phase, "WARN",
+                  f"{script} failed (non-critical): "
+                  f"{(r.stderr or r.stdout).strip()[-300:]}")
+    except subprocess.TimeoutExpired:
+        alert(phase, "WARN", f"{script} timed out after {timeout}s (non-critical)")
+    except Exception as exc:
+        alert(phase, "WARN", f"{script} could not run: {exc} (non-critical)")
+
+
 def run_step(script: str, phase: str, timeout: int = 1800,
              args: list[str] | None = None) -> None:
     print(f"--- {script} {' '.join(args or [])}")
@@ -198,7 +221,8 @@ def commit_push_verify(paths: list[Path], message: str, phase: str) -> str:
 def phase_refresh() -> None:
     for s in REFRESH_STEPS:
         run_step(s, "refresh")
-    print("\nrefresh OK — predictions written for the next gameweek")
+    warn_step("scripts/build_gw_tools.py", "refresh")
+    print("\nrefresh OK — predictions and tools written for the next gameweek")
     heartbeat("refresh")
 
 
@@ -219,16 +243,16 @@ def phase_lock() -> None:
         die("lock", f"could not read ledger state: {exc}")
 
     export = EXPORT_DIR / f"gw{conn_gw:02d}.json"
-    # Projections ship in the same commit as the commitment, so the two are
-    # provably from one model state. Listed second: commit_push_verify skips
-    # files that do not exist, so a failed projections export still publishes
-    # the commitment.
+    # Projections and tools ship in the same commit as the commitment.
+    # Listed after the primary file: commit_push_verify skips absent files,
+    # so a failed enrichment never blocks the commitment itself.
     projections = EXPORT_DIR / f"gw{conn_gw:02d}_projections.json"
+    tools_file = EXPORT_DIR / f"gw{conn_gw:02d}_tools.json"
 
     if already:
         print(f"GW{conn_gw} already locked at {already[0]} — idempotent no-op")
         # Still verify the commitment actually reached origin.
-        commit_push_verify([export, projections],
+        commit_push_verify([export, projections, tools_file],
                            f"GW{conn_gw} lock (re-verify)", "lock")
         return
 
@@ -243,8 +267,9 @@ def phase_lock() -> None:
               f"only {remaining:.1f}h to the GW{conn_gw} deadline")
 
     run_step("scripts/lock_model_squad.py", "lock", timeout=600)
-    sha = commit_push_verify([export, projections],
-                             f"GW{conn_gw} lock + projections", "lock")
+    warn_step("scripts/build_gw_tools.py", "lock")
+    sha = commit_push_verify([export, projections, tools_file],
+                             f"GW{conn_gw} lock + projections + tools", "lock")
     print(f"\nlock OK — GW{conn_gw} commitment public at {sha[:9]}, "
           f"{remaining:.1f}h before deadline")
     heartbeat("lock")

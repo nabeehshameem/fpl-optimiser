@@ -178,6 +178,28 @@ def projections(gw: int) -> dict:
         raise HTTPException(502, f"projections file unreadable: {exc}") from exc
 
 
+@router.get("/tools/{gw}")
+def tools(gw: int) -> dict:
+    """Pre-computed interactive tools for GW: optimal XI, captain picks,
+    scoreline predictions, fixture ticker.
+
+    Published at refresh time (~24h before the deadline). 404 before that.
+    This endpoint intentionally carries NO squad state (is_xi, bench_order) —
+    those fields live only on /model/gw/{gw} which is the model's actual team.
+    """
+    p = EXPORT_DIR / f"gw{gw:02d}_tools.json"
+    if not p.exists():
+        raise HTTPException(
+            404,
+            f"GW{gw} tools not published yet. They appear at refresh time, "
+            "roughly 24 hours before the deadline.",
+        )
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise HTTPException(502, f"tools file unreadable: {exc}") from exc
+
+
 @router.get("/model/season")
 def model_season() -> dict:
     gws: list[dict] = []

@@ -18,8 +18,7 @@
 2    # Arrizabalaga (ARS) -- backup behind Raya
 3    # Meslier (ARS) -- backup behind Raya
 
-# MCI -- Donnarumma is the confirmed starter post-Kelleher departure
-385  # Trafford (MCI) -- backup behind Donnarumma
+# MCI -- Donnarumma is the confirmed starter; Trafford sold to LEE
 386  # Bettinelli (MCI) -- backup behind Donnarumma
 
 # ---- BETS: option-value judgments (max 3, each needs a falsifier) -----------

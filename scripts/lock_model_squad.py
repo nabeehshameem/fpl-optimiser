@@ -37,6 +37,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from src.availability import (  # noqa: E402
     CHANCE_THRESHOLD, get_excluded_ids, validate_exclusions,
 )
+from src.fpl_player_row import load_player_meta, player_row  # noqa: E402
 from src.optimiser import SquadOptimiser  # noqa: E402
 from src.squad_commit import CANONICAL, compute_squad_hash  # noqa: E402
 
@@ -209,44 +210,7 @@ def build_projections(gw: int, deadline: str, preds, excluded: set,
     a reader is entitled to disagree with a judgement call, and the exclusions
     file is public anyway.
     """
-    conn = sqlite3.connect(conn_for_meta)
-    try:
-        meta = {int(r[0]): {"name": r[1], "position": int(r[2]),
-                            "team": r[3], "price": int(r[4])}
-                for r in conn.execute(
-                    "SELECT p.player_id, p.web_name, p.position, t.short_name, "
-                    "p.current_cost FROM players p "
-                    "LEFT JOIN teams t ON t.team_id = p.team_id")}
-        team_of = {int(r[0]): int(r[1]) for r in
-                   conn.execute("SELECT player_id, team_id FROM players")}
-        opponent: dict[int, tuple[str, bool]] = {}
-        try:
-            rows = conn.execute(
-                "SELECT f.home_team_id, f.away_team_id, th.short_name, "
-                "ta.short_name FROM fixtures f "
-                "JOIN teams th ON th.team_id = f.home_team_id "
-                "JOIN teams ta ON ta.team_id = f.away_team_id "
-                "WHERE f.gameweek_id = ?", (gw,)).fetchall()
-        except sqlite3.Error:
-            rows = []          # fixtures unavailable: omit opponent, keep going
-        for h, a, hn, an in rows:
-            opponent[int(h)] = (an, True)
-            opponent[int(a)] = (hn, False)
-    finally:
-        conn.close()
-
-    def row(pid: int, pts: float) -> dict:
-        m = meta.get(pid, {"name": f"#{pid}", "position": 0,
-                           "team": "?", "price": 0})
-        opp, home = opponent.get(team_of.get(pid, -1), (None, None))
-        return {
-            "player_id": pid, "name": m["name"], "team": m["team"],
-            "position": POSITION_MAP.get(m["position"], "?"),
-            "price": m["price"] / 10.0,
-            "projected_points": round(float(pts), 2),
-            "opponent": opp,
-            "venue": None if home is None else ("H" if home else "A"),
-        }
+    meta, team_of, opponent = load_player_meta(conn_for_meta, gw)
 
     ranked = sorted(
         ((int(r.player_id), float(r.predicted_points)) for r in preds.itertuples()),
@@ -256,7 +220,7 @@ def build_projections(gw: int, deadline: str, preds, excluded: set,
     for pid, pts in ranked:
         pos = POSITION_MAP.get(meta.get(pid, {}).get("position", 0), "?")
         if pos in by_pos and len(by_pos[pos]) < PROJECTION_TOP_N:
-            by_pos[pos].append(row(pid, pts))
+            by_pos[pos].append(player_row(pid, pts, meta, team_of, opponent))
 
     conn = sqlite3.connect(conn_for_meta)
     try:
@@ -273,8 +237,8 @@ def build_projections(gw: int, deadline: str, preds, excluded: set,
         "deadline_utc": deadline,
         "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "model": MODEL_NAME,
-        "captain_candidates": [row(pid, pts) for pid, pts in
-                               ranked[:PROJECTION_CAPTAIN_N]],
+        "captain_candidates": [player_row(pid, pts, meta, team_of, opponent)
+                               for pid, pts in ranked[:PROJECTION_CAPTAIN_N]],
         "by_position": by_pos,
         "excluded": [{"player_id": pid, "name": n, "team": t}
                      for pid, (n, t) in sorted(excl_meta.items())],

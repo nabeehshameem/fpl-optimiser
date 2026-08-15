@@ -198,6 +198,60 @@ def main():
     ok &= check("A6 projections stay a distinct artifact",
                 "by_position" in j and "is_captain" not in json.dumps(j))
 
+    # A7: tools endpoint
+    r = c.get("/api/fpl/tools/9")
+    ok &= check("A7 unpublished tools -> 404", r.status_code == 404, str(r.status_code))
+
+    tools_payload = {
+        "gameweek": 1,
+        "generated_at_utc": PAST,
+        "model": "dc_projection_v1",
+        "optimal_xi": {
+            "formation": "3-5-2",
+            "players": [
+                {"player_id": i, "name": f"P{i}", "team": "TST",
+                 "position": pos, "price": 6.0, "projected_points": float(10 - i),
+                 "is_captain": i == 1}
+                for i, pos in zip(range(1, 12),
+                    ["GK", "DEF", "DEF", "DEF", "MID", "MID", "MID",
+                     "MID", "MID", "FWD", "FWD"])
+            ],
+            "total_projected": 61.0,
+            "note": "TOOL, not the model's team",
+        },
+        "captain": [
+            {"player_id": 10, "name": "P10", "team": "TST", "position": "FWD",
+             "price": 12.5, "projected_points": 9.1, "opponent": "T2",
+             "venue": "H", "captain_delta": 9.1}
+        ],
+        "gw_predictions": [
+            {"home": "TST", "away": "T2", "kickoff_utc": FUTURE,
+             "p_home": 45.0, "p_draw": 28.0, "p_away": 27.0,
+             "top_scoreline": "1-0", "xg_home": 1.6, "xg_away": 1.1}
+        ],
+        "fixture_ticker": {
+            "from_gw": 1, "to_gw": 6,
+            "teams": [
+                {"team": "TST", "cells": [{"gw": 1, "opponent": "T2",
+                 "venue": "H", "xg_for": 1.6}], "total_xg": 1.6}
+            ],
+        },
+    }
+    (fpl_api.EXPORT_DIR / "gw01_tools.json").write_text(json.dumps(tools_payload))
+
+    r = c.get("/api/fpl/tools/1")
+    j = r.json()
+    ok &= check("A7 tools served intact", r.status_code == 200
+                and j.get("model") == "dc_projection_v1")
+    ok &= check("A7 tools has four sections",
+                all(k in j for k in ("optimal_xi", "captain", "gw_predictions", "fixture_ticker")))
+
+    # No squad state must leak — these keys only belong in gwNN.json
+    payload_str = json.dumps(j)
+    for forbidden in ("is_xi", "bench_order"):
+        ok &= check(f"A7 '{forbidden}' not in tools response",
+                    forbidden not in payload_str)
+
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
 
