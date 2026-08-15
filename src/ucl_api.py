@@ -117,11 +117,27 @@ def standings() -> dict:
     }
 
 
+@router.get("/league-phase/sim")
+def league_phase_sim() -> dict:
+    """Monte-Carlo qualification probabilities for the UCL league phase."""
+    p = UCL_PREDS / "league_phase_sim.json"
+    if not p.exists():
+        raise HTTPException(
+            404,
+            "League phase simulation not yet run. "
+            "Run: python ucl/simulate_league_phase.py"
+        )
+    return _load_predictions("league_phase_sim.json")
+
+
 @router.get("/bracket")
 def bracket() -> dict:
-    """UCL knockout bracket. Placeholder — implemented in B6."""
-    raise HTTPException(
-        501,
-        "UCL bracket endpoint not yet implemented (B6). "
-        "Check back after the league phase concludes."
-    )
+    """UCL knockout bracket — available after the league phase concludes (B6)."""
+    p = UCL_PREDS / "bracket.json"
+    if not p.exists():
+        raise HTTPException(
+            404,
+            "UCL bracket not yet published. "
+            "It will be available after the league phase concludes."
+        )
+    return _load_predictions("bracket.json")
