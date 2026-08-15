@@ -51,6 +51,10 @@ ALERT_WEBHOOK = os.getenv("ALERT_WEBHOOK")
 # gains the new graded gameweek. Get it from Vercel Project Settings →
 # Git → Deploy Hooks, add to Railway env alongside ALERT_WEBHOOK.
 VERCEL_DEPLOY_HOOK = os.getenv("VERCEL_DEPLOY_HOOK")
+# Absolute path to the themodelsays-web checkout. When set, refresh
+# regenerates the fixture grid and splices it into fpl-preview.html so the
+# static page stays in sync with the DB without a manual re-run.
+WEB_REPO_PATH = os.getenv("WEB_REPO_PATH")
 
 # Dead-man's switch. An on-failure alert only fires if the job RUNS; it is
 # structurally blind to the likeliest failure of all — the job never
@@ -128,16 +132,18 @@ def die(phase: str, message: str, severity: str = "CRITICAL") -> None:
 
 # ── shell helpers ────────────────────────────────────────────────────────────
 
-def warn_step(script: str, phase: str, timeout: int = 300) -> None:
+def warn_step(script: str, phase: str, timeout: int = 300,
+              args: list[str] | None = None) -> None:
     """Like run_step but degrades to a WARNING on failure (rule 5).
 
     Use for enrichment steps whose failure must not block a critical path
     (predictions, lock commitment, grade publish).
     """
-    print(f"--- {script} (optional)")
+    extra = args or []
+    print(f"--- {script} {' '.join(extra)} (optional)")
     try:
         r = subprocess.run(
-            [sys.executable, str(PROJECT_ROOT / script)],
+            [sys.executable, str(PROJECT_ROOT / script)] + extra,
             cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=timeout)
         if r.stdout:
             print(r.stdout.rstrip())
@@ -222,6 +228,10 @@ def phase_refresh() -> None:
     for s in REFRESH_STEPS:
         run_step(s, "refresh")
     warn_step("scripts/build_gw_tools.py", "refresh")
+    if WEB_REPO_PATH:
+        preview_page = str(Path(WEB_REPO_PATH) / "public" / "fpl-preview.html")
+        warn_step("scripts/build_fixture_grid.py", "refresh",
+                  args=["--page", preview_page])
     print("\nrefresh OK — predictions and tools written for the next gameweek")
     heartbeat("refresh")
 

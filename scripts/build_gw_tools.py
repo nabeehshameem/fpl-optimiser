@@ -35,6 +35,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.availability import get_excluded_ids  # noqa: E402
 from src.dc_match import predict_match  # noqa: E402
 from src.fpl_player_row import load_player_meta, player_row, POSITION_MAP  # noqa: E402
 from src.optimiser import SquadOptimiser  # noqa: E402
@@ -288,6 +289,17 @@ def build(gw: int | None = None, db_path: Path = DB_PATH,
         preds_df = _load_predictions(conn, gw)
     finally:
         conn.close()
+
+    # Apply the same exclusions as the lock so the tool pool never presents
+    # confirmed non-starters. Non-fatal: a stale exclusions file degrades to
+    # a warning rather than blocking the tools build (rule 5).
+    try:
+        excluded = get_excluded_ids(db_path, gw)
+        if excluded:
+            preds_df = preds_df[~preds_df["player_id"].isin(excluded)]
+    except Exception as exc:
+        print(f"[WARN] exclusions check skipped — running without: {exc}",
+              file=sys.stderr)
 
     meta, team_of, opponent = load_player_meta(db_path, gw)
 
