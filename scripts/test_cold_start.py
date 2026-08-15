@@ -164,7 +164,7 @@ def build_live(tmp: Path, live_gws: int = 0, id_map: dict | None = None) -> Path
 def dc_params(tmp: Path) -> Path:
     p = tmp / "params.json"
     p.write_text(json.dumps({
-        "team_params": {str(i): {"attack": 1.0, "defense": 1.0}
+        "team_params": {f"T{i}": {"attack": 1.0, "defense": 1.0}
                         for i in range(1, 7)},
         "form_adjustments": {}, "home_adv": 1.2,
     }))

@@ -109,12 +109,12 @@ def build_world(tmp: Path):
     model = tmp / "fpl_dc_params.json"
     model.write_text(json.dumps({
         "team_params": {
-            "1": {"attack": 1.8, "defense": 0.6},   # strong
-            "2": {"attack": 0.6, "defense": 1.8},   # weak
-            "3": {"attack": 1.0, "defense": 1.0},
-            "4": {"attack": 1.0, "defense": 1.0},
-            "5": {"attack": 1.0, "defense": 1.0},
-            "6": {"attack": 1.0, "defense": 1.0},
+            "STR": {"attack": 1.8, "defense": 0.6},   # strong
+            "WEA": {"attack": 0.6, "defense": 1.8},   # weak
+            "AVA": {"attack": 1.0, "defense": 1.0},
+            "AVB": {"attack": 1.0, "defense": 1.0},
+            "IDA": {"attack": 1.0, "defense": 1.0},
+            "IDB": {"attack": 1.0, "defense": 1.0},
         },
         "form_adjustments": {},
         "home_adv": 1.2,

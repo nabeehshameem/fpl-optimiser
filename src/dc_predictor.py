@@ -345,6 +345,21 @@ class DCPredictor:
             conn.close()
 
         dc = self._load_dc()
+        # Coverage guard: if almost no live team resolves in team_params the
+        # file is mis-keyed (integer ids, stale names) and every adjustment
+        # silently collapses to the league mean — the signature of the
+        # team-ID drift bug. <=3 misses is legitimate (promoted sides);
+        # near-total misses are always a keying fault.
+        tp_keys = set(dc.get("team_params", {}))
+        if tp_keys and live_snames:
+            resolved = sum(1 for n in live_snames.values() if n in tp_keys)
+            if resolved < len(live_snames) * 0.5:
+                raise RuntimeError(
+                    f"team_params resolves only {resolved}/{len(live_snames)} "
+                    "live teams — the parameter file is mis-keyed (integer ids "
+                    "or stale names). Refusing to project with every fixture "
+                    "adjustment flattened to the league mean. Refit with "
+                    "train_dc.py or fix the keys.")
         team_params = dc.get("team_params", {})
         form_adj = dc.get("form_adjustments", {})
         mean_atk = (float(np.mean([v["attack"] for v in team_params.values()]))

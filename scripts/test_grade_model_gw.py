@@ -88,6 +88,8 @@ def base_stats(overrides=None):
 
 
 def main():
+    import tempfile as _tf
+    g.EXPORT_DIR = Path(_tf.mkdtemp())
     ok = True
 
     # G1: clean week, captain 10 (4 pts) doubles, 4-pt hit
