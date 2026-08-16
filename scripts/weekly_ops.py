@@ -229,6 +229,7 @@ def phase_refresh() -> None:
         run_step(s, "refresh")
     warn_step("scripts/build_gw_tools.py", "refresh")
     warn_step("scripts/export_projections.py", "refresh")
+    warn_step("scripts/build_fpl_pool.py", "refresh")
     if WEB_REPO_PATH:
         preview_page = str(Path(WEB_REPO_PATH) / "public" / "fpl-preview.html")
         warn_step("scripts/build_fixture_grid.py", "refresh",
@@ -259,11 +260,12 @@ def phase_lock() -> None:
     # so a failed enrichment never blocks the commitment itself.
     projections = EXPORT_DIR / f"gw{conn_gw:02d}_projections.json"
     tools_file = EXPORT_DIR / f"gw{conn_gw:02d}_tools.json"
+    pool_file = EXPORT_DIR / f"gw{conn_gw:02d}_pool.json"
 
     if already:
         print(f"GW{conn_gw} already locked at {already[0]} — idempotent no-op")
         # Still verify the commitment actually reached origin.
-        commit_push_verify([export, projections, tools_file],
+        commit_push_verify([export, projections, tools_file, pool_file],
                            f"GW{conn_gw} lock (re-verify)", "lock")
         return
 
@@ -279,8 +281,9 @@ def phase_lock() -> None:
 
     run_step("scripts/lock_model_squad.py", "lock", timeout=600)
     warn_step("scripts/build_gw_tools.py", "lock")
-    sha = commit_push_verify([export, projections, tools_file],
-                             f"GW{conn_gw} lock + projections + tools", "lock")
+    warn_step("scripts/build_fpl_pool.py", "lock")
+    sha = commit_push_verify([export, projections, tools_file, pool_file],
+                             f"GW{conn_gw} lock + projections + tools + pool", "lock")
     print(f"\nlock OK — GW{conn_gw} commitment public at {sha[:9]}, "
           f"{remaining:.1f}h before deadline")
     heartbeat("lock")

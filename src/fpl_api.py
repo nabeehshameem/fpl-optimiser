@@ -200,6 +200,32 @@ def tools(gw: int) -> dict:
         raise HTTPException(502, f"tools file unreadable: {exc}") from exc
 
 
+@router.get("/pool/{gw}")
+def pool(gw: int) -> dict:
+    """Full player pool for the Squad Builder.
+
+    Contains every FPL player with price, ownership, availability, and
+    the model's projected points where available (projected: false and
+    projected_points: null for players outside the model's coverage).
+    Also encodes the FPL squad rules so the frontend never hard-codes them.
+
+    Published alongside the tools file (~24h before the deadline). 404
+    before that — the Squad Builder should show a 'coming soon' state
+    naming the deadline rather than an error.
+    """
+    p = EXPORT_DIR / f"gw{gw:02d}_pool.json"
+    if not p.exists():
+        raise HTTPException(
+            404,
+            f"GW{gw} player pool not published yet. It appears at refresh "
+            "time, roughly 24 hours before the deadline.",
+        )
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise HTTPException(502, f"pool file unreadable: {exc}") from exc
+
+
 @router.get("/model/season")
 def model_season() -> dict:
     gws: list[dict] = []
