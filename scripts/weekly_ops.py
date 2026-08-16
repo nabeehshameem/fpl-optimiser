@@ -228,6 +228,7 @@ def phase_refresh() -> None:
     for s in REFRESH_STEPS:
         run_step(s, "refresh")
     warn_step("scripts/build_gw_tools.py", "refresh")
+    warn_step("scripts/export_projections.py", "refresh")
     if WEB_REPO_PATH:
         preview_page = str(Path(WEB_REPO_PATH) / "public" / "fpl-preview.html")
         warn_step("scripts/build_fixture_grid.py", "refresh",
