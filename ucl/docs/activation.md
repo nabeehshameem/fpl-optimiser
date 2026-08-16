@@ -111,8 +111,8 @@ git ls-remote origin HEAD  # verify SHA matches local HEAD
 Verify all UCL endpoints are live on Railway:
 
 ```bash
-curl -s https://fpl-optimiser-production.up.railway.app/api/ucl/predictions/upcoming | python -m json.tool | head -20
-curl -s https://fpl-optimiser-production.up.railway.app/api/ucl/league-phase/sim | python -m json.tool | head -10
+curl -s https://web-production-373bce.up.railway.app/api/ucl/predictions/upcoming | python -m json.tool | head -20
+curl -s https://web-production-373bce.up.railway.app/api/ucl/league-phase/sim | python -m json.tool | head -10
 ```
 
 Both must return 200 with `generated_at_utc` in the response.
