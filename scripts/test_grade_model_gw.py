@@ -204,6 +204,16 @@ def main():
                 r.get("excluded_from_pool", "MISSING") is None,
                 repr(r.get("excluded_from_pool", "MISSING")))
 
+    # G11: dry_run=False also refuses an unfinished GW (the guard fires before
+    # any write, so no filesystem side-effect even though EXPORT_DIR is live).
+    db = build_db(Path(tempfile.mkdtemp()), base_stats(), finished=0)
+    try:
+        g.grade(gw=1, dry_run=False, db_path=db)
+        ok &= check("G11 dry_run=False refuses unfinished GW", False)
+    except RuntimeError as e:
+        ok &= check("G11 dry_run=False refuses unfinished GW",
+                    "finished" in str(e), str(e)[:60])
+
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
 

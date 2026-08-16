@@ -23,6 +23,7 @@ Exit codes: 0 all clear (warnings allowed), 1 at least one FAIL.
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import subprocess
@@ -210,6 +211,44 @@ def check_exclusions() -> None:
              str(exc).replace("\n", " ")[:120])
 
 
+def check_false_results() -> None:
+    """FAIL if any gw*_result.json exists for a GW the DB says is not finished.
+
+    test_grade_model_gw.py sandboxes every grade() call — but the fix only
+    prevents future pollution. This gate catches any file already in the tree.
+    """
+    result_files = sorted(EXPORT_DIR.glob("gw*_result.json")) if EXPORT_DIR.exists() else []
+    if not result_files:
+        return
+    if not DB_PATH.exists():
+        return  # DB check handles missing DB separately
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        for f in result_files:
+            try:
+                data = json.loads(f.read_text())
+            except (json.JSONDecodeError, OSError):
+                fail(f"{f.name}: unreadable", "may be malformed test pollution")
+                continue
+            gw_num = data.get("gameweek")
+            if gw_num is None:
+                fail(f"{f.name}: no gameweek field", "malformed result file")
+                continue
+            row = conn.execute(
+                "SELECT finished FROM gameweeks WHERE gameweek_id = ?", (gw_num,)
+            ).fetchone()
+            if row is None:
+                fail(f"{f.name}: GW{gw_num} not in DB",
+                     "result for a GW with no DB record — delete it")
+            elif not row[0]:
+                fail(f"{f.name}: GW{gw_num} not finished",
+                     "result committed before the GW was played — delete it")
+            else:
+                ok(f"{f.name}: GW{gw_num} finished")
+    finally:
+        conn.close()
+
+
 def check_export_dir() -> None:
     try:
         EXPORT_DIR.mkdir(parents=True, exist_ok=True)
@@ -274,6 +313,7 @@ def main() -> None:
     check_models()
     check_exclusions()
     check_export_dir()
+    check_false_results()
     check_git()
 
     width = max(len(n) for _, n, _ in results) + 2
