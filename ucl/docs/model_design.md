@@ -77,11 +77,11 @@ Elo:      ??/96 = ??%
 Run all before MD1:
 
 ```bash
-python ucl/test_ucl_ingest.py
-python ucl/test_ucl_train_dc.py
-python ucl/test_simulate_league_phase.py
-python ucl/test_simulate_bracket.py
-python ucl/test_ucl_api.py
+python ucl/scripts/test_ucl_ingest.py
+python ucl/scripts/test_ucl_train_dc.py
+python ucl/scripts/test_simulate_league_phase.py
+python ucl/scripts/test_simulate_bracket.py
+python ucl/scripts/test_ucl_api.py
 ```
 
 The ingest tests (I suite) cover DB schema and structure. The train tests (T suite) cover the fit() function with synthetic data. The simulation tests (L/B suites) cover the Monte Carlo engine with synthetic DB fixtures. The API tests (A suite) cover the ucl_api.py router with mocked file paths.
