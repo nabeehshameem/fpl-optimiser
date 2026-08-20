@@ -18,8 +18,9 @@
 2    # Arrizabalaga (ARS) -- backup behind Raya
 3    # Meslier (ARS) -- backup behind Raya
 
-# MCI -- Donnarumma is the confirmed starter; Trafford sold to LEE
+# MCI -- Donnarumma is the confirmed starter; Rulli signed as backup, Trafford sold to LEE
 386  # Bettinelli (MCI) -- backup behind Donnarumma
+587  # Rulli (MCI) -- backup behind Donnarumma
 
 # ---- BETS: option-value judgments (max 3, each needs a falsifier) -----------
 # (none -- Button removed: bench GK option value is near zero because a free

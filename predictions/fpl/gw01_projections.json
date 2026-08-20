@@ -1,7 +1,7 @@
 {
   "gameweek": 1,
   "deadline_utc": "2026-08-21T17:30:00Z",
-  "generated_at_utc": "2026-08-20T13:17:20Z",
+  "generated_at_utc": "2026-08-20T13:44:58Z",
   "model": "dc_projection_v1",
   "captain_candidates": [
     {
@@ -68,12 +68,12 @@
         "venue": "H"
       },
       {
-        "player_id": 587,
-        "name": "Rulli",
+        "player_id": 384,
+        "name": "Donnarumma",
         "team": "MCI",
         "position": "GK",
-        "price": 5.0,
-        "projected_points": 4.41,
+        "price": 5.5,
+        "projected_points": 4.33,
         "opponent": "BOU",
         "venue": "H"
       },
@@ -700,6 +700,11 @@
       "player_id": 540,
       "name": "Masuaku",
       "team": "SUN"
+    },
+    {
+      "player_id": 587,
+      "name": "Rulli",
+      "team": "MCI"
     }
   ],
   "note": "These projections are the model's view of every player \u2014 not its selection. The squad itself is published at lock time alongside these projections."
