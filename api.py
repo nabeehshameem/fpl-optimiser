@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +172,18 @@ async def _unhandled(request: Request, exc: Exception):
 
 ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 
+# CORS must be outermost (added last so it runs first), ensuring preflight
+# OPTIONS requests are handled before rate limiting or other middleware sees them.
+app.add_middleware(SlowAPIMiddleware)  # applies default_limits to all routes
+
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -305,6 +318,7 @@ def _compute_first_scorers(team_id: int, team_xg: float, total_xg: float, top_n:
 
 
 @app.get("/health")
+@limiter.exempt
 def health():
     return {"status": "ok", "model_loaded": _predictor is not None}
 
@@ -848,6 +862,11 @@ def subscribe_email(req: SubscribeRequest, request: Request):
     return _OK
 
 
+def _csv_safe(val: str) -> str:
+    """Neutralise CSV formula injection by prefixing formula triggers with a tab."""
+    return ("\t" + val) if val and val[0] in ("=", "+", "-", "@") else val
+
+
 @app.get("/api/notify/export")
 def export_subscribers(token: str | None = Depends(_retrain_header)):
     """Download all subscriber emails as CSV. Requires the retrain token."""
@@ -855,7 +874,7 @@ def export_subscribers(token: str | None = Depends(_retrain_header)):
     conn = sqlite3.connect(DB_PATH)
     rows = conn.execute("SELECT email, created_at FROM subscribers ORDER BY created_at").fetchall()
     conn.close()
-    lines = ["email,created_at"] + [f"{r[0]},{r[1]}" for r in rows]
+    lines = ["email,created_at"] + [f"{_csv_safe(r[0])},{r[1]}" for r in rows]
     from fastapi.responses import PlainTextResponse
     return PlainTextResponse("\n".join(lines), media_type="text/csv",
                              headers={"Content-Disposition": "attachment; filename=subscribers.csv"})
@@ -939,7 +958,7 @@ def retrain_status():
         "last":             _retrain_status["last"],
         "last_triggered":   _retrain_status.get("last_time"),
         "model_trained_at": model_trained_at,
-        "error":            _retrain_status["error"],
+        "error":            _retrain_status["error"] is not None,  # bool — don't leak stderr
     }
 
 

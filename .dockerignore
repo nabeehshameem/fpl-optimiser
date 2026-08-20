@@ -1,0 +1,28 @@
+# Secrets — never bake into the image; inject at runtime via Railway env vars
+.env
+.envrc
+.env.*
+
+# Dev environments — not needed in the container
+venv/
+.venv/
+env/
+
+# Caches and build artifacts
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# Git history, IDE, Claude memory
+.git/
+.github/
+.vscode/
+.claude/
+tempCodeRunnerFile.py
+
+# Local-only databases that Railway doesn't need
+wc_fantasy.db
