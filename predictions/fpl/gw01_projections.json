@@ -1,7 +1,7 @@
 {
   "gameweek": 1,
   "deadline_utc": "2026-08-21T17:30:00Z",
-  "generated_at_utc": "2026-08-16T18:44:09Z",
+  "generated_at_utc": "2026-08-20T13:17:20Z",
   "model": "dc_projection_v1",
   "captain_candidates": [
     {
@@ -78,41 +78,11 @@
         "venue": "H"
       },
       {
-        "player_id": 384,
-        "name": "Donnarumma",
-        "team": "MCI",
-        "position": "GK",
-        "price": 5.5,
-        "projected_points": 4.33,
-        "opponent": "BOU",
-        "venue": "H"
-      },
-      {
         "player_id": 250,
         "name": "Leno",
         "team": "FUL",
         "position": "GK",
         "price": 4.5,
-        "projected_points": 4.09,
-        "opponent": "CHE",
-        "venue": "H"
-      },
-      {
-        "player_id": 251,
-        "name": "Lecomte",
-        "team": "FUL",
-        "position": "GK",
-        "price": 4.0,
-        "projected_points": 4.09,
-        "opponent": "CHE",
-        "venue": "H"
-      },
-      {
-        "player_id": 252,
-        "name": "McNally",
-        "team": "FUL",
-        "position": "GK",
-        "price": 4.0,
         "projected_points": 4.09,
         "opponent": "CHE",
         "venue": "H"
@@ -128,13 +98,43 @@
         "venue": "H"
       },
       {
-        "player_id": 109,
-        "name": "Verbruggen",
-        "team": "BHA",
+        "player_id": 531,
+        "name": "Ellborg",
+        "team": "SUN",
         "position": "GK",
         "price": 4.5,
-        "projected_points": 3.99,
-        "opponent": "AVL",
+        "projected_points": 3.9,
+        "opponent": "IPS",
+        "venue": "A"
+      },
+      {
+        "player_id": 301,
+        "name": "Palmer",
+        "team": "IPS",
+        "position": "GK",
+        "price": 4.0,
+        "projected_points": 3.86,
+        "opponent": "SUN",
+        "venue": "H"
+      },
+      {
+        "player_id": 82,
+        "name": "Kelleher",
+        "team": "BRE",
+        "position": "GK",
+        "price": 5.0,
+        "projected_points": 3.82,
+        "opponent": "TOT",
+        "venue": "H"
+      },
+      {
+        "player_id": 226,
+        "name": "Pickford",
+        "team": "EVE",
+        "position": "GK",
+        "price": 5.5,
+        "projected_points": 3.79,
+        "opponent": "CRY",
         "venue": "H"
       }
     ],

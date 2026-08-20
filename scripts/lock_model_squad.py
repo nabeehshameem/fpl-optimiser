@@ -217,10 +217,17 @@ def build_projections(gw: int, deadline: str, preds, excluded: set,
         key=lambda t: t[1], reverse=True)
 
     by_pos: dict[str, list[dict]] = {"GK": [], "DEF": [], "MID": [], "FWD": []}
+    gk_teams_seen: set[int] = set()
     for pid, pts in ranked:
         pos = POSITION_MAP.get(meta.get(pid, {}).get("position", 0), "?")
-        if pos in by_pos and len(by_pos[pos]) < PROJECTION_TOP_N:
-            by_pos[pos].append(player_row(pid, pts, meta, team_of, opponent))
+        if pos not in by_pos or len(by_pos[pos]) >= PROJECTION_TOP_N:
+            continue
+        if pos == "GK":
+            tid = team_of.get(pid)
+            if tid in gk_teams_seen:
+                continue
+            gk_teams_seen.add(tid)
+        by_pos[pos].append(player_row(pid, pts, meta, team_of, opponent))
 
     conn = sqlite3.connect(conn_for_meta)
     try:
