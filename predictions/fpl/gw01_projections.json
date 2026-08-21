@@ -1,7 +1,7 @@
 {
   "gameweek": 1,
   "deadline_utc": "2026-08-21T17:30:00Z",
-  "generated_at_utc": "2026-08-20T13:44:58Z",
+  "generated_at_utc": "2026-08-21T07:30:04Z",
   "model": "dc_projection_v1",
   "captain_candidates": [
     {
@@ -412,13 +412,38 @@
       "team": "ARS"
     },
     {
+      "player_id": 21,
+      "name": "N\u00f8rgaard",
+      "team": "EVE"
+    },
+    {
       "player_id": 30,
       "name": "Digne",
       "team": "AVL"
     },
     {
+      "player_id": 39,
+      "name": "Nedeljkovic",
+      "team": "AVL"
+    },
+    {
       "player_id": 48,
       "name": "Onana",
+      "team": "AVL"
+    },
+    {
+      "player_id": 49,
+      "name": "Iling Jr",
+      "team": "AVL"
+    },
+    {
+      "player_id": 53,
+      "name": "Manzambi",
+      "team": "AVL"
+    },
+    {
+      "player_id": 54,
+      "name": "Gomes",
       "team": "AVL"
     },
     {
@@ -442,6 +467,11 @@
       "team": "BOU"
     },
     {
+      "player_id": 77,
+      "name": "Adli",
+      "team": "BOU"
+    },
+    {
       "player_id": 78,
       "name": "Kroupi.Jr",
       "team": "BOU"
@@ -450,6 +480,16 @@
       "player_id": 80,
       "name": "Enes \u00dcnal",
       "team": "BOU"
+    },
+    {
+      "player_id": 85,
+      "name": "Van den Berg",
+      "team": "BRE"
+    },
+    {
+      "player_id": 99,
+      "name": "Milambo",
+      "team": "BRE"
     },
     {
       "player_id": 100,
@@ -462,6 +502,11 @@
       "team": "BHA"
     },
     {
+      "player_id": 122,
+      "name": "Minteh",
+      "team": "BHA"
+    },
+    {
       "player_id": 128,
       "name": "Buonanotte",
       "team": "BHA"
@@ -469,6 +514,11 @@
     {
       "player_id": 131,
       "name": "Baleba",
+      "team": "BHA"
+    },
+    {
+      "player_id": 132,
+      "name": "Howell",
       "team": "BHA"
     },
     {
@@ -497,6 +547,16 @@
       "team": "CHE"
     },
     {
+      "player_id": 193,
+      "name": "Wright",
+      "team": "COV"
+    },
+    {
+      "player_id": 196,
+      "name": "Markelo",
+      "team": "COV"
+    },
+    {
       "player_id": 197,
       "name": "Bassette",
       "team": "COV"
@@ -517,8 +577,18 @@
       "team": "EVE"
     },
     {
+      "player_id": 240,
+      "name": "Iroegbunam",
+      "team": "EVE"
+    },
+    {
       "player_id": 253,
       "name": "Andersen",
+      "team": "FUL"
+    },
+    {
+      "player_id": 266,
+      "name": "Cairney",
       "team": "FUL"
     },
     {
@@ -529,6 +599,11 @@
     {
       "player_id": 275,
       "name": "Cartwright",
+      "team": "HUL"
+    },
+    {
+      "player_id": 276,
+      "name": "Lo-Tutala",
       "team": "HUL"
     },
     {
@@ -562,6 +637,11 @@
       "team": "HUL"
     },
     {
+      "player_id": 298,
+      "name": "Destan",
+      "team": "HUL"
+    },
+    {
       "player_id": 299,
       "name": "Burstow",
       "team": "HUL"
@@ -582,8 +662,28 @@
       "team": "IPS"
     },
     {
+      "player_id": 319,
+      "name": "Szmodics",
+      "team": "IPS"
+    },
+    {
       "player_id": 331,
       "name": "Gudmundsson",
+      "team": "LEE"
+    },
+    {
+      "player_id": 333,
+      "name": "Bornauw",
+      "team": "LEE"
+    },
+    {
+      "player_id": 340,
+      "name": "Gelhardt",
+      "team": "HUL"
+    },
+    {
+      "player_id": 341,
+      "name": "Gnonto",
       "team": "LEE"
     },
     {
@@ -592,9 +692,24 @@
       "team": "LEE"
     },
     {
+      "player_id": 344,
+      "name": "Gruev",
+      "team": "LEE"
+    },
+    {
+      "player_id": 348,
+      "name": "Piroe",
+      "team": "LEE"
+    },
+    {
       "player_id": 349,
       "name": "Mateo Joseph",
       "team": "LEE"
+    },
+    {
+      "player_id": 353,
+      "name": "Pecsi",
+      "team": "LIV"
     },
     {
       "player_id": 354,
@@ -637,8 +752,23 @@
       "team": "MCI"
     },
     {
+      "player_id": 394,
+      "name": "Alleyne",
+      "team": "MCI"
+    },
+    {
       "player_id": 402,
       "name": "Rodrigo",
+      "team": "MCI"
+    },
+    {
+      "player_id": 404,
+      "name": "Reijnders",
+      "team": "MCI"
+    },
+    {
+      "player_id": 408,
+      "name": "Phillips",
       "team": "MCI"
     },
     {
@@ -647,8 +777,18 @@
       "team": "MUN"
     },
     {
+      "player_id": 414,
+      "name": "Heaton",
+      "team": "MUN"
+    },
+    {
       "player_id": 416,
       "name": "De Ligt",
+      "team": "MUN"
+    },
+    {
+      "player_id": 425,
+      "name": "Fredricson",
       "team": "MUN"
     },
     {
@@ -657,8 +797,18 @@
       "team": "MUN"
     },
     {
+      "player_id": 450,
+      "name": "Livramento",
+      "team": "NEW"
+    },
+    {
       "player_id": 451,
       "name": "A.Murphy",
+      "team": "NEW"
+    },
+    {
+      "player_id": 458,
+      "name": "Joelinton",
       "team": "NEW"
     },
     {
@@ -670,6 +820,31 @@
       "player_id": 475,
       "name": "Savona",
       "team": "NFO"
+    },
+    {
+      "player_id": 489,
+      "name": "Yates",
+      "team": "NFO"
+    },
+    {
+      "player_id": 494,
+      "name": "Vicario",
+      "team": "TOT"
+    },
+    {
+      "player_id": 500,
+      "name": "Romero",
+      "team": "TOT"
+    },
+    {
+      "player_id": 505,
+      "name": "Spence",
+      "team": "TOT"
+    },
+    {
+      "player_id": 507,
+      "name": "Phillips",
+      "team": "TOT"
     },
     {
       "player_id": 513,
@@ -700,6 +875,16 @@
       "player_id": 540,
       "name": "Masuaku",
       "team": "SUN"
+    },
+    {
+      "player_id": 546,
+      "name": "Adingra",
+      "team": "SUN"
+    },
+    {
+      "player_id": 582,
+      "name": "Madjo",
+      "team": "AVL"
     },
     {
       "player_id": 587,

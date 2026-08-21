@@ -1,6 +1,6 @@
 {
   "gameweek": 1,
-  "generated_at_utc": "2026-08-16T17:52:04Z",
+  "generated_at_utc": "2026-08-21T07:30:09Z",
   "model": "dc_projection_v1",
   "optimal_xi": {
     "formation": "5-3-2",
@@ -33,12 +33,12 @@
         "is_captain": false
       },
       {
-        "player_id": 388,
-        "name": "Gu\u00e9hi",
+        "player_id": 391,
+        "name": "Gvardiol",
         "team": "MCI",
         "position": "DEF",
-        "price": 6.0,
-        "projected_points": 5.84,
+        "price": 5.5,
+        "projected_points": 5.56,
         "is_captain": false
       },
       {
@@ -105,7 +105,7 @@
         "is_captain": false
       }
     ],
-    "total_projected": 70.06,
+    "total_projected": 69.78,
     "note": "Highest-projected legal XI from a fresh \u00a3100.0m squad, ignoring the model's own transfer state. This is a TOOL, not the model's team \u2014 the model's actual squad is at /model/gw/1."
   },
   "captain": [
