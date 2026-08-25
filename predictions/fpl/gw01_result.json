@@ -1,0 +1,1965 @@
+{
+  "gameweek": 1,
+  "squad": [
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 1,
+      "purchase_price": 60
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 4,
+      "purchase_price": 80
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 8,
+      "purchase_price": 55
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 94,
+      "purchase_price": 60
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 106,
+      "purchase_price": 80
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 113,
+      "purchase_price": 45
+    },
+    {
+      "bench_order": 2,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 0,
+      "player_id": 124,
+      "purchase_price": 55
+    },
+    {
+      "bench_order": 4,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 0,
+      "player_id": 127,
+      "purchase_price": 50
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 237,
+      "purchase_price": 60
+    },
+    {
+      "bench_order": 1,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 0,
+      "player_id": 251,
+      "purchase_price": 40
+    },
+    {
+      "bench_order": 3,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 0,
+      "player_id": 346,
+      "purchase_price": 60
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 1,
+      "is_xi": 1,
+      "player_id": 387,
+      "purchase_price": 65
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 391,
+      "purchase_price": 55
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 1,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 411,
+      "purchase_price": 155
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 427,
+      "purchase_price": 80
+    }
+  ],
+  "squad_display": [
+    {
+      "player_id": 1,
+      "name": "Raya",
+      "position": "GK",
+      "team": "ARS"
+    },
+    {
+      "player_id": 4,
+      "name": "Gabriel",
+      "position": "DEF",
+      "team": "ARS"
+    },
+    {
+      "player_id": 8,
+      "name": "Calafiori",
+      "position": "DEF",
+      "team": "ARS"
+    },
+    {
+      "player_id": 94,
+      "name": "Schade",
+      "position": "MID",
+      "team": "BRE"
+    },
+    {
+      "player_id": 106,
+      "name": "Thiago",
+      "position": "FWD",
+      "team": "BRE"
+    },
+    {
+      "player_id": 113,
+      "name": "F.Kad\u0131o\u011flu",
+      "position": "DEF",
+      "team": "BHA"
+    },
+    {
+      "player_id": 124,
+      "name": "Gro\u00df",
+      "position": "MID",
+      "team": "BHA"
+    },
+    {
+      "player_id": 127,
+      "name": "Gomez",
+      "position": "MID",
+      "team": "BHA"
+    },
+    {
+      "player_id": 237,
+      "name": "Ndiaye",
+      "position": "MID",
+      "team": "EVE"
+    },
+    {
+      "player_id": 251,
+      "name": "Lecomte",
+      "position": "GK",
+      "team": "FUL"
+    },
+    {
+      "player_id": 346,
+      "name": "Calvert-Lewin",
+      "position": "FWD",
+      "team": "LEE"
+    },
+    {
+      "player_id": 387,
+      "name": "O'Reilly",
+      "position": "DEF",
+      "team": "MCI"
+    },
+    {
+      "player_id": 391,
+      "name": "Gvardiol",
+      "position": "DEF",
+      "team": "MCI"
+    },
+    {
+      "player_id": 411,
+      "name": "Haaland",
+      "position": "FWD",
+      "team": "MCI"
+    },
+    {
+      "player_id": 427,
+      "name": "Mbeumo",
+      "position": "MID",
+      "team": "MUN"
+    }
+  ],
+  "squad_hash": "6197e42172304a59b1a6b2e6cd5b3c6bb6e6d623c3239026c12b56520ee04b8c",
+  "graded_at_utc": "2026-08-25T14:14:07Z",
+  "gross_points": 51,
+  "hit_points": 0,
+  "net_points": 51,
+  "effective_captain": 411,
+  "effective_captain_display": {
+    "player_id": 411,
+    "name": "Haaland",
+    "position": "FWD",
+    "team": "MCI"
+  },
+  "autosubs": [
+    {
+      "out": 113,
+      "in": 124
+    }
+  ],
+  "autosubs_display": [
+    {
+      "out": {
+        "player_id": 113,
+        "name": "F.Kad\u0131o\u011flu",
+        "position": "DEF",
+        "team": "BHA"
+      },
+      "in": {
+        "player_id": 124,
+        "name": "Gro\u00df",
+        "position": "MID",
+        "team": "BHA"
+      }
+    }
+  ],
+  "transfers_display": {
+    "in": [],
+    "out": []
+  },
+  "average_score": 50,
+  "expected_points": 69.78,
+  "detail": [
+    {
+      "player_id": 1,
+      "points": 6,
+      "minutes": 90,
+      "role": "xi"
+    },
+    {
+      "player_id": 4,
+      "points": 5,
+      "minutes": 90,
+      "role": "xi"
+    },
+    {
+      "player_id": 8,
+      "points": 9,
+      "minutes": 80,
+      "role": "xi"
+    },
+    {
+      "player_id": 94,
+      "points": 3,
+      "minutes": 90,
+      "role": "xi"
+    },
+    {
+      "player_id": 106,
+      "points": 0,
+      "minutes": 82,
+      "role": "xi"
+    },
+    {
+      "player_id": 113,
+      "points": 0,
+      "minutes": 0,
+      "role": "bench"
+    },
+    {
+      "player_id": 124,
+      "points": 2,
+      "minutes": 90,
+      "role": "xi"
+    },
+    {
+      "player_id": 127,
+      "points": 6,
+      "minutes": 85,
+      "role": "bench"
+    },
+    {
+      "player_id": 237,
+      "points": 9,
+      "minutes": 90,
+      "role": "xi"
+    },
+    {
+      "player_id": 251,
+      "points": 0,
+      "minutes": 0,
+      "role": "bench"
+    },
+    {
+      "player_id": 346,
+      "points": 1,
+      "minutes": 90,
+      "role": "bench"
+    },
+    {
+      "player_id": 387,
+      "points": 2,
+      "minutes": 62,
+      "role": "xi"
+    },
+    {
+      "player_id": 391,
+      "points": 9,
+      "minutes": 90,
+      "role": "xi"
+    },
+    {
+      "player_id": 411,
+      "points": 2,
+      "minutes": 90,
+      "role": "captain"
+    },
+    {
+      "player_id": 427,
+      "points": 2,
+      "minutes": 90,
+      "role": "xi"
+    }
+  ],
+  "excluded_from_pool": {
+    "manual": [
+      {
+        "player_id": 2,
+        "web_name": "Arrizabalaga",
+        "team": "ARS"
+      },
+      {
+        "player_id": 3,
+        "web_name": "Meslier",
+        "team": "ARS"
+      },
+      {
+        "player_id": 386,
+        "web_name": "Bettinelli",
+        "team": "MCI"
+      },
+      {
+        "player_id": 587,
+        "web_name": "Rulli",
+        "team": "MCI"
+      }
+    ],
+    "unavailable": [
+      {
+        "player_id": 5,
+        "web_name": "J.Timber",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 6,
+        "web_name": "Saliba",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 10,
+        "web_name": "White",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 48,
+        "web_name": "Onana",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 56,
+        "web_name": "Abraham",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 100,
+        "web_name": "Carvalho",
+        "team": "BRE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 139,
+        "web_name": "Ferguson",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 145,
+        "web_name": "Fofana",
+        "team": "CHE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 225,
+        "web_name": "Uche",
+        "team": "CRY",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 253,
+        "web_name": "Andersen",
+        "team": "FUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 291,
+        "web_name": "Matazo",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 360,
+        "web_name": "Bradley",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 363,
+        "web_name": "Leoni",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 376,
+        "web_name": "Bajcetic",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 380,
+        "web_name": "Ekitik\u00e9",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 402,
+        "web_name": "Rodrigo",
+        "team": "MCI",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 416,
+        "web_name": "De Ligt",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 433,
+        "web_name": "Ugarte",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 459,
+        "web_name": "L.Miley",
+        "team": "NEW",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 475,
+        "web_name": "Savona",
+        "team": "NFO",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 513,
+        "web_name": "Xavi",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 517,
+        "web_name": "Odobert",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 521,
+        "web_name": "Kulusevski",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 5,
+        "web_name": "J.Timber",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 6,
+        "web_name": "Saliba",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 10,
+        "web_name": "White",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 48,
+        "web_name": "Onana",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 56,
+        "web_name": "Abraham",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 100,
+        "web_name": "Carvalho",
+        "team": "BRE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 139,
+        "web_name": "Ferguson",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 145,
+        "web_name": "Fofana",
+        "team": "CHE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 225,
+        "web_name": "Uche",
+        "team": "CRY",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 253,
+        "web_name": "Andersen",
+        "team": "FUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 291,
+        "web_name": "Matazo",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 360,
+        "web_name": "Bradley",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 363,
+        "web_name": "Leoni",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 376,
+        "web_name": "Bajcetic",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 380,
+        "web_name": "Ekitik\u00e9",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 402,
+        "web_name": "Rodrigo",
+        "team": "MCI",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 416,
+        "web_name": "De Ligt",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 433,
+        "web_name": "Ugarte",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 459,
+        "web_name": "L.Miley",
+        "team": "NEW",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 475,
+        "web_name": "Savona",
+        "team": "NFO",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 513,
+        "web_name": "Xavi",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 517,
+        "web_name": "Odobert",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 521,
+        "web_name": "Kulusevski",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 5,
+        "web_name": "J.Timber",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 6,
+        "web_name": "Saliba",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 10,
+        "web_name": "White",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 48,
+        "web_name": "Onana",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 56,
+        "web_name": "Abraham",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 100,
+        "web_name": "Carvalho",
+        "team": "BRE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 139,
+        "web_name": "Ferguson",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 145,
+        "web_name": "Fofana",
+        "team": "CHE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 225,
+        "web_name": "Uche",
+        "team": "CRY",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 253,
+        "web_name": "Andersen",
+        "team": "FUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 291,
+        "web_name": "Matazo",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 360,
+        "web_name": "Bradley",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 363,
+        "web_name": "Leoni",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 376,
+        "web_name": "Bajcetic",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 380,
+        "web_name": "Ekitik\u00e9",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 402,
+        "web_name": "Rodrigo",
+        "team": "MCI",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 416,
+        "web_name": "De Ligt",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 433,
+        "web_name": "Ugarte",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 459,
+        "web_name": "L.Miley",
+        "team": "NEW",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 475,
+        "web_name": "Savona",
+        "team": "NFO",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 513,
+        "web_name": "Xavi",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 517,
+        "web_name": "Odobert",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 521,
+        "web_name": "Kulusevski",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 5,
+        "web_name": "J.Timber",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 6,
+        "web_name": "Saliba",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 10,
+        "web_name": "White",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 48,
+        "web_name": "Onana",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 56,
+        "web_name": "Abraham",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 100,
+        "web_name": "Carvalho",
+        "team": "BRE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 139,
+        "web_name": "Ferguson",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 145,
+        "web_name": "Fofana",
+        "team": "CHE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 225,
+        "web_name": "Uche",
+        "team": "CRY",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 253,
+        "web_name": "Andersen",
+        "team": "FUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 291,
+        "web_name": "Matazo",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 360,
+        "web_name": "Bradley",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 363,
+        "web_name": "Leoni",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 376,
+        "web_name": "Bajcetic",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 380,
+        "web_name": "Ekitik\u00e9",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 402,
+        "web_name": "Rodrigo",
+        "team": "MCI",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 416,
+        "web_name": "De Ligt",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 433,
+        "web_name": "Ugarte",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 459,
+        "web_name": "L.Miley",
+        "team": "NEW",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 475,
+        "web_name": "Savona",
+        "team": "NFO",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 513,
+        "web_name": "Xavi",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 517,
+        "web_name": "Odobert",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 521,
+        "web_name": "Kulusevski",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 5,
+        "web_name": "J.Timber",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 6,
+        "web_name": "Saliba",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 10,
+        "web_name": "White",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 48,
+        "web_name": "Onana",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 56,
+        "web_name": "Abraham",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 100,
+        "web_name": "Carvalho",
+        "team": "BRE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 139,
+        "web_name": "Ferguson",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 145,
+        "web_name": "Fofana",
+        "team": "CHE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 225,
+        "web_name": "Uche",
+        "team": "CRY",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 253,
+        "web_name": "Andersen",
+        "team": "FUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 291,
+        "web_name": "Matazo",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 360,
+        "web_name": "Bradley",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 363,
+        "web_name": "Leoni",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 376,
+        "web_name": "Bajcetic",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 380,
+        "web_name": "Ekitik\u00e9",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 402,
+        "web_name": "Rodrigo",
+        "team": "MCI",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 416,
+        "web_name": "De Ligt",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 433,
+        "web_name": "Ugarte",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 459,
+        "web_name": "L.Miley",
+        "team": "NEW",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 475,
+        "web_name": "Savona",
+        "team": "NFO",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 513,
+        "web_name": "Xavi",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 517,
+        "web_name": "Odobert",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 521,
+        "web_name": "Kulusevski",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 5,
+        "web_name": "J.Timber",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 6,
+        "web_name": "Saliba",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 30,
+        "web_name": "Digne",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 48,
+        "web_name": "Onana",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 63,
+        "web_name": "Milosavljevi\u0107",
+        "team": "BOU",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 65,
+        "web_name": "J.Araujo",
+        "team": "BOU",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 75,
+        "web_name": "Christie",
+        "team": "BOU",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 78,
+        "web_name": "Kroupi.Jr",
+        "team": "BOU",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 80,
+        "web_name": "Enes \u00dcnal",
+        "team": "BOU",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 121,
+        "web_name": "Mitoma",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 128,
+        "web_name": "Buonanotte",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 131,
+        "web_name": "Baleba",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 133,
+        "web_name": "Watson",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 139,
+        "web_name": "Ferguson",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 141,
+        "web_name": "J\u00f6rgensen",
+        "team": "CHE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 143,
+        "web_name": "Chalobah",
+        "team": "CHE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 145,
+        "web_name": "Fofana",
+        "team": "CHE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 197,
+        "web_name": "Bassette",
+        "team": "COV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 220,
+        "web_name": "Cardines",
+        "team": "CRY",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 225,
+        "web_name": "Uche",
+        "team": "CRY",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 239,
+        "web_name": "Garner",
+        "team": "EVE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 253,
+        "web_name": "Andersen",
+        "team": "FUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 274,
+        "web_name": "Butland",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 275,
+        "web_name": "Cartwright",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 278,
+        "web_name": "Hughes",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 281,
+        "web_name": "Drameh",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 291,
+        "web_name": "Matazo",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 293,
+        "web_name": "Kamara",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 294,
+        "web_name": "Zambrano",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 297,
+        "web_name": "Gyabi",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 299,
+        "web_name": "Burstow",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 310,
+        "web_name": "Matusiwa",
+        "team": "IPS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 311,
+        "web_name": "Burns",
+        "team": "IPS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 312,
+        "web_name": "Taylor",
+        "team": "IPS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 331,
+        "web_name": "Gudmundsson",
+        "team": "LEE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 342,
+        "web_name": "Harrison",
+        "team": "LEE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 349,
+        "web_name": "Mateo Joseph",
+        "team": "LEE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 354,
+        "web_name": "Jaros",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 359,
+        "web_name": "Gomez",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 360,
+        "web_name": "Bradley",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 363,
+        "web_name": "Leoni",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 376,
+        "web_name": "Bajcetic",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 380,
+        "web_name": "Ekitik\u00e9",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 382,
+        "web_name": "Danns",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 402,
+        "web_name": "Rodrigo",
+        "team": "MCI",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 413,
+        "web_name": "Bayindir",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 416,
+        "web_name": "De Ligt",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 433,
+        "web_name": "Ugarte",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 451,
+        "web_name": "A.Murphy",
+        "team": "NEW",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 459,
+        "web_name": "L.Miley",
+        "team": "NEW",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 475,
+        "web_name": "Savona",
+        "team": "NFO",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 513,
+        "web_name": "Xavi",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 517,
+        "web_name": "Odobert",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 521,
+        "web_name": "Kulusevski",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 530,
+        "web_name": "Patterson",
+        "team": "SUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 538,
+        "web_name": "Hjelde",
+        "team": "SUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 540,
+        "web_name": "Masuaku",
+        "team": "SUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 5,
+        "web_name": "J.Timber",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 6,
+        "web_name": "Saliba",
+        "team": "ARS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 30,
+        "web_name": "Digne",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 39,
+        "web_name": "Nedeljkovic",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 48,
+        "web_name": "Onana",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 49,
+        "web_name": "Iling Jr",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 53,
+        "web_name": "Manzambi",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 54,
+        "web_name": "Gomes",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 582,
+        "web_name": "Madjo",
+        "team": "AVL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 63,
+        "web_name": "Milosavljevi\u0107",
+        "team": "BOU",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 65,
+        "web_name": "J.Araujo",
+        "team": "BOU",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 75,
+        "web_name": "Christie",
+        "team": "BOU",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 77,
+        "web_name": "Adli",
+        "team": "BOU",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 78,
+        "web_name": "Kroupi.Jr",
+        "team": "BOU",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 80,
+        "web_name": "Enes \u00dcnal",
+        "team": "BOU",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 85,
+        "web_name": "Van den Berg",
+        "team": "BRE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 99,
+        "web_name": "Milambo",
+        "team": "BRE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 121,
+        "web_name": "Mitoma",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 122,
+        "web_name": "Minteh",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 128,
+        "web_name": "Buonanotte",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 131,
+        "web_name": "Baleba",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 132,
+        "web_name": "Howell",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 133,
+        "web_name": "Watson",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 139,
+        "web_name": "Ferguson",
+        "team": "BHA",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 141,
+        "web_name": "J\u00f6rgensen",
+        "team": "CHE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 143,
+        "web_name": "Chalobah",
+        "team": "CHE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 145,
+        "web_name": "Fofana",
+        "team": "CHE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 193,
+        "web_name": "Wright",
+        "team": "COV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 196,
+        "web_name": "Markelo",
+        "team": "COV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 197,
+        "web_name": "Bassette",
+        "team": "COV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 220,
+        "web_name": "Cardines",
+        "team": "CRY",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 225,
+        "web_name": "Uche",
+        "team": "CRY",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 21,
+        "web_name": "N\u00f8rgaard",
+        "team": "EVE",
+        "chance_of_playing": 25
+      },
+      {
+        "player_id": 239,
+        "web_name": "Garner",
+        "team": "EVE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 240,
+        "web_name": "Iroegbunam",
+        "team": "EVE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 253,
+        "web_name": "Andersen",
+        "team": "FUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 266,
+        "web_name": "Cairney",
+        "team": "FUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 274,
+        "web_name": "Butland",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 275,
+        "web_name": "Cartwright",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 276,
+        "web_name": "Lo-Tutala",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 278,
+        "web_name": "Hughes",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 281,
+        "web_name": "Drameh",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 291,
+        "web_name": "Matazo",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 293,
+        "web_name": "Kamara",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 294,
+        "web_name": "Zambrano",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 297,
+        "web_name": "Gyabi",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 298,
+        "web_name": "Destan",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 299,
+        "web_name": "Burstow",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 340,
+        "web_name": "Gelhardt",
+        "team": "HUL",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 310,
+        "web_name": "Matusiwa",
+        "team": "IPS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 311,
+        "web_name": "Burns",
+        "team": "IPS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 312,
+        "web_name": "Taylor",
+        "team": "IPS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 319,
+        "web_name": "Szmodics",
+        "team": "IPS",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 331,
+        "web_name": "Gudmundsson",
+        "team": "LEE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 333,
+        "web_name": "Bornauw",
+        "team": "LEE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 341,
+        "web_name": "Gnonto",
+        "team": "LEE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 342,
+        "web_name": "Harrison",
+        "team": "LEE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 344,
+        "web_name": "Gruev",
+        "team": "LEE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 348,
+        "web_name": "Piroe",
+        "team": "LEE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 349,
+        "web_name": "Mateo Joseph",
+        "team": "LEE",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 353,
+        "web_name": "Pecsi",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 354,
+        "web_name": "Jaros",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 359,
+        "web_name": "Gomez",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 360,
+        "web_name": "Bradley",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 363,
+        "web_name": "Leoni",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 376,
+        "web_name": "Bajcetic",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 380,
+        "web_name": "Ekitik\u00e9",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 382,
+        "web_name": "Danns",
+        "team": "LIV",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 394,
+        "web_name": "Alleyne",
+        "team": "MCI",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 402,
+        "web_name": "Rodrigo",
+        "team": "MCI",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 404,
+        "web_name": "Reijnders",
+        "team": "MCI",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 408,
+        "web_name": "Phillips",
+        "team": "MCI",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 413,
+        "web_name": "Bayindir",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 414,
+        "web_name": "Heaton",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 416,
+        "web_name": "De Ligt",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 425,
+        "web_name": "Fredricson",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 433,
+        "web_name": "Ugarte",
+        "team": "MUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 450,
+        "web_name": "Livramento",
+        "team": "NEW",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 451,
+        "web_name": "A.Murphy",
+        "team": "NEW",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 458,
+        "web_name": "Joelinton",
+        "team": "NEW",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 475,
+        "web_name": "Savona",
+        "team": "NFO",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 489,
+        "web_name": "Yates",
+        "team": "NFO",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 494,
+        "web_name": "Vicario",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 500,
+        "web_name": "Romero",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 505,
+        "web_name": "Spence",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 507,
+        "web_name": "Phillips",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 513,
+        "web_name": "Xavi",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 517,
+        "web_name": "Odobert",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 521,
+        "web_name": "Kulusevski",
+        "team": "TOT",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 530,
+        "web_name": "Patterson",
+        "team": "SUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 538,
+        "web_name": "Hjelde",
+        "team": "SUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 540,
+        "web_name": "Masuaku",
+        "team": "SUN",
+        "chance_of_playing": 0
+      },
+      {
+        "player_id": 546,
+        "web_name": "Adingra",
+        "team": "SUN",
+        "chance_of_playing": 0
+      }
+    ]
+  }
+}
