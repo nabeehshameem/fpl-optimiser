@@ -125,7 +125,7 @@ class SquadOptimiser:
         # Captain doubles their points, so they contribute 2x = 1x (start) + 1x (cap bonus).
         # 0.2 reflects rotation value: bench players can be planned starters when
         # XI players face tough fixtures, so they're worth more than pure auto-sub cover.
-        BENCH_WEIGHT = 0.2
+        BENCH_WEIGHT = 0.1
         prob += pulp.lpSum(
             row.predicted_points * start[row.player_id]
             + row.predicted_points * captain[row.player_id]
@@ -268,7 +268,7 @@ class SquadOptimiser:
                    for row in df.itertuples()}
         hit = pulp.LpVariable("hit", lowBound=0, cat="Continuous")
 
-        BENCH_WEIGHT = 0.2
+        BENCH_WEIGHT = 0.1
         prob += (
             pulp.lpSum(
                 row.predicted_points * start[row.player_id]
