@@ -58,6 +58,43 @@ from wc.src.fantasy_optimizer import optimise as _optimise, captain_picks as _ca
 
 DB_PATH = PROJECT_ROOT / "wc" / "data" / "wc.db"
 
+# User-data paths — these must NOT be inside PROJECT_ROOT on Railway because
+# the project directory is wiped on every deploy.  Set these env vars to point
+# at a mounted Railway volume (/data/...) before first deploy.
+SUBSCRIBERS_DB = Path(os.getenv("SUBSCRIBERS_DB", str(PROJECT_ROOT / "data" / "subscribers.db")))
+# Mirror the env-var defaults used by the sub-routers so the guard can check
+# them without importing those modules (imports haven't happened yet).
+_RECEIPTS_DB_DEFAULT = Path(os.getenv("RECEIPTS_DB", str(PROJECT_ROOT / "data" / "receipts.db")))
+_CARDS_DIR_DEFAULT = Path(os.getenv("CARDS_DIR", str(PROJECT_ROOT / "cards")))
+
+
+def _assert_persistent_paths() -> None:
+    """Refuse to start on Railway if any user-data path is inside the
+    ephemeral project directory, which is wiped on every deploy."""
+    if not os.environ.get("RAILWAY_ENVIRONMENT"):
+        return
+    root = PROJECT_ROOT.resolve()
+    checks = [
+        ("SUBSCRIBERS_DB", SUBSCRIBERS_DB),
+        ("RECEIPTS_DB",    _RECEIPTS_DB_DEFAULT),
+        ("CARDS_DIR",      _CARDS_DIR_DEFAULT),
+    ]
+    offenders = [
+        f"  {name}={path}  →  set {name}=/data/{name.lower()} on a Railway volume"
+        for name, path in checks
+        if Path(path).resolve().is_relative_to(root)
+    ]
+    if offenders:
+        raise RuntimeError(
+            "Refusing to start: user-data paths are inside the ephemeral "
+            "project directory and will be lost on every deploy:\n"
+            + "\n".join(offenders)
+            + "\n\nAttach a Railway volume at /data and set the env vars above."
+        )
+
+
+_assert_persistent_paths()
+
 _predictor: DCPredictor | None = None
 _load_error: str | None = None
 
@@ -123,9 +160,10 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         print(f"[warn] Fixture seed skipped: {_e}")
 
-    # Ensure subscribers table exists
+    # Ensure subscribers table exists in its own DB (not in wc.db)
     try:
-        conn = sqlite3.connect(DB_PATH)
+        SUBSCRIBERS_DB.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(SUBSCRIBERS_DB)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS subscribers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -851,7 +889,7 @@ def subscribe_email(req: SubscribeRequest, request: Request):
     if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", req.email):
         return _OK
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(SUBSCRIBERS_DB)
         conn.execute("INSERT INTO subscribers (email) VALUES (?)", (req.email,))
         conn.commit()
         conn.close()
@@ -871,7 +909,7 @@ def _csv_safe(val: str) -> str:
 def export_subscribers(token: str | None = Depends(_retrain_header)):
     """Download all subscriber emails as CSV. Requires the retrain token."""
     _require_retrain_token(token)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(SUBSCRIBERS_DB)
     rows = conn.execute("SELECT email, created_at FROM subscribers ORDER BY created_at").fetchall()
     conn.close()
     lines = ["email,created_at"] + [f"{_csv_safe(r[0])},{r[1]}" for r in rows]
