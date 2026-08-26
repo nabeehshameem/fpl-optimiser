@@ -132,6 +132,7 @@ def model_gw(gw: int) -> dict:
             "effective_captain": eff_display,
             "autosubs": autosubs,
             "graded_at_utc": result_data["graded_at_utc"],
+            "corrections": result_data.get("corrections", []),
         },
     }
 
@@ -256,6 +257,7 @@ def model_season() -> dict:
             "hit_points": hits,
             "fpl_average": avg,
             "cumulative": model_total,
+            "has_corrections": bool(data.get("corrections")),
         })
 
     return {

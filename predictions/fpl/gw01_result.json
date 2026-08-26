@@ -219,6 +219,16 @@
   "gross_points": 50,
   "hit_points": 0,
   "net_points": 50,
+  "corrections": [
+    {
+      "revised_at_utc": "2026-08-26T03:58:42Z",
+      "field": "net_points",
+      "from": 51,
+      "to": 50,
+      "reason": "Grader used model bench-order (Groß priority 2) instead of actual FPL picks order (Calvert-Lewin at pick position 13). Auto-sub was Calvert-Lewin (1 pt), not Groß (2 pt). gross_points and autosubs corrected accordingly. Fixed by fetching actual bench order from the FPL picks API at grade time.",
+      "commit": "33dda99"
+    }
+  ],
   "effective_captain": 411,
   "effective_captain_display": {
     "player_id": 411,

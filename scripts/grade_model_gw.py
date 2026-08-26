@@ -286,6 +286,10 @@ def grade(gw: int | None = None, dry_run: bool = False,
         # unavailable: FPL's chance_of_playing_next < 50 at lock time.
         # None on squads locked before this field was introduced.
         "excluded_from_pool": excluded_from_pool,
+        # Corrections appended when a published result is later amended.
+        # Rule 11: published artifacts are append-only — corrected in public
+        # with a reason and commit, never silently replaced.
+        "corrections": [],
     }
 
     if dry_run:
@@ -304,7 +308,7 @@ def grade(gw: int | None = None, dry_run: bool = False,
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     out = EXPORT_DIR / f"gw{gw:02d}_result.json"
-    out.write_text(json.dumps(result, indent=2))
+    out.write_text(json.dumps(result, indent=2, ensure_ascii=False))
     print(f"GW{gw} graded: {result['net_points']} net "
           f"({result['gross_points']} gross - {hits} hits), "
           f"{len(autosubs)} auto-sub(s).\nExported {out} — commit it; "

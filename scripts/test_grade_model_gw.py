@@ -214,6 +214,48 @@ def main():
         ok &= check("G11 dry_run=False refuses unfinished GW",
                     "finished" in str(e), str(e)[:60])
 
+    # G12: correct_model_gw records corrections and enforces limits.
+    import scripts.correct_model_gw as corr
+    tmp_export = Path(tempfile.mkdtemp())
+    corr.EXPORT_DIR = tmp_export
+    db = build_db(Path(tempfile.mkdtemp()), base_stats())
+    r = g.grade(gw=1, dry_run=False, db_path=db)
+    # Write the graded result to the tmp export dir for correction tests
+    result_path = tmp_export / "gw01_result.json"
+    result_path.write_text(json.dumps(r, indent=2))
+
+    # G12 graded net_points = 48 (no hits). Correction: 48 -> 47.
+    corr.correct(gw=1, field="net_points", from_val=48, to_val=47,
+                 reason="test correction", commit="abc1234")
+    amended = json.loads(result_path.read_text())
+    ok &= check("G12 correction updates field value",
+                amended["net_points"] == 47, f"net={amended['net_points']}")
+    ok &= check("G12 correction recorded in corrections array",
+                len(amended.get("corrections", [])) == 1,
+                f"corrections={amended.get('corrections')}")
+    ok &= check("G12 correction entry has required keys",
+                all(k in amended["corrections"][0]
+                    for k in ("revised_at_utc", "field", "from", "to", "reason", "commit")))
+
+    # No-op refused (already at 47, not 48)
+    try:
+        corr.correct(gw=1, field="net_points", from_val=48, to_val=47,
+                     reason="no-op", commit="abc")
+        ok &= check("G12 no-op correction refused", False)
+    except SystemExit:
+        ok &= check("G12 no-op correction refused (value already corrected)", True)
+
+    # Max corrections enforced
+    for i in range(corr.MAX_CORRECTIONS - 1):
+        amended["corrections"].append({"dummy": i})
+    result_path.write_text(json.dumps(amended, indent=2))
+    try:
+        corr.correct(gw=1, field="net_points", from_val=47, to_val=46,
+                     reason="overflow", commit="abc")
+        ok &= check("G12 corrections limit enforced", False)
+    except SystemExit:
+        ok &= check("G12 corrections limit enforced", True)
+
     print("\n" + ("ALL PASS" if ok else "FAILURES PRESENT"))
     sys.exit(0 if ok else 1)
 
