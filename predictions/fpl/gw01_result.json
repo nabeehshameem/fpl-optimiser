@@ -216,9 +216,9 @@
   ],
   "squad_hash": "6197e42172304a59b1a6b2e6cd5b3c6bb6e6d623c3239026c12b56520ee04b8c",
   "graded_at_utc": "2026-08-25T14:14:07Z",
-  "gross_points": 51,
+  "gross_points": 50,
   "hit_points": 0,
-  "net_points": 51,
+  "net_points": 50,
   "effective_captain": 411,
   "effective_captain_display": {
     "player_id": 411,
@@ -229,7 +229,7 @@
   "autosubs": [
     {
       "out": 113,
-      "in": 124
+      "in": 346
     }
   ],
   "autosubs_display": [
@@ -241,10 +241,10 @@
         "team": "BHA"
       },
       "in": {
-        "player_id": 124,
-        "name": "Gro\u00df",
-        "position": "MID",
-        "team": "BHA"
+        "player_id": 346,
+        "name": "Calvert-Lewin",
+        "position": "FWD",
+        "team": "LEE"
       }
     }
   ],
@@ -295,7 +295,7 @@
       "player_id": 124,
       "points": 2,
       "minutes": 90,
-      "role": "xi"
+      "role": "bench"
     },
     {
       "player_id": 127,
@@ -319,7 +319,7 @@
       "player_id": 346,
       "points": 1,
       "minutes": 90,
-      "role": "bench"
+      "role": "xi"
     },
     {
       "player_id": 387,

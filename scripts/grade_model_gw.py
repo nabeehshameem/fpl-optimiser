@@ -28,6 +28,7 @@ import json
 import os
 import sqlite3
 import sys
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -44,6 +45,9 @@ from src.squad_commit import compute_squad_hash  # noqa: E402
 #       python scripts/weekly_ops.py lock
 DB_PATH = Path(os.getenv("FPL_DB_PATH", PROJECT_ROOT / "data" / "fpl.db"))
 EXPORT_DIR = Path(os.getenv("FPL_EXPORT_DIR", PROJECT_ROOT / "predictions" / "fpl"))
+# The FPL entry being graded. Used to fetch the actual bench order at grade time
+# so auto-subs match FPL's result exactly, regardless of the model's intended order.
+FPL_ENTRY_ID = int(os.getenv("FPL_ENTRY_ID", "690670"))
 
 POS_NAMES = {1: "GK", 2: "DEF", 3: "MID", 4: "FWD"}
 
@@ -62,6 +66,25 @@ CREATE TABLE IF NOT EXISTS model_gw_results (
     detail_json     TEXT NOT NULL       -- per-player {player_id, points, minutes, role}
 )
 """
+
+
+def _fetch_fpl_bench_order(entry_id: int, gw: int) -> dict[int, int]:
+    """Return {player_id: bench_slot} from FPL's actual picks for the entry.
+
+    Bench slot is the pick position minus 11 (so 1-4 for bench players).
+    Returns {} on any error so callers fall back to the commitment bench_order.
+    """
+    try:
+        url = f"https://fantasy.premierleague.com/api/entry/{entry_id}/event/{gw}/picks/"
+        req = urllib.request.Request(url, headers={"User-Agent": "fpl-grader/1.0"})
+        data = json.loads(urllib.request.urlopen(req, timeout=15).read())
+        return {p["element"]: p["position"] - 11
+                for p in data.get("picks", [])
+                if p["position"] > 11}
+    except Exception as exc:
+        print(f"[WARN] could not fetch FPL bench order (falling back to commitment): {exc}",
+              file=sys.stderr)
+        return {}
 
 
 def grade(gw: int | None = None, dry_run: bool = False,
@@ -150,8 +173,16 @@ def grade(gw: int | None = None, dry_run: bool = False,
     def points(pid): return stats.get(pid, (0, 0))[1]
 
     xi = [p["player_id"] for p in squad if p["is_xi"]]
-    bench = sorted((p for p in squad if not p["is_xi"]),
-                   key=lambda p: p.get("bench_order", 99))
+    # Fetch actual bench order from FPL so auto-subs match FPL's result exactly.
+    # The commitment file records the model's intended order (by predicted pts),
+    # which may differ from the order the user set in FPL. Fall back to the
+    # commitment order if the API is unavailable.
+    actual_bench_order = _fetch_fpl_bench_order(FPL_ENTRY_ID, gw)
+    bench = sorted(
+        (p for p in squad if not p["is_xi"]),
+        key=lambda p: actual_bench_order.get(p["player_id"],
+                                             p.get("bench_order", 99)),
+    )
     captain = next((p["player_id"] for p in squad if p["is_captain"]), None)
     vice = next((p["player_id"] for p in squad if p["is_vice"]), None)
 
