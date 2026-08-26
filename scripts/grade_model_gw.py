@@ -232,12 +232,27 @@ def grade(gw: int | None = None, dry_run: bool = False,
         gross += points(effective_captain)
     net = gross - hits
 
+    # Load the lock-time projections so we can compare predicted vs actual
+    # per player in the graded record. None if file was not committed.
+    proj_file = EXPORT_DIR / f"gw{gw:02d}_projections.json"
+    if proj_file.exists():
+        proj_data = json.loads(proj_file.read_text(encoding="utf-8"))
+        _proj_map: dict[int, float] = {}
+        for entry in proj_data.get("by_position", {}).values():
+            for p in entry:
+                _proj_map[int(p["player_id"])] = float(p["projected_points"])
+        for p in proj_data.get("captain_candidates", []):
+            _proj_map.setdefault(int(p["player_id"]), float(p["projected_points"]))
+    else:
+        _proj_map = {}
+
     detail = [{
         "player_id": pid,
         "points": points(pid),
         "minutes": minutes(pid),
         "role": ("captain" if pid == effective_captain else
                  "xi" if pid in final_xi else "bench"),
+        "projected_points": _proj_map.get(pid),
     } for pid in ids]
 
     def _pinfo(pid: int) -> dict:
