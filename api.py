@@ -68,9 +68,10 @@ _RECEIPTS_DB_DEFAULT = Path(os.getenv("RECEIPTS_DB", str(PROJECT_ROOT / "data" /
 _CARDS_DIR_DEFAULT = Path(os.getenv("CARDS_DIR", str(PROJECT_ROOT / "cards")))
 
 
-def _assert_persistent_paths() -> None:
-    """Refuse to start on Railway if any user-data path is inside the
-    ephemeral project directory, which is wiped on every deploy."""
+def _warn_ephemeral_paths() -> None:
+    """Warn (but do not crash) on Railway if user-data paths are inside the
+    ephemeral project directory.  The app still starts so the site stays up;
+    fix by attaching a Railway volume and setting the env vars shown."""
     if not os.environ.get("RAILWAY_ENVIRONMENT"):
         return
     root = PROJECT_ROOT.resolve()
@@ -85,15 +86,15 @@ def _assert_persistent_paths() -> None:
         if Path(path).resolve().is_relative_to(root)
     ]
     if offenders:
-        raise RuntimeError(
-            "Refusing to start: user-data paths are inside the ephemeral "
-            "project directory and will be lost on every deploy:\n"
-            + "\n".join(offenders)
-            + "\n\nAttach a Railway volume at /data and set the env vars above."
+        print(
+            "[WARNING] User-data paths are inside the ephemeral project directory "
+            "and will be lost on every deploy. Attach a Railway volume at /data:\n"
+            + "\n".join(offenders),
+            flush=True,
         )
 
 
-_assert_persistent_paths()
+_warn_ephemeral_paths()
 
 _predictor: DCPredictor | None = None
 _load_error: str | None = None
