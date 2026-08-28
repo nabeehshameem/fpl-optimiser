@@ -245,7 +245,7 @@ def main() -> None:
 
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
     MODEL_PATH.write_text(json.dumps(params, indent=2))
-    print(f"\nUCL DC params saved → {MODEL_PATH}")
+    print(f"\nUCL DC params saved -> {MODEL_PATH}")
 
 
 if __name__ == "__main__":

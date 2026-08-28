@@ -16,6 +16,7 @@ import argparse
 import os
 import sqlite3
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -53,10 +54,17 @@ def _headers() -> dict:
     }
 
 
-def _get(path: str) -> dict:
-    r = requests.get(f"{API_BASE}/{path}", headers=_headers(), timeout=30)
-    r.raise_for_status()
-    return r.json()
+def _get(path: str, retries: int = 4) -> dict:
+    for attempt in range(retries):
+        r = requests.get(f"{API_BASE}/{path}", headers=_headers(), timeout=30)
+        if r.status_code == 429:
+            wait = 15 * (2 ** attempt)
+            print(f"  [rate-limited] waiting {wait}s before retry {attempt + 1}/{retries}…")
+            time.sleep(wait)
+            continue
+        r.raise_for_status()
+        return r.json()
+    raise RuntimeError(f"Still rate-limited after {retries} retries for {path}")
 
 
 def _current_ucl_season() -> int:

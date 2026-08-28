@@ -114,6 +114,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--round", default=None,
                     help="Filter to a single UCL round (e.g. 'Round of 16')")
+    ap.add_argument("--season", type=int, default=None,
+                    help="UCL season start year (informational; not yet used for DB routing)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
