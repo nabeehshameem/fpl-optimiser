@@ -1,9 +1,9 @@
 {
   "gameweek": 2,
-  "generated_at_utc": "2026-08-25T14:14:31Z",
+  "generated_at_utc": "2026-08-28T07:31:06Z",
   "model": "dc_projection_v1",
   "optimal_xi": {
-    "formation": "3-4-3",
+    "formation": "4-4-2",
     "players": [
       {
         "player_id": 531,
@@ -12,6 +12,15 @@
         "position": "GK",
         "price": 4.5,
         "projected_points": 5.22,
+        "is_captain": false
+      },
+      {
+        "player_id": 61,
+        "name": "Truffert",
+        "team": "BOU",
+        "position": "DEF",
+        "price": 5.5,
+        "projected_points": 5.66,
         "is_captain": false
       },
       {
@@ -24,21 +33,21 @@
         "is_captain": false
       },
       {
+        "player_id": 388,
+        "name": "Gu\u00e9hi",
+        "team": "MCI",
+        "position": "DEF",
+        "price": 6.0,
+        "projected_points": 5.33,
+        "is_captain": false
+      },
+      {
         "player_id": 112,
         "name": "Van Hecke",
         "team": "TOT",
         "position": "DEF",
         "price": 5.0,
         "projected_points": 5.21,
-        "is_captain": false
-      },
-      {
-        "player_id": 503,
-        "name": "Van de Ven",
-        "team": "TOT",
-        "position": "DEF",
-        "price": 5.0,
-        "projected_points": 5.05,
         "is_captain": false
       },
       {
@@ -94,18 +103,9 @@
         "price": 6.0,
         "projected_points": 5.99,
         "is_captain": false
-      },
-      {
-        "player_id": 79,
-        "name": "Evanilson",
-        "team": "BOU",
-        "position": "FWD",
-        "price": 6.0,
-        "projected_points": 5.19,
-        "is_captain": false
       }
     ],
-    "total_projected": 72.41,
+    "total_projected": 73.16,
     "note": "Highest-projected legal XI from a fresh \u00a3100.0m squad, ignoring the model's own transfer state. This is a TOOL, not the model's team \u2014 the model's actual squad is at /model/gw/2."
   },
   "captain": [
