@@ -1,7 +1,7 @@
 {
   "gameweek": 2,
   "deadline_utc": "2026-08-28T17:30:00Z",
-  "generated_at_utc": "2026-08-28T07:31:01Z",
+  "generated_at_utc": "2026-08-28T15:01:22Z",
   "model": "dc_projection_v1",
   "captain_candidates": [
     {
@@ -492,6 +492,11 @@
       "team": "BHA"
     },
     {
+      "player_id": 123,
+      "name": "Hinshelwood",
+      "team": "BHA"
+    },
+    {
       "player_id": 128,
       "name": "Buonanotte",
       "team": "BHA"
@@ -822,6 +827,11 @@
       "team": "MUN"
     },
     {
+      "player_id": 431,
+      "name": "Amad",
+      "team": "MUN"
+    },
+    {
       "player_id": 433,
       "name": "Ugarte",
       "team": "MUN"
@@ -859,6 +869,11 @@
     {
       "player_id": 485,
       "name": "Bakwa",
+      "team": "NFO"
+    },
+    {
+      "player_id": 488,
+      "name": "I.Sangar\u00e9",
       "team": "NFO"
     },
     {
@@ -945,6 +960,11 @@
       "player_id": 587,
       "name": "Rulli",
       "team": "MCI"
+    },
+    {
+      "player_id": 612,
+      "name": "Methalie",
+      "team": "SUN"
     }
   ],
   "note": "These projections are the model's view of every player \u2014 not its selection. The squad itself is published at lock time alongside these projections."

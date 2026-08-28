@@ -1,14 +1,13 @@
 """
 ucl/ingest_fixtures.py
-Fetch all UCL fixtures and teams for a season from API-Football and write
-them to data/ucl.db. Run once at the start of each season and again after
-any rescheduling.
+Fetch UCL teams and fixtures for a season from SportAPI7 (SofaScore) and
+write them to data/ucl.db.
 
     python ucl/ingest_fixtures.py                # current season (inferred)
     python ucl/ingest_fixtures.py --season 2026  # explicit: 2026/27 UCL
 
 Requires RAPIDAPI_KEY in environment (or .env at project root).
-API-Football league ID for UCL: 2.
+SportAPI7 tournament ID for UCL: 7.
 """
 
 from __future__ import annotations
@@ -26,8 +25,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 DB_PATH = PROJECT_ROOT / "data" / "ucl.db"
-UCL_LEAGUE_ID = 2
-RAPIDAPI_HOST = "api-football-v1.p.rapidapi.com"
+UCL_TOURNAMENT_ID = 7
+RAPIDAPI_HOST = "sportapi7.p.rapidapi.com"
+API_BASE = f"https://{RAPIDAPI_HOST}/api/v1"
 
 
 def _load_env() -> None:
@@ -45,46 +45,71 @@ def _load_env() -> None:
 def _headers() -> dict:
     key = os.environ.get("RAPIDAPI_KEY")
     if not key:
-        raise RuntimeError(
-            "RAPIDAPI_KEY not set — add it to .env or the environment."
-        )
+        raise RuntimeError("RAPIDAPI_KEY not set — add it to .env or the environment.")
     return {
         "X-RapidAPI-Key": key,
         "X-RapidAPI-Host": RAPIDAPI_HOST,
+        "Content-Type": "application/json",
     }
 
 
-def _get(path: str, params: dict) -> dict:
-    url = f"https://{RAPIDAPI_HOST}{path}"
-    r = requests.get(url, headers=_headers(), params=params, timeout=30)
+def _get(path: str) -> dict:
+    r = requests.get(f"{API_BASE}/{path}", headers=_headers(), timeout=30)
     r.raise_for_status()
-    data = r.json()
-    errors = data.get("errors")
-    if errors:
-        raise RuntimeError(f"API-Football error: {errors}")
-    return data
+    return r.json()
 
 
 def _current_ucl_season() -> int:
-    """Infer the UCL season from the current date.
-    UCL 2026/27 starts in the latter half of 2026, so season = current_year
-    when month >= 7, else current_year - 1.
-    """
     now = datetime.now(timezone.utc)
     return now.year if now.month >= 7 else now.year - 1
 
 
+def _ts_to_utc(ts: int | None) -> str | None:
+    if not ts:
+        return None
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# ── season lookup ─────────────────────────────────────────────────────────────
+
+def find_season_id(season_year: int) -> int:
+    """Return SportAPI7 season ID for the UCL season starting in season_year."""
+    data = _get(f"unique-tournament/{UCL_TOURNAMENT_ID}/seasons")
+    target = f"{season_year % 100}/{season_year % 100 + 1}"
+    for s in data.get("seasons", []):
+        if s.get("year") == target:
+            return int(s["id"])
+    raise RuntimeError(
+        f"UCL season {season_year}/{season_year % 100 + 1} not found in SportAPI7. "
+        f"Available: {[s.get('year') for s in data.get('seasons', [])]}"
+    )
+
+
 # ── team ingest ───────────────────────────────────────────────────────────────
 
-def fetch_teams(season: int) -> list[dict]:
-    print(f"Fetching UCL teams for season {season}…")
-    data = _get("/teams", {"league": UCL_LEAGUE_ID, "season": season})
-    teams = data.get("response", [])
-    print(f"  {len(teams)} teams returned")
-    return teams
+def upsert_teams(conn: sqlite3.Connection, events: list[dict]) -> None:
+    seen: dict[int, tuple[str, str]] = {}
+    for e in events:
+        for side in ("homeTeam", "awayTeam"):
+            t = e[side]
+            tid = int(t["id"])
+            if tid not in seen:
+                name = t["name"]
+                short = t.get("nameCode") or t.get("shortName", name[:3].upper())
+                seen[tid] = (name, short)
 
+    # Resolve short_name collisions: if two teams share a code, give the
+    # later one a 4-char fallback so the UNIQUE constraint is satisfied.
+    used_codes: dict[str, int] = {}
+    rows: list[tuple] = []
+    for tid, (name, short) in seen.items():
+        if short in used_codes:
+            short = name[:4].upper()
+            if short in used_codes:
+                short = f"{name[:3].upper()}{tid % 10}"
+        used_codes[short] = tid
+        rows.append((tid, name, short))
 
-def upsert_teams(conn: sqlite3.Connection, teams: list[dict]) -> None:
     sql = """
         INSERT INTO teams (team_id, name, short_name)
         VALUES (?, ?, ?)
@@ -92,31 +117,55 @@ def upsert_teams(conn: sqlite3.Connection, teams: list[dict]) -> None:
             name = excluded.name,
             short_name = excluded.short_name
     """
-    # API-Football returns {"team": {"id":..., "name":..., "code":...}, ...}
-    # "code" is the 3-letter code (e.g. "MCI", "REA"); use it as short_name.
-    rows = [
-        (
-            t["team"]["id"],
-            t["team"]["name"],
-            t["team"].get("code") or t["team"]["name"][:3].upper(),
-        )
-        for t in teams
-    ]
     conn.executemany(sql, rows)
     print(f"  Upserted {len(rows)} teams")
 
 
 # ── fixture ingest ────────────────────────────────────────────────────────────
 
-def fetch_fixtures(season: int) -> list[dict]:
-    print(f"Fetching UCL fixtures for season {season}…")
-    data = _get("/fixtures", {"league": UCL_LEAGUE_ID, "season": season})
-    fixtures = data.get("response", [])
-    print(f"  {len(fixtures)} fixtures returned")
-    return fixtures
+def fetch_all_events(
+    season_id: int, include_past: bool = True, past_only: bool = False
+) -> list[dict]:
+    """Fetch fixtures for the season.
+
+    past_only=True  — only completed fixtures (use for fully-finished seasons).
+    include_past=False — only upcoming fixtures (use at season start to avoid
+        qualifying-round teams whose nameCodes collide with main-competition sides).
+    include_past=True — both upcoming and completed (once league phase is under way).
+    """
+    all_events: list[dict] = []
+
+    if not past_only:
+        for page in range(0, 20):
+            data = _get(
+                f"unique-tournament/{UCL_TOURNAMENT_ID}/season/{season_id}/events/next/{page}"
+            )
+            events = data.get("events", [])
+            all_events.extend(events)
+            if not data.get("hasNextPage", False) or not events:
+                break
+
+    if past_only or include_past:
+        for page in range(0, 20):
+            data = _get(
+                f"unique-tournament/{UCL_TOURNAMENT_ID}/season/{season_id}/events/last/{page}"
+            )
+            events = data.get("events", [])
+            all_events.extend(events)
+            if not data.get("hasNextPage", False) or not events:
+                break
+
+    seen: set[int] = set()
+    unique: list[dict] = []
+    for e in all_events:
+        eid = e["id"]
+        if eid not in seen:
+            seen.add(eid)
+            unique.append(e)
+    return unique
 
 
-def upsert_fixtures(conn: sqlite3.Connection, fixtures: list[dict]) -> None:
+def upsert_fixtures(conn: sqlite3.Connection, events: list[dict]) -> None:
     sql = """
         INSERT INTO fixtures (
             fixture_id, round_name,
@@ -126,89 +175,36 @@ def upsert_fixtures(conn: sqlite3.Connection, fixtures: list[dict]) -> None:
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(fixture_id) DO UPDATE SET
-            round_name   = excluded.round_name,
-            kickoff_utc  = excluded.kickoff_utc,
-            status       = excluded.status,
-            home_score   = excluded.home_score,
-            away_score   = excluded.away_score,
+            round_name     = excluded.round_name,
+            kickoff_utc    = excluded.kickoff_utc,
+            status         = excluded.status,
+            home_score     = excluded.home_score,
+            away_score     = excluded.away_score,
             fetched_at_utc = excluded.fetched_at_utc
     """
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     rows = []
-    for f in fixtures:
-        fix = f.get("fixture", {})
-        teams = f.get("teams", {})
-        goals = f.get("goals", {})
+    for e in events:
+        ri = e.get("roundInfo", {})
+        round_name = ri.get("name") or f"Round {ri.get('round', '?')}"
+        home_score = e.get("homeScore", {}).get("current")
+        away_score = e.get("awayScore", {}).get("current")
+        raw_status = e.get("status", {}).get("description", "Not started")
+        # Normalise SofaScore status to the canonical value train_dc expects
+        status = "FT" if raw_status == "Ended" else raw_status
         rows.append((
-            fix["id"],
-            f.get("league", {}).get("round"),
-            teams.get("home", {}).get("id"),
-            teams.get("away", {}).get("id"),
-            fix.get("date"),
-            fix.get("status", {}).get("short"),
-            goals.get("home"),
-            goals.get("away"),
+            e["id"],
+            round_name,
+            int(e["homeTeam"]["id"]),
+            int(e["awayTeam"]["id"]),
+            _ts_to_utc(e.get("startTimestamp")),
+            status,
+            home_score,
+            away_score,
             now,
         ))
     conn.executemany(sql, rows)
     print(f"  Upserted {len(rows)} fixtures")
-
-
-# ── standings ingest ──────────────────────────────────────────────────────────
-
-def fetch_standings(season: int) -> list[dict]:
-    print(f"Fetching UCL standings for season {season}…")
-    data = _get("/standings", {"league": UCL_LEAGUE_ID, "season": season})
-    # API-Football nests standings as response[0].league.standings[0][...]
-    try:
-        groups = data["response"][0]["league"]["standings"]
-        # UCL league phase is a single 36-team group → standings[0]
-        return groups[0] if groups else []
-    except (IndexError, KeyError):
-        print("  No standings available yet (pre-season?)")
-        return []
-
-
-def upsert_standings(
-    conn: sqlite3.Connection, rows: list[dict], season: int
-) -> None:
-    sql = """
-        INSERT INTO league_standings (
-            team_id, season, played, won, drawn, lost,
-            goals_for, goals_against, points, fetched_at_utc
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(team_id, season) DO UPDATE SET
-            played        = excluded.played,
-            won           = excluded.won,
-            drawn         = excluded.drawn,
-            lost          = excluded.lost,
-            goals_for     = excluded.goals_for,
-            goals_against = excluded.goals_against,
-            points        = excluded.points,
-            fetched_at_utc = excluded.fetched_at_utc
-    """
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    db_rows = [
-        (
-            r["team"]["id"],
-            str(season),
-            r["all"]["played"],
-            r["all"]["win"],
-            r["all"]["draw"],
-            r["all"]["lose"],
-            r["all"]["goals"]["for"],
-            r["all"]["goals"]["against"],
-            r["points"],
-            now,
-        )
-        for r in rows
-    ]
-    if db_rows:
-        conn.executemany(sql, db_rows)
-        print(f"  Upserted {len(db_rows)} standing rows")
-    else:
-        print("  No standing rows to upsert")
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
@@ -222,33 +218,49 @@ def main() -> None:
         help="UCL season start year (e.g. 2026 for 2026/27). Default: inferred.",
     )
     ap.add_argument(
-        "--skip-standings", action="store_true",
-        help="Skip standings ingest (pre-season, before any results).",
+        "--season-id", type=int, default=None,
+        help="SportAPI7 season ID (skips the seasons lookup API call). "
+             "Known IDs: 96518=26/27, 76953=25/26.",
+    )
+    ap.add_argument(
+        "--include-past", action="store_true",
+        help="Also fetch completed fixtures (use once league phase has started).",
+    )
+    ap.add_argument(
+        "--past-only", action="store_true",
+        help="Only fetch completed fixtures (use for fully-finished seasons).",
     )
     args = ap.parse_args()
 
     season = args.season or _current_ucl_season()
     print(f"=== UCL ingest — season {season}/{season % 100 + 1} ===")
 
-    # Ensure schema exists (idempotent)
     from ucl.init_db import init_db
     init_db()
+
+    if args.season_id:
+        season_id = args.season_id
+        print(f"  Season ID: {season_id} (provided)")
+    else:
+        print(f"Looking up SportAPI7 season ID for {season}/{season % 100 + 1}…")
+        season_id = find_season_id(season)
+        print(f"  Season ID: {season_id}")
+
+    print("Fetching fixtures…")
+    events = fetch_all_events(
+        season_id,
+        include_past=args.include_past,
+        past_only=args.past_only,
+    )
+    print(f"  {len(events)} fixtures fetched")
 
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
     try:
-        teams = fetch_teams(season)
-        upsert_teams(conn, teams)
+        upsert_teams(conn, events)
         conn.commit()
-
-        fixtures = fetch_fixtures(season)
-        upsert_fixtures(conn, fixtures)
+        upsert_fixtures(conn, events)
         conn.commit()
-
-        if not args.skip_standings:
-            standing_rows = fetch_standings(season)
-            upsert_standings(conn, standing_rows, season)
-            conn.commit()
     finally:
         conn.close()
 

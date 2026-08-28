@@ -19,7 +19,7 @@ SCHEMA = [
     CREATE TABLE IF NOT EXISTS teams (
         team_id     INTEGER PRIMARY KEY,
         name        TEXT NOT NULL,
-        short_name  TEXT NOT NULL UNIQUE
+        short_name  TEXT NOT NULL
     )
     """,
     # One row per UCL fixture. round_name covers league phase ("League Phase")
