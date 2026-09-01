@@ -323,7 +323,7 @@ def grade(gw: int | None = None, dry_run: bool = False,
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     out = EXPORT_DIR / f"gw{gw:02d}_result.json"
-    out.write_text(json.dumps(result, indent=2, ensure_ascii=False))
+    out.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"GW{gw} graded: {result['net_points']} net "
           f"({result['gross_points']} gross - {hits} hits), "
           f"{len(autosubs)} auto-sub(s).\nExported {out} — commit it; "
