@@ -48,12 +48,14 @@ def _parse_deadline(s: str) -> datetime:
 
 def _load_commitment(gw: int) -> dict | None:
     p = EXPORT_DIR / f"gw{gw:02d}.json"
-    return json.loads(p.read_text()) if p.exists() else None
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
 
 def _load_result(gw: int) -> dict | None:
     p = EXPORT_DIR / f"gw{gw:02d}_result.json"
-    return json.loads(p.read_text()) if p.exists() else None
+    if not p.exists() or p.stat().st_size == 0:
+        return None
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
 @router.get("/model/gw/{gw}")
@@ -174,9 +176,14 @@ def projections(gw: int) -> dict:
             404, f"No projections published for GW{gw} yet. They appear when "
                  "the model locks its squad, about ten hours before the deadline.")
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        data = json.loads(p.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         raise HTTPException(502, f"projections file unreadable: {exc}") from exc
+    # excluded is a 150+ player list kept for audit in the committed file but
+    # adds no value to the frontend — replace with a count only
+    excl = data.pop("excluded", [])
+    data["excluded_count"] = len(excl)
+    return data
 
 
 @router.get("/tools/{gw}")
@@ -235,7 +242,7 @@ def model_season() -> dict:
 
     result_files = sorted(EXPORT_DIR.glob("gw*_result.json")) if EXPORT_DIR.exists() else []
     for f in result_files:
-        data = json.loads(f.read_text())
+        data = json.loads(f.read_text(encoding="utf-8"))
         gw_num = data.get("gameweek")
         if gw_num is None:
             continue
