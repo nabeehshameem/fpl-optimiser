@@ -175,7 +175,7 @@
       "player_id": 237,
       "name": "Ndiaye",
       "position": "MID",
-      "team": "EVE"
+      "team": "MCI"
     },
     {
       "player_id": 251,
@@ -246,7 +246,7 @@
       }
     ]
   },
-  "average_score": 18,
+  "average_score": 81,
   "expected_points": 64.59,
   "detail": [
     {

@@ -87,7 +87,7 @@ def correct(gw: int, field: str, from_val, to_val, reason: str,
     result[field] = to_val
     result.setdefault("corrections", []).append(entry)
 
-    path.write_text(json.dumps(result, indent=2, ensure_ascii=False))
+    path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"GW{gw} corrected: {field} {from_val!r} → {to_val!r}")
     print(f"Correction recorded in {path.name}. Commit and push to publish.")
 

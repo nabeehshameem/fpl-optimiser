@@ -114,7 +114,13 @@ def grade(gw: int | None = None, dry_run: bool = False,
     already = conn.execute(
         "SELECT graded_at_utc FROM model_gw_results WHERE gameweek_id = ?", (gw,)
     ).fetchone()
-    if already:
+    if already and not dry_run:
+        out = EXPORT_DIR / f"gw{gw:02d}_result.json"
+        if out.exists() and out.stat().st_size > 0:
+            raise RuntimeError(f"GW{gw} already graded at {already[0]} (append-only).")
+        # JSON is missing/empty but DB row exists — fall through to re-export only
+        print(f"[INFO] GW{gw} DB row exists but JSON is missing/empty — re-exporting.")
+    elif already and dry_run:
         raise RuntimeError(f"GW{gw} already graded at {already[0]} (append-only).")
 
     lock_row = conn.execute(
@@ -272,7 +278,10 @@ def grade(gw: int | None = None, dry_run: bool = False,
         "squad": squad,
         "squad_display": [{"player_id": pid, **_pinfo(pid)} for pid in ids],
         "squad_hash": stored_hash,
-        "graded_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        # Preserve original graded_at_utc on re-export so the public record timestamp
+        # matches the DB row — don't generate a new timestamp for a file rebuild.
+        "graded_at_utc": (already[0] if already else
+                          datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),
         "gross_points": int(gross),
         "hit_points": hits,
         "net_points": int(net),
@@ -312,22 +321,29 @@ def grade(gw: int | None = None, dry_run: bool = False,
         conn.close()
         return result
 
-    conn.execute(
-        "INSERT INTO model_gw_results VALUES (?,?,?,?,?,?,?,?)",
-        (gw, result["graded_at_utc"], result["gross_points"], hits,
-         result["net_points"], effective_captain,
-         json.dumps(autosubs), json.dumps(detail)),
-    )
-    conn.commit()
+    reexport_only = bool(already)
+    if not reexport_only:
+        conn.execute(
+            "INSERT INTO model_gw_results VALUES (?,?,?,?,?,?,?,?)",
+            (gw, result["graded_at_utc"], result["gross_points"], hits,
+             result["net_points"], effective_captain,
+             json.dumps(autosubs), json.dumps(detail)),
+        )
+        conn.commit()
     conn.close()
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     out = EXPORT_DIR / f"gw{gw:02d}_result.json"
     out.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"GW{gw} graded: {result['net_points']} net "
-          f"({result['gross_points']} gross - {hits} hits), "
-          f"{len(autosubs)} auto-sub(s).\nExported {out} — commit it; "
-          f"the graded receipt is part of the public record.")
+    if reexport_only:
+        print(f"GW{gw} re-exported (DB row preserved): {out}")
+    else:
+        print(f"GW{gw} graded: {result['net_points']} net "
+              f"({result['gross_points']} gross - {hits} hits), "
+              f"{len(autosubs)} auto-sub(s).\nExported {out} — commit it; "
+              f"the graded receipt is part of the public record.")
+    print("\nRun full-league postmortem:")
+    print(f"  python scripts/gw_postmortem.py --gw {gw}")
     return result
 
 
