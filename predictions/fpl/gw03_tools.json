@@ -1,6 +1,6 @@
 {
   "gameweek": 3,
-  "generated_at_utc": "2026-09-02T16:50:39Z",
+  "generated_at_utc": "2026-09-04T07:32:46Z",
   "model": "dc_projection_v1",
   "optimal_xi": {
     "formation": "5-4-1",
@@ -87,12 +87,12 @@
         "is_captain": false
       },
       {
-        "player_id": 67,
-        "name": "Rayan",
-        "team": "BOU",
+        "player_id": 452,
+        "name": "Bruno G.",
+        "team": "ARS",
         "position": "MID",
-        "price": 6.5,
-        "projected_points": 4.56,
+        "price": 6.8,
+        "projected_points": 4.57,
         "is_captain": false
       },
       {
@@ -105,7 +105,7 @@
         "is_captain": false
       }
     ],
-    "total_projected": 65.71,
+    "total_projected": 65.72,
     "note": "Highest-projected legal XI from a fresh \u00a3100.0m squad, ignoring the model's own transfer state. This is a TOOL, not the model's team \u2014 the model's actual squad is at /model/gw/3."
   },
   "captain": [

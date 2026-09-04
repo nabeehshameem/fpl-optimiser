@@ -1,0 +1,247 @@
+{
+  "gameweek": 3,
+  "locked_at_utc": "2026-09-04T07:32:39Z",
+  "deadline_utc": "2026-09-04T17:30:00Z",
+  "squad_hash": "ab86862afd60348bf3943d0a51df1599245697d5280f6a926e20523262dc67e1",
+  "squad": [
+    {
+      "player_id": 1,
+      "purchase_price": 60,
+      "is_xi": 1,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 0
+    },
+    {
+      "player_id": 4,
+      "purchase_price": 80,
+      "is_xi": 1,
+      "is_captain": 1,
+      "is_vice": 0,
+      "bench_order": 0
+    },
+    {
+      "player_id": 8,
+      "purchase_price": 55,
+      "is_xi": 1,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 0
+    },
+    {
+      "player_id": 68,
+      "purchase_price": 60,
+      "is_xi": 1,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 0
+    },
+    {
+      "player_id": 106,
+      "purchase_price": 80,
+      "is_xi": 1,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 0
+    },
+    {
+      "player_id": 113,
+      "purchase_price": 45,
+      "is_xi": 1,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 0
+    },
+    {
+      "player_id": 124,
+      "purchase_price": 55,
+      "is_xi": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 3
+    },
+    {
+      "player_id": 127,
+      "purchase_price": 50,
+      "is_xi": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 4
+    },
+    {
+      "player_id": 201,
+      "purchase_price": 54,
+      "is_xi": 1,
+      "is_captain": 0,
+      "is_vice": 1,
+      "bench_order": 0
+    },
+    {
+      "player_id": 237,
+      "purchase_price": 60,
+      "is_xi": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 2
+    },
+    {
+      "player_id": 251,
+      "purchase_price": 40,
+      "is_xi": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 1
+    },
+    {
+      "player_id": 346,
+      "purchase_price": 60,
+      "is_xi": 1,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 0
+    },
+    {
+      "player_id": 387,
+      "purchase_price": 65,
+      "is_xi": 1,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 0
+    },
+    {
+      "player_id": 411,
+      "purchase_price": 155,
+      "is_xi": 1,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 0
+    },
+    {
+      "player_id": 427,
+      "purchase_price": 80,
+      "is_xi": 1,
+      "is_captain": 0,
+      "is_vice": 0,
+      "bench_order": 0
+    }
+  ],
+  "squad_display": [
+    {
+      "player_id": 1,
+      "name": "Raya",
+      "position": "GK",
+      "team": "ARS",
+      "price": 6.0
+    },
+    {
+      "player_id": 4,
+      "name": "Gabriel",
+      "position": "DEF",
+      "team": "ARS",
+      "price": 8.0
+    },
+    {
+      "player_id": 8,
+      "name": "Calafiori",
+      "position": "DEF",
+      "team": "ARS",
+      "price": 5.6
+    },
+    {
+      "player_id": 68,
+      "name": "Tavernier",
+      "position": "MID",
+      "team": "BOU",
+      "price": 6.0
+    },
+    {
+      "player_id": 106,
+      "name": "Thiago",
+      "position": "FWD",
+      "team": "BRE",
+      "price": 8.0
+    },
+    {
+      "player_id": 113,
+      "name": "F.Kad\u0131o\u011flu",
+      "position": "DEF",
+      "team": "BHA",
+      "price": 4.4
+    },
+    {
+      "player_id": 124,
+      "name": "Gro\u00df",
+      "position": "MID",
+      "team": "BHA",
+      "price": 5.5
+    },
+    {
+      "player_id": 127,
+      "name": "Gomez",
+      "position": "MID",
+      "team": "BHA",
+      "price": 5.0
+    },
+    {
+      "player_id": 201,
+      "name": "Mu\u00f1oz",
+      "position": "DEF",
+      "team": "NFO",
+      "price": 5.4
+    },
+    {
+      "player_id": 237,
+      "name": "Ndiaye",
+      "position": "MID",
+      "team": "MCI",
+      "price": 6.0
+    },
+    {
+      "player_id": 251,
+      "name": "Lecomte",
+      "position": "GK",
+      "team": "FUL",
+      "price": 4.0
+    },
+    {
+      "player_id": 346,
+      "name": "Calvert-Lewin",
+      "position": "FWD",
+      "team": "LEE",
+      "price": 6.0
+    },
+    {
+      "player_id": 387,
+      "name": "O'Reilly",
+      "position": "DEF",
+      "team": "MCI",
+      "price": 6.5
+    },
+    {
+      "player_id": 411,
+      "name": "Haaland",
+      "position": "FWD",
+      "team": "MCI",
+      "price": 15.5
+    },
+    {
+      "player_id": 427,
+      "name": "Mbeumo",
+      "position": "MID",
+      "team": "MUN",
+      "price": 8.0
+    }
+  ],
+  "transfers": {
+    "in": [
+      201
+    ],
+    "out": [
+      391
+    ],
+    "hits": 0
+  },
+  "free_transfers": 1,
+  "bank": 1,
+  "expected_points": 62.48
+}

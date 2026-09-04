@@ -1,7 +1,7 @@
 {
   "gameweek": 3,
   "deadline_utc": "2026-09-04T17:30:00Z",
-  "generated_at_utc": "2026-09-02T16:50:40Z",
+  "generated_at_utc": "2026-09-04T07:32:40Z",
   "model": "dc_projection_v1",
   "captain_candidates": [
     {
@@ -266,7 +266,7 @@
         "name": "Bruno G.",
         "team": "ARS",
         "position": "MID",
-        "price": 6.9,
+        "price": 6.8,
         "projected_points": 4.57,
         "opponent": "CHE",
         "venue": "H"
@@ -817,6 +817,11 @@
       "team": "LEE"
     },
     {
+      "player_id": 329,
+      "name": "Rodon",
+      "team": "LEE"
+    },
+    {
       "player_id": 333,
       "name": "Bornauw",
       "team": "LEE"
@@ -937,8 +942,18 @@
       "team": "MCI"
     },
     {
+      "player_id": 407,
+      "name": "Echeverri",
+      "team": "MCI"
+    },
+    {
       "player_id": 408,
       "name": "Phillips",
+      "team": "MCI"
+    },
+    {
+      "player_id": 409,
+      "name": "Mukasa",
       "team": "MCI"
     },
     {
@@ -1114,6 +1129,11 @@
     {
       "player_id": 540,
       "name": "Masuaku",
+      "team": "SUN"
+    },
+    {
+      "player_id": 543,
+      "name": "Diarra",
       "team": "SUN"
     },
     {
