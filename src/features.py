@@ -56,13 +56,31 @@ def _fetch_players(conn: sqlite3.Connection) -> pd.DataFrame:
 def _fetch_fixtures(conn: sqlite3.Connection) -> pd.DataFrame:
     return pd.read_sql_query(
         """
-        SELECT gameweek_id, home_team_id AS team_id, home_team_difficulty AS fdr, 1 AS is_home
+        SELECT gameweek_id, home_team_id AS team_id, home_team_difficulty AS fdr,
+               1 AS is_home, away_team_id AS opp_team_id
         FROM fixtures
         WHERE gameweek_id IS NOT NULL
         UNION ALL
-        SELECT gameweek_id, away_team_id AS team_id, away_team_difficulty AS fdr, 0 AS is_home
+        SELECT gameweek_id, away_team_id AS team_id, away_team_difficulty AS fdr,
+               0 AS is_home, home_team_id AS opp_team_id
         FROM fixtures
         WHERE gameweek_id IS NOT NULL
+        """,
+        conn,
+    )
+
+
+def _fetch_team_match_history(conn: sqlite3.Connection) -> pd.DataFrame:
+    """Goals scored and conceded per team per finished gameweek."""
+    return pd.read_sql_query(
+        """
+        SELECT gameweek_id, home_team_id AS team_id,
+               home_score AS goals_scored, away_score AS goals_conceded
+        FROM fixtures WHERE finished = 1 AND home_score IS NOT NULL
+        UNION ALL
+        SELECT gameweek_id, away_team_id AS team_id,
+               away_score AS goals_scored, home_score AS goals_conceded
+        FROM fixtures WHERE finished = 1 AND away_score IS NOT NULL
         """,
         conn,
     )
@@ -189,6 +207,81 @@ def _build_fixture_features(fixtures: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+OPP_WINDOWS = [3, 5]
+
+
+def _build_opponent_features(
+    df: pd.DataFrame,
+    fixtures: pd.DataFrame,
+    team_history: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    For each (player_team, target_gw) row, attach the opponent's rolling
+    goals-scored and goals-conceded form using only data BEFORE that GW.
+
+    opp_goals_scored_mean_N  → opponent attack strength; high = harder clean sheet for DEFs
+    opp_goals_conceded_mean_N → opponent defensive weakness; high = easier scoring for FWDs/MIDs
+
+    Uses the same merge_asof fractional-key trick as _compute_form_for_targets
+    so no future data leaks into training.
+    """
+    if team_history.empty:
+        opp_cols = (
+            [f"opp_goals_scored_mean_{w}" for w in OPP_WINDOWS]
+            + [f"opp_goals_conceded_mean_{w}" for w in OPP_WINDOWS]
+        )
+        result = df[["player_id", "gameweek_id"]].copy()
+        result[opp_cols] = 1.5
+        return result
+
+    # Compute rolling team form (inclusive of each GW, then merge_asof enforces strict <)
+    th = team_history.sort_values(["team_id", "gameweek_id"]).copy()
+    grp = th.groupby("team_id", group_keys=False)
+    form_cols = []
+    for stat in ("goals_scored", "goals_conceded"):
+        for w in OPP_WINDOWS:
+            col = f"{stat}_mean_{w}"
+            th[col] = grp[stat].transform(lambda x, n=w: x.rolling(n, min_periods=1).mean())
+            form_cols.append(col)
+
+    th["_key"] = th["gameweek_id"].astype(float)
+    th_sorted = th[["team_id"] + form_cols + ["_key"]].sort_values("_key")
+
+    # Map (player_team, gw) → opp_team_id via fixtures (first fixture per team per GW)
+    fix_opp = (
+        fixtures[["gameweek_id", "team_id", "opp_team_id"]]
+        .dropna(subset=["opp_team_id"])
+        .drop_duplicates(subset=["gameweek_id", "team_id"], keep="first")
+    )
+    left = df[["player_id", "team_id", "gameweek_id"]].merge(
+        fix_opp, on=["team_id", "gameweek_id"], how="left"
+    )
+    left["_key"] = left["gameweek_id"].astype(float) - 0.5
+    left = left.sort_values("_key")
+
+    # Look up opponent's form strictly before target GW
+    merged = pd.merge_asof(
+        left,
+        th_sorted.rename(columns={"team_id": "opp_team_id"}),
+        on="_key",
+        by="opp_team_id",
+        direction="backward",
+    )
+
+    rename_map = {c: f"opp_{c}" for c in form_cols}
+    merged = merged.rename(columns=rename_map)
+    opp_cols = [f"opp_{c}" for c in form_cols]
+
+    # Restore original order; fill NaN (no prior data) with a neutral 1.5 goals/game
+    league_avg = team_history["goals_scored"].mean() if not team_history.empty else 1.5
+    result = df[["player_id", "gameweek_id"]].merge(
+        merged[["player_id", "gameweek_id"] + opp_cols],
+        on=["player_id", "gameweek_id"], how="left",
+    )
+    result[opp_cols] = result[opp_cols].fillna(league_avg)
+    return result
+
+
 def _apply_defensive_fills(df: pd.DataFrame) -> pd.DataFrame:
     form_cols = [c for c in df.columns
                  if any(c.startswith(f"{s}_mean_") for s in [
@@ -205,6 +298,10 @@ def _apply_defensive_fills(df: pd.DataFrame) -> pd.DataFrame:
     df["is_home"] = df["is_home"].fillna(0).astype(int)
     if "now_cost" in df.columns:
         df["now_cost"] = df["now_cost"].fillna(df.get("current_cost"))
+    # Opponent form: fill NaN with neutral 1.5 goals/game if not already filled
+    opp_cols = [c for c in df.columns if c.startswith("opp_")]
+    if opp_cols:
+        df[opp_cols] = df[opp_cols].fillna(1.5)
     return df
 
 
@@ -221,6 +318,7 @@ def build_training_data(
         players = _fetch_players(conn)
         fixtures = _fetch_fixtures(conn)
         snapshots = _fetch_snapshots(conn)
+        team_history = _fetch_team_match_history(conn)
     finally:
         conn.close()
 
@@ -246,6 +344,9 @@ def build_training_data(
     fix = _build_fixture_features(fixtures)
     df = df.merge(fix, on=["team_id", "gameweek_id"], how="left")
 
+    opp = _build_opponent_features(df, fixtures, team_history)
+    df = df.merge(opp, on=["player_id", "gameweek_id"], how="left")
+
     df = _apply_defensive_fills(df)
     return df
 
@@ -258,6 +359,7 @@ def build_prediction_features(target_gw: int) -> pd.DataFrame:
         players = _fetch_players(conn)
         fixtures = _fetch_fixtures(conn)
         snapshots = _fetch_snapshots(conn)
+        team_history = _fetch_team_match_history(conn)
     finally:
         conn.close()
 
@@ -282,6 +384,9 @@ def build_prediction_features(target_gw: int) -> pd.DataFrame:
         fixtures[fixtures["gameweek_id"] == target_gw]
     )
     df = df.merge(fix_target, on=["team_id", "gameweek_id"], how="left")
+
+    opp = _build_opponent_features(df, fixtures, team_history)
+    df = df.merge(opp, on=["player_id", "gameweek_id"], how="left")
 
     df = _apply_defensive_fills(df)
     return df
