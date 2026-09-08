@@ -1,0 +1,1159 @@
+{
+  "gameweek": 4,
+  "generated_at_utc": "2026-09-06T19:03:41Z",
+  "model": "dc_projection_v1",
+  "optimal_xi": {
+    "formation": "5-3-2",
+    "players": [
+      {
+        "player_id": 1,
+        "name": "Raya",
+        "team": "ARS",
+        "position": "GK",
+        "price": 6.0,
+        "projected_points": 4.88,
+        "is_captain": false
+      },
+      {
+        "player_id": 4,
+        "name": "Gabriel",
+        "team": "ARS",
+        "position": "DEF",
+        "price": 8.0,
+        "projected_points": 5.74,
+        "is_captain": false
+      },
+      {
+        "player_id": 202,
+        "name": "Richards",
+        "team": "CRY",
+        "position": "DEF",
+        "price": 5.0,
+        "projected_points": 5.53,
+        "is_captain": false
+      },
+      {
+        "player_id": 61,
+        "name": "Truffert",
+        "team": "BOU",
+        "position": "DEF",
+        "price": 5.5,
+        "projected_points": 5.43,
+        "is_captain": false
+      },
+      {
+        "player_id": 204,
+        "name": "Mitchell",
+        "team": "CRY",
+        "position": "DEF",
+        "price": 4.5,
+        "projected_points": 5.28,
+        "is_captain": false
+      },
+      {
+        "player_id": 153,
+        "name": "Disasi",
+        "team": "CRY",
+        "position": "DEF",
+        "price": 4.5,
+        "projected_points": 5.17,
+        "is_captain": false
+      },
+      {
+        "player_id": 68,
+        "name": "Tavernier",
+        "team": "BOU",
+        "position": "MID",
+        "price": 6.0,
+        "projected_points": 6.65,
+        "is_captain": true
+      },
+      {
+        "player_id": 67,
+        "name": "Rayan",
+        "team": "BOU",
+        "position": "MID",
+        "price": 6.5,
+        "projected_points": 5.5,
+        "is_captain": false
+      },
+      {
+        "player_id": 480,
+        "name": "Gibbs-White",
+        "team": "NFO",
+        "position": "MID",
+        "price": 7.9,
+        "projected_points": 5.28,
+        "is_captain": false
+      },
+      {
+        "player_id": 346,
+        "name": "Calvert-Lewin",
+        "team": "LEE",
+        "position": "FWD",
+        "price": 6.0,
+        "projected_points": 5.8,
+        "is_captain": false
+      },
+      {
+        "player_id": 411,
+        "name": "Haaland",
+        "team": "MCI",
+        "position": "FWD",
+        "price": 15.5,
+        "projected_points": 5.05,
+        "is_captain": false
+      }
+    ],
+    "total_projected": 66.96,
+    "note": "Highest-projected legal XI from a fresh \u00a3100.0m squad, ignoring the model's own transfer state. This is a TOOL, not the model's team \u2014 the model's actual squad is at /model/gw/4."
+  },
+  "captain": [
+    {
+      "player_id": 68,
+      "name": "Tavernier",
+      "team": "BOU",
+      "position": "MID",
+      "price": 6.0,
+      "projected_points": 6.65,
+      "opponent": "BRE",
+      "venue": "H",
+      "captain_delta": 6.65
+    },
+    {
+      "player_id": 346,
+      "name": "Calvert-Lewin",
+      "team": "LEE",
+      "position": "FWD",
+      "price": 6.0,
+      "projected_points": 5.8,
+      "opponent": "NEW",
+      "venue": "H",
+      "captain_delta": 5.8
+    },
+    {
+      "player_id": 4,
+      "name": "Gabriel",
+      "team": "ARS",
+      "position": "DEF",
+      "price": 8.0,
+      "projected_points": 5.74,
+      "opponent": "SUN",
+      "venue": "A",
+      "captain_delta": 5.74
+    },
+    {
+      "player_id": 202,
+      "name": "Richards",
+      "team": "CRY",
+      "position": "DEF",
+      "price": 5.0,
+      "projected_points": 5.53,
+      "opponent": "IPS",
+      "venue": "H",
+      "captain_delta": 5.53
+    },
+    {
+      "player_id": 67,
+      "name": "Rayan",
+      "team": "BOU",
+      "position": "MID",
+      "price": 6.5,
+      "projected_points": 5.5,
+      "opponent": "BRE",
+      "venue": "H",
+      "captain_delta": 5.5
+    },
+    {
+      "player_id": 61,
+      "name": "Truffert",
+      "team": "BOU",
+      "position": "DEF",
+      "price": 5.5,
+      "projected_points": 5.43,
+      "opponent": "BRE",
+      "venue": "H",
+      "captain_delta": 5.43
+    },
+    {
+      "player_id": 204,
+      "name": "Mitchell",
+      "team": "CRY",
+      "position": "DEF",
+      "price": 4.5,
+      "projected_points": 5.28,
+      "opponent": "IPS",
+      "venue": "H",
+      "captain_delta": 5.28
+    },
+    {
+      "player_id": 480,
+      "name": "Gibbs-White",
+      "team": "NFO",
+      "position": "MID",
+      "price": 7.9,
+      "projected_points": 5.28,
+      "opponent": "AVL",
+      "venue": "A",
+      "captain_delta": 5.28
+    }
+  ],
+  "gw_predictions": [
+    {
+      "home": "AVL",
+      "away": "NFO",
+      "kickoff_utc": "2026-09-12T14:00:00Z",
+      "p_home": 38.9,
+      "p_draw": 25.6,
+      "p_away": 35.5,
+      "top_scoreline": "1-1",
+      "xg_home": 1.72,
+      "xg_away": 1.64
+    },
+    {
+      "home": "BOU",
+      "away": "BRE",
+      "kickoff_utc": "2026-09-12T14:00:00Z",
+      "p_home": 65.6,
+      "p_draw": 21.2,
+      "p_away": 13.3,
+      "top_scoreline": "2-0",
+      "xg_home": 2.26,
+      "xg_away": 0.95
+    },
+    {
+      "home": "CHE",
+      "away": "HUL",
+      "kickoff_utc": "2026-09-12T14:00:00Z",
+      "p_home": 32.9,
+      "p_draw": 29.4,
+      "p_away": 37.7,
+      "top_scoreline": "1-1",
+      "xg_home": 1.29,
+      "xg_away": 1.39
+    },
+    {
+      "home": "CRY",
+      "away": "IPS",
+      "kickoff_utc": "2026-09-12T14:00:00Z",
+      "p_home": 31.8,
+      "p_draw": 30.5,
+      "p_away": 37.7,
+      "top_scoreline": "1-1",
+      "xg_home": 1.2,
+      "xg_away": 1.32
+    },
+    {
+      "home": "LIV",
+      "away": "FUL",
+      "kickoff_utc": "2026-09-12T14:00:00Z",
+      "p_home": 62.0,
+      "p_draw": 23.4,
+      "p_away": 14.6,
+      "top_scoreline": "1-1",
+      "xg_home": 2.03,
+      "xg_away": 0.91
+    },
+    {
+      "home": "TOT",
+      "away": "EVE",
+      "kickoff_utc": "2026-09-12T16:30:00Z",
+      "p_home": 42.4,
+      "p_draw": 27.2,
+      "p_away": 30.4,
+      "top_scoreline": "1-1",
+      "xg_home": 1.64,
+      "xg_away": 1.37
+    },
+    {
+      "home": "SUN",
+      "away": "ARS",
+      "kickoff_utc": "2026-09-12T19:00:00Z",
+      "p_home": 22.0,
+      "p_draw": 32.8,
+      "p_away": 45.2,
+      "top_scoreline": "1-1",
+      "xg_home": 0.81,
+      "xg_away": 1.27
+    },
+    {
+      "home": "COV",
+      "away": "BHA",
+      "kickoff_utc": "2026-09-13T13:00:00Z",
+      "p_home": 35.2,
+      "p_draw": 30.5,
+      "p_away": 34.3,
+      "top_scoreline": "1-1",
+      "xg_home": 1.27,
+      "xg_away": 1.26
+    },
+    {
+      "home": "MUN",
+      "away": "MCI",
+      "kickoff_utc": "2026-09-13T15:30:00Z",
+      "p_home": 23.6,
+      "p_draw": 25.3,
+      "p_away": 51.1,
+      "top_scoreline": "1-1",
+      "xg_home": 1.25,
+      "xg_away": 1.9
+    },
+    {
+      "home": "LEE",
+      "away": "NEW",
+      "kickoff_utc": "2026-09-14T19:00:00Z",
+      "p_home": 53.9,
+      "p_draw": 26.0,
+      "p_away": 20.1,
+      "top_scoreline": "1-1",
+      "xg_home": 1.83,
+      "xg_away": 1.05
+    }
+  ],
+  "fixture_ticker": {
+    "from_gw": 4,
+    "to_gw": 9,
+    "teams": [
+      {
+        "team": "MCI",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "MUN",
+            "venue": "A",
+            "xg_for": 1.61
+          },
+          {
+            "gw": 5,
+            "opponent": "SUN",
+            "venue": "H",
+            "xg_for": 2.14
+          },
+          {
+            "gw": 6,
+            "opponent": "LIV",
+            "venue": "A",
+            "xg_for": 1.73
+          },
+          {
+            "gw": 7,
+            "opponent": "IPS",
+            "venue": "H",
+            "xg_for": 2.25
+          },
+          {
+            "gw": 8,
+            "opponent": "AVL",
+            "venue": "A",
+            "xg_for": 1.69
+          },
+          {
+            "gw": 9,
+            "opponent": "BHA",
+            "venue": "H",
+            "xg_for": 1.93
+          }
+        ],
+        "total_xg": 11.35
+      },
+      {
+        "team": "MUN",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "MCI",
+            "venue": "H",
+            "xg_for": 1.38
+          },
+          {
+            "gw": 5,
+            "opponent": "FUL",
+            "venue": "A",
+            "xg_for": 1.46
+          },
+          {
+            "gw": 6,
+            "opponent": "TOT",
+            "venue": "H",
+            "xg_for": 2.22
+          },
+          {
+            "gw": 7,
+            "opponent": "LEE",
+            "venue": "A",
+            "xg_for": 1.48
+          },
+          {
+            "gw": 8,
+            "opponent": "BOU",
+            "venue": "H",
+            "xg_for": 1.96
+          },
+          {
+            "gw": 9,
+            "opponent": "CHE",
+            "venue": "A",
+            "xg_for": 1.52
+          }
+        ],
+        "total_xg": 10.02
+      },
+      {
+        "team": "BOU",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "BRE",
+            "venue": "H",
+            "xg_for": 1.77
+          },
+          {
+            "gw": 5,
+            "opponent": "LIV",
+            "venue": "H",
+            "xg_for": 1.78
+          },
+          {
+            "gw": 6,
+            "opponent": "CHE",
+            "venue": "A",
+            "xg_for": 1.36
+          },
+          {
+            "gw": 7,
+            "opponent": "SUN",
+            "venue": "H",
+            "xg_for": 1.68
+          },
+          {
+            "gw": 8,
+            "opponent": "MUN",
+            "venue": "A",
+            "xg_for": 1.26
+          },
+          {
+            "gw": 9,
+            "opponent": "LEE",
+            "venue": "H",
+            "xg_for": 1.74
+          }
+        ],
+        "total_xg": 9.59
+      },
+      {
+        "team": "CHE",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "HUL",
+            "venue": "H",
+            "xg_for": 1.61
+          },
+          {
+            "gw": 5,
+            "opponent": "BRE",
+            "venue": "A",
+            "xg_for": 1.23
+          },
+          {
+            "gw": 6,
+            "opponent": "BOU",
+            "venue": "H",
+            "xg_for": 1.61
+          },
+          {
+            "gw": 7,
+            "opponent": "EVE",
+            "venue": "A",
+            "xg_for": 1.21
+          },
+          {
+            "gw": 8,
+            "opponent": "TOT",
+            "venue": "H",
+            "xg_for": 1.81
+          },
+          {
+            "gw": 9,
+            "opponent": "MUN",
+            "venue": "H",
+            "xg_for": 1.53
+          }
+        ],
+        "total_xg": 9.0
+      },
+      {
+        "team": "AVL",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "NFO",
+            "venue": "H",
+            "xg_for": 1.56
+          },
+          {
+            "gw": 5,
+            "opponent": "TOT",
+            "venue": "A",
+            "xg_for": 1.38
+          },
+          {
+            "gw": 6,
+            "opponent": "BRE",
+            "venue": "H",
+            "xg_for": 1.64
+          },
+          {
+            "gw": 7,
+            "opponent": "NEW",
+            "venue": "A",
+            "xg_for": 1.29
+          },
+          {
+            "gw": 8,
+            "opponent": "MCI",
+            "venue": "H",
+            "xg_for": 1.13
+          },
+          {
+            "gw": 9,
+            "opponent": "FUL",
+            "venue": "H",
+            "xg_for": 1.59
+          }
+        ],
+        "total_xg": 8.59
+      },
+      {
+        "team": "LIV",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "FUL",
+            "venue": "H",
+            "xg_for": 1.81
+          },
+          {
+            "gw": 5,
+            "opponent": "BOU",
+            "venue": "A",
+            "xg_for": 1.39
+          },
+          {
+            "gw": 6,
+            "opponent": "MCI",
+            "venue": "H",
+            "xg_for": 1.29
+          },
+          {
+            "gw": 7,
+            "opponent": "BRE",
+            "venue": "A",
+            "xg_for": 1.41
+          },
+          {
+            "gw": 8,
+            "opponent": "BHA",
+            "venue": "H",
+            "xg_for": 1.59
+          },
+          {
+            "gw": 9,
+            "opponent": "ARS",
+            "venue": "H",
+            "xg_for": 1.1
+          }
+        ],
+        "total_xg": 8.59
+      },
+      {
+        "team": "BRE",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "BOU",
+            "venue": "A",
+            "xg_for": 1.23
+          },
+          {
+            "gw": 5,
+            "opponent": "CHE",
+            "venue": "H",
+            "xg_for": 1.65
+          },
+          {
+            "gw": 6,
+            "opponent": "AVL",
+            "venue": "A",
+            "xg_for": 1.22
+          },
+          {
+            "gw": 7,
+            "opponent": "LIV",
+            "venue": "H",
+            "xg_for": 1.65
+          },
+          {
+            "gw": 8,
+            "opponent": "HUL",
+            "venue": "A",
+            "xg_for": 1.23
+          },
+          {
+            "gw": 9,
+            "opponent": "NFO",
+            "venue": "H",
+            "xg_for": 1.56
+          }
+        ],
+        "total_xg": 8.54
+      },
+      {
+        "team": "NEW",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "LEE",
+            "venue": "A",
+            "xg_for": 1.21
+          },
+          {
+            "gw": 5,
+            "opponent": "HUL",
+            "venue": "H",
+            "xg_for": 1.61
+          },
+          {
+            "gw": 6,
+            "opponent": "COV",
+            "venue": "A",
+            "xg_for": 1.22
+          },
+          {
+            "gw": 7,
+            "opponent": "AVL",
+            "venue": "H",
+            "xg_for": 1.6
+          },
+          {
+            "gw": 8,
+            "opponent": "CRY",
+            "venue": "A",
+            "xg_for": 1.23
+          },
+          {
+            "gw": 9,
+            "opponent": "EVE",
+            "venue": "H",
+            "xg_for": 1.59
+          }
+        ],
+        "total_xg": 8.46
+      },
+      {
+        "team": "COV",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "BHA",
+            "venue": "H",
+            "xg_for": 1.31
+          },
+          {
+            "gw": 5,
+            "opponent": "NFO",
+            "venue": "A",
+            "xg_for": 1.11
+          },
+          {
+            "gw": 6,
+            "opponent": "NEW",
+            "venue": "H",
+            "xg_for": 1.6
+          },
+          {
+            "gw": 7,
+            "opponent": "TOT",
+            "venue": "A",
+            "xg_for": 1.3
+          },
+          {
+            "gw": 8,
+            "opponent": "FUL",
+            "venue": "H",
+            "xg_for": 1.49
+          },
+          {
+            "gw": 9,
+            "opponent": "SUN",
+            "venue": "H",
+            "xg_for": 1.45
+          }
+        ],
+        "total_xg": 8.26
+      },
+      {
+        "team": "HUL",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "CHE",
+            "venue": "A",
+            "xg_for": 1.18
+          },
+          {
+            "gw": 5,
+            "opponent": "NEW",
+            "venue": "A",
+            "xg_for": 1.21
+          },
+          {
+            "gw": 6,
+            "opponent": "EVE",
+            "venue": "H",
+            "xg_for": 1.51
+          },
+          {
+            "gw": 7,
+            "opponent": "FUL",
+            "venue": "A",
+            "xg_for": 1.13
+          },
+          {
+            "gw": 8,
+            "opponent": "BRE",
+            "venue": "H",
+            "xg_for": 1.53
+          },
+          {
+            "gw": 9,
+            "opponent": "IPS",
+            "venue": "H",
+            "xg_for": 1.52
+          }
+        ],
+        "total_xg": 8.08
+      },
+      {
+        "team": "LEE",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "NEW",
+            "venue": "H",
+            "xg_for": 1.61
+          },
+          {
+            "gw": 5,
+            "opponent": "CRY",
+            "venue": "H",
+            "xg_for": 1.54
+          },
+          {
+            "gw": 6,
+            "opponent": "ARS",
+            "venue": "A",
+            "xg_for": 0.7
+          },
+          {
+            "gw": 7,
+            "opponent": "MUN",
+            "venue": "H",
+            "xg_for": 1.46
+          },
+          {
+            "gw": 8,
+            "opponent": "SUN",
+            "venue": "A",
+            "xg_for": 1.11
+          },
+          {
+            "gw": 9,
+            "opponent": "BOU",
+            "venue": "A",
+            "xg_for": 1.16
+          }
+        ],
+        "total_xg": 7.58
+      },
+      {
+        "team": "TOT",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "EVE",
+            "venue": "H",
+            "xg_for": 1.34
+          },
+          {
+            "gw": 5,
+            "opponent": "AVL",
+            "venue": "H",
+            "xg_for": 1.35
+          },
+          {
+            "gw": 6,
+            "opponent": "MUN",
+            "venue": "A",
+            "xg_for": 0.98
+          },
+          {
+            "gw": 7,
+            "opponent": "COV",
+            "venue": "H",
+            "xg_for": 1.36
+          },
+          {
+            "gw": 8,
+            "opponent": "CHE",
+            "venue": "A",
+            "xg_for": 1.05
+          },
+          {
+            "gw": 9,
+            "opponent": "CRY",
+            "venue": "H",
+            "xg_for": 1.36
+          }
+        ],
+        "total_xg": 7.44
+      },
+      {
+        "team": "IPS",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "CRY",
+            "venue": "A",
+            "xg_for": 1.16
+          },
+          {
+            "gw": 5,
+            "opponent": "EVE",
+            "venue": "A",
+            "xg_for": 1.14
+          },
+          {
+            "gw": 6,
+            "opponent": "FUL",
+            "venue": "H",
+            "xg_for": 1.49
+          },
+          {
+            "gw": 7,
+            "opponent": "MCI",
+            "venue": "A",
+            "xg_for": 0.81
+          },
+          {
+            "gw": 8,
+            "opponent": "NFO",
+            "venue": "H",
+            "xg_for": 1.46
+          },
+          {
+            "gw": 9,
+            "opponent": "HUL",
+            "venue": "A",
+            "xg_for": 1.15
+          }
+        ],
+        "total_xg": 7.21
+      },
+      {
+        "team": "EVE",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "TOT",
+            "venue": "A",
+            "xg_for": 1.25
+          },
+          {
+            "gw": 5,
+            "opponent": "IPS",
+            "venue": "H",
+            "xg_for": 1.47
+          },
+          {
+            "gw": 6,
+            "opponent": "HUL",
+            "venue": "A",
+            "xg_for": 1.11
+          },
+          {
+            "gw": 7,
+            "opponent": "CHE",
+            "venue": "H",
+            "xg_for": 1.49
+          },
+          {
+            "gw": 8,
+            "opponent": "ARS",
+            "venue": "A",
+            "xg_for": 0.66
+          },
+          {
+            "gw": 9,
+            "opponent": "NEW",
+            "venue": "A",
+            "xg_for": 1.16
+          }
+        ],
+        "total_xg": 7.14
+      },
+      {
+        "team": "ARS",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "SUN",
+            "venue": "A",
+            "xg_for": 1.06
+          },
+          {
+            "gw": 5,
+            "opponent": "BHA",
+            "venue": "A",
+            "xg_for": 0.96
+          },
+          {
+            "gw": 6,
+            "opponent": "LEE",
+            "venue": "H",
+            "xg_for": 1.45
+          },
+          {
+            "gw": 7,
+            "opponent": "NFO",
+            "venue": "A",
+            "xg_for": 1.07
+          },
+          {
+            "gw": 8,
+            "opponent": "EVE",
+            "venue": "H",
+            "xg_for": 1.45
+          },
+          {
+            "gw": 9,
+            "opponent": "LIV",
+            "venue": "A",
+            "xg_for": 1.13
+          }
+        ],
+        "total_xg": 7.12
+      },
+      {
+        "team": "NFO",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "AVL",
+            "venue": "A",
+            "xg_for": 1.14
+          },
+          {
+            "gw": 5,
+            "opponent": "COV",
+            "venue": "H",
+            "xg_for": 1.51
+          },
+          {
+            "gw": 6,
+            "opponent": "CRY",
+            "venue": "A",
+            "xg_for": 1.15
+          },
+          {
+            "gw": 7,
+            "opponent": "ARS",
+            "venue": "H",
+            "xg_for": 0.9
+          },
+          {
+            "gw": 8,
+            "opponent": "IPS",
+            "venue": "A",
+            "xg_for": 1.15
+          },
+          {
+            "gw": 9,
+            "opponent": "BRE",
+            "venue": "A",
+            "xg_for": 1.15
+          }
+        ],
+        "total_xg": 7.0
+      },
+      {
+        "team": "BHA",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "COV",
+            "venue": "A",
+            "xg_for": 1.18
+          },
+          {
+            "gw": 5,
+            "opponent": "ARS",
+            "venue": "H",
+            "xg_for": 0.93
+          },
+          {
+            "gw": 6,
+            "opponent": "SUN",
+            "venue": "A",
+            "xg_for": 1.12
+          },
+          {
+            "gw": 7,
+            "opponent": "CRY",
+            "venue": "H",
+            "xg_for": 1.56
+          },
+          {
+            "gw": 8,
+            "opponent": "LIV",
+            "venue": "A",
+            "xg_for": 1.2
+          },
+          {
+            "gw": 9,
+            "opponent": "MCI",
+            "venue": "A",
+            "xg_for": 0.82
+          }
+        ],
+        "total_xg": 6.81
+      },
+      {
+        "team": "FUL",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "LIV",
+            "venue": "A",
+            "xg_for": 1.04
+          },
+          {
+            "gw": 5,
+            "opponent": "MUN",
+            "venue": "H",
+            "xg_for": 1.28
+          },
+          {
+            "gw": 6,
+            "opponent": "IPS",
+            "venue": "A",
+            "xg_for": 1.02
+          },
+          {
+            "gw": 7,
+            "opponent": "HUL",
+            "venue": "H",
+            "xg_for": 1.35
+          },
+          {
+            "gw": 8,
+            "opponent": "COV",
+            "venue": "A",
+            "xg_for": 1.02
+          },
+          {
+            "gw": 9,
+            "opponent": "AVL",
+            "venue": "A",
+            "xg_for": 1.02
+          }
+        ],
+        "total_xg": 6.73
+      },
+      {
+        "team": "CRY",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "IPS",
+            "venue": "H",
+            "xg_for": 1.25
+          },
+          {
+            "gw": 5,
+            "opponent": "LEE",
+            "venue": "A",
+            "xg_for": 0.94
+          },
+          {
+            "gw": 6,
+            "opponent": "NFO",
+            "venue": "H",
+            "xg_for": 1.21
+          },
+          {
+            "gw": 7,
+            "opponent": "BHA",
+            "venue": "A",
+            "xg_for": 0.82
+          },
+          {
+            "gw": 8,
+            "opponent": "NEW",
+            "venue": "H",
+            "xg_for": 1.31
+          },
+          {
+            "gw": 9,
+            "opponent": "TOT",
+            "venue": "A",
+            "xg_for": 1.07
+          }
+        ],
+        "total_xg": 6.6
+      },
+      {
+        "team": "SUN",
+        "cells": [
+          {
+            "gw": 4,
+            "opponent": "ARS",
+            "venue": "H",
+            "xg_for": 0.77
+          },
+          {
+            "gw": 5,
+            "opponent": "MCI",
+            "venue": "A",
+            "xg_for": 0.68
+          },
+          {
+            "gw": 6,
+            "opponent": "BHA",
+            "venue": "H",
+            "xg_for": 1.11
+          },
+          {
+            "gw": 7,
+            "opponent": "BOU",
+            "venue": "A",
+            "xg_for": 0.97
+          },
+          {
+            "gw": 8,
+            "opponent": "LEE",
+            "venue": "H",
+            "xg_for": 1.27
+          },
+          {
+            "gw": 9,
+            "opponent": "COV",
+            "venue": "A",
+            "xg_for": 0.98
+          }
+        ],
+        "total_xg": 5.78
+      }
+    ]
+  }
+}
