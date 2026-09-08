@@ -5,9 +5,10 @@ Read-only UCL endpoints. Mounted into api.py:
     from src.ucl_api import router as ucl_router
     app.include_router(ucl_router)
 
-Data sources (Rule 8 — Railway has no DB for UCL yet):
+Data sources (Rule 8 — Railway has no DB, and data/ is gitignored, so every
+endpoint here reads a git-committed artifact and never the database):
   predictions/ucl/*_predictions.json  — written by ucl/run_predictions.py
-  data/ucl.db                         — standings read live, DB is committed
+  predictions/ucl/standings.json      — written by ucl/ingest_fd.py
 
 Endpoints:
   GET /api/ucl/predictions/upcoming   — all upcoming fixtures
@@ -20,13 +21,11 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-UCL_DB = PROJECT_ROOT / "data" / "ucl.db"
 UCL_PREDS = PROJECT_ROOT / "predictions" / "ucl"
 
 router = APIRouter(prefix="/api/ucl", tags=["ucl"])
@@ -67,54 +66,24 @@ def predictions_round(round_slug: str) -> dict:
 
 @router.get("/standings")
 def standings() -> dict:
-    """UCL league-phase table from data/ucl.db."""
-    if not UCL_DB.exists():
+    """UCL league-phase table, as exported at ingest time.
+
+    Read from the committed artifact rather than data/ucl.db: Railway has no
+    database and data/ is gitignored (Rule 8), so a query here would 404 in
+    production while passing locally. ucl/standings.py derives it from finished
+    fixtures and writes the file whenever results are ingested.
+
+    Before a ball is kicked this is every entrant on zero with
+    season_started: false — a real standing of a season that has not started,
+    not an error. The frontend renders that state.
+    """
+    p = UCL_PREDS / "standings.json"
+    if not p.exists():
         raise HTTPException(
             404,
-            "UCL database not initialised. Run ucl/init_db.py and ucl/ingest_fixtures.py."
+            "UCL standings not published yet. Run: python ucl/ingest_fd.py",
         )
-    conn = sqlite3.connect(UCL_DB)
-    try:
-        rows = conn.execute("""
-            SELECT
-                t.short_name, t.name,
-                ls.played, ls.won, ls.drawn, ls.lost,
-                ls.goals_for, ls.goals_against,
-                ls.goals_for - ls.goals_against AS gd,
-                ls.points, ls.fetched_at_utc
-            FROM league_standings ls
-            JOIN teams t ON t.team_id = ls.team_id
-            ORDER BY ls.points DESC, gd DESC, ls.goals_for DESC
-        """).fetchall()
-    finally:
-        conn.close()
-
-    if not rows:
-        raise HTTPException(
-            404,
-            "No standings data yet. Run ucl/ingest_fixtures.py to populate."
-        )
-
-    fetched_at = rows[0][10] if rows else None
-    return {
-        "fetched_at_utc": fetched_at,
-        "standings": [
-            {
-                "rank": i + 1,
-                "team": r[0],
-                "team_name": r[1],
-                "played": r[2],
-                "won": r[3],
-                "drawn": r[4],
-                "lost": r[5],
-                "goals_for": r[6],
-                "goals_against": r[7],
-                "goal_difference": r[8],
-                "points": r[9],
-            }
-            for i, r in enumerate(rows)
-        ],
-    }
+    return _load_predictions("standings.json")
 
 
 @router.get("/league-phase/sim")

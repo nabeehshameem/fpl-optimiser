@@ -25,6 +25,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+sys.stdout.reconfigure(encoding="utf-8")
+
 from src.dc_match import predict_match  # noqa: E402
 
 DB_PATH = PROJECT_ROOT / "data" / "ucl.db"
@@ -86,9 +88,15 @@ def _upcoming_fixtures(round_filter: str | None) -> list[dict]:
 
 
 def build_predictions(fixtures: list[dict], dc: dict) -> list[dict]:
+    # predict_match falls back to league-average ratings for any team absent
+    # from team_params. That fallback is invisible in its output, so a team
+    # that has never played a UCL match under this model reads as an average
+    # one. Surface it: a newly-qualified side's prediction is a prior, not a fit.
+    rated = set(dc.get("team_params", {}))
     results = []
     for f in fixtures:
         pred = predict_match(f["home_sn"], f["away_sn"], dc)
+        unrated = [sn for sn in (f["home_sn"], f["away_sn"]) if sn not in rated]
         results.append({
             "fixture_id": f["fixture_id"],
             "round": f["round_name"],
@@ -106,6 +114,15 @@ def build_predictions(fixtures: list[dict], dc: dict) -> list[dict]:
             "top_scoreline_pct": pred["top_scoreline_pct"],
             "home_cs_pct": pred["home_cs_pct"],
             "away_cs_pct": pred["away_cs_pct"],
+            "cold_start": bool(unrated),
+            "unrated_teams": unrated,
+            # both unrated -> every such fixture returns the same numbers, so
+            # the output is a constant carrying no information about either
+            # side. Distinguished from the one-unrated case, where the rated
+            # team's fitted strength still drives the result.
+            "confidence": ("rated" if not unrated
+                           else "partial" if len(unrated) == 1
+                           else "none"),
         })
     return results
 
@@ -137,10 +154,33 @@ def main() -> None:
     )
     slug = label.replace("/", "_").replace("-", "_")
 
+    rated = set(dc.get("team_params", {}))
+    seen = {sn for p in predictions for sn in (p["home"], p["away"])}
+    unrated = sorted(seen - rated)
+
     payload = {
         "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "model": "ucl_dc_params",
+        "model_trained_at": dc.get("trained_at"),
         "rounds": rounds,
+        "coverage": {
+            "teams_total": len(seen),
+            "teams_rated": len(seen & rated),
+            "teams_unrated": unrated,
+            "cold_start_fixtures": sum(1 for p in predictions if p["cold_start"]),
+            "by_confidence": {
+                tier: sum(1 for p in predictions if p["confidence"] == tier)
+                for tier in ("rated", "partial", "none")
+            },
+            "note": (
+                "Ratings are fitted on completed UCL matches only. Sides newly "
+                "qualified for this season have no UCL history under this model "
+                "and fall back to a league-average prior. confidence='partial' "
+                "means one side is unrated; confidence='none' means both are, in "
+                "which case the numbers are a constant and carry no information "
+                "about the fixture — do not present those as predictions."
+            ),
+        },
         "fixtures": predictions,
     }
 
@@ -150,7 +190,8 @@ def main() -> None:
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     out = EXPORT_DIR / f"{slug}_predictions.json"
-    out.write_text(json.dumps(payload, indent=2))
+    out.write_text(json.dumps(payload, indent=2, ensure_ascii=False),
+                   encoding="utf-8")
     print(f"UCL predictions exported ({len(predictions)} fixtures) → {out}")
 
 

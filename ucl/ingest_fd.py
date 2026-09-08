@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sqlite3
 import sys
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -80,6 +82,58 @@ def _current_ucl_season() -> int:
 
 # ── team + fixture ingest ─────────────────────────────────────────────────────
 
+# Club-type tokens that carry no identity — dropped when deriving a code from
+# a club's name, so "FC Bayern München" keys on "Bayern" rather than "FC".
+_NAME_NOISE = {
+    "fc", "cf", "sc", "ac", "as", "sk", "kv", "sv", "vfb", "afc", "psv",
+    "club", "clube", "sport", "sporting", "real", "royale", "union", "de",
+    "del", "di", "da", "of", "the", "1907", "04", "1899",
+}
+
+
+def _name_code(name: str) -> str:
+    """A three-letter code from the most identifying word of a club name."""
+    words = [w for w in re.split(r"[^0-9A-Za-zÀ-ÿ]+", name) if w]
+    for w in words:
+        if w.lower() not in _NAME_NOISE and len(w) >= 3:
+            return unicodedata.normalize("NFKD", w)[:3].upper()
+    return unicodedata.normalize("NFKD", name.replace(" ", ""))[:3].upper()
+
+
+def _resolve_short_names(raw: dict[int, tuple[str, str]]) -> dict[int, tuple[str, str]]:
+    """Force short_name to be unique across teams.
+
+    football-data.org's `tla` is not unique — FC Barcelona and FC Bayern
+    München are both "FCB". short_name is the key the Dixon-Coles model and
+    every cross-season join use (Rule 3), so a collision silently fits two
+    clubs as one team. Any contested code is dropped for ALL of its claimants
+    in favour of a name-derived one, which keeps the result independent of
+    ingest order.
+    """
+    claims: dict[str, list[int]] = {}
+    for tid, (_, short) in raw.items():
+        claims.setdefault(short, []).append(tid)
+
+    resolved: dict[int, tuple[str, str]] = {}
+    taken = {s for s, ids in claims.items() if len(ids) == 1}
+    for short, ids in claims.items():
+        if len(ids) == 1:
+            tid = ids[0]
+            resolved[tid] = raw[tid]
+            continue
+        for tid in sorted(ids):
+            name = raw[tid][0]
+            code = _name_code(name)
+            suffix = 1
+            while code in taken:
+                code = f"{_name_code(name)[:2]}{suffix}"
+                suffix += 1
+            taken.add(code)
+            resolved[tid] = (name, code)
+            print(f"  [short_name] {short!r} contested -> {name} = {code!r}")
+    return resolved
+
+
 def upsert_teams(conn: sqlite3.Connection, matches: list[dict]) -> None:
     seen: dict[int, tuple[str, str]] = {}
     for m in matches:
@@ -90,6 +144,8 @@ def upsert_teams(conn: sqlite3.Connection, matches: list[dict]) -> None:
                 name = t["name"]
                 short = t.get("tla") or t.get("shortName", name[:3].upper())
                 seen[tid] = (name, short)
+
+    seen = _resolve_short_names(seen)
 
     sql = """
         INSERT INTO teams (team_id, name, short_name)
@@ -197,6 +253,13 @@ def main() -> None:
 
     finished = sum(1 for m in matches if m.get("status") == "FINISHED")
     print(f"  {finished} finished (FT), {len(matches) - finished} scheduled")
+
+    # Railway serves git-committed artifacts and data/ is gitignored, so the
+    # table has to leave the database to be readable in production.
+    from ucl.standings import export as export_standings
+    out = export_standings(season)
+    print(f"  Standings exported -> {out}")
+
     print("\nDone.")
 
 
