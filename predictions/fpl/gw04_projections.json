@@ -1,7 +1,7 @@
 {
   "gameweek": 4,
   "deadline_utc": "2026-09-12T12:30:00Z",
-  "generated_at_utc": "2026-09-06T19:03:43Z",
+  "generated_at_utc": "2026-09-11T07:32:08Z",
   "model": "dc_projection_v1",
   "captain_candidates": [
     {
@@ -10,8 +10,38 @@
       "team": "BOU",
       "position": "MID",
       "price": 6.0,
-      "projected_points": 6.65,
+      "projected_points": 8.91,
       "opponent": "BRE",
+      "venue": "H"
+    },
+    {
+      "player_id": 480,
+      "name": "Gibbs-White",
+      "team": "NFO",
+      "position": "MID",
+      "price": 7.9,
+      "projected_points": 8.71,
+      "opponent": "AVL",
+      "venue": "A"
+    },
+    {
+      "player_id": 411,
+      "name": "Haaland",
+      "team": "MCI",
+      "position": "FWD",
+      "price": 15.5,
+      "projected_points": 6.73,
+      "opponent": "MUN",
+      "venue": "A"
+    },
+    {
+      "player_id": 379,
+      "name": "Isak",
+      "team": "LIV",
+      "position": "FWD",
+      "price": 9.1,
+      "projected_points": 6.48,
+      "opponent": "FUL",
       "venue": "H"
     },
     {
@@ -20,91 +50,51 @@
       "team": "LEE",
       "position": "FWD",
       "price": 6.0,
-      "projected_points": 5.8,
+      "projected_points": 6.4,
       "opponent": "NEW",
-      "venue": "H"
-    },
-    {
-      "player_id": 4,
-      "name": "Gabriel",
-      "team": "ARS",
-      "position": "DEF",
-      "price": 8.0,
-      "projected_points": 5.74,
-      "opponent": "SUN",
-      "venue": "A"
-    },
-    {
-      "player_id": 202,
-      "name": "Richards",
-      "team": "CRY",
-      "position": "DEF",
-      "price": 5.0,
-      "projected_points": 5.53,
-      "opponent": "IPS",
-      "venue": "H"
-    },
-    {
-      "player_id": 67,
-      "name": "Rayan",
-      "team": "BOU",
-      "position": "MID",
-      "price": 6.5,
-      "projected_points": 5.5,
-      "opponent": "BRE",
       "venue": "H"
     }
   ],
   "by_position": {
     "GK": [
       {
-        "player_id": 1,
-        "name": "Raya",
-        "team": "ARS",
+        "player_id": 572,
+        "name": "Tzolakis",
+        "team": "HUL",
         "position": "GK",
-        "price": 6.0,
-        "projected_points": 4.88,
-        "opponent": "SUN",
+        "price": 4.6,
+        "projected_points": 5.37,
+        "opponent": "CHE",
         "venue": "A"
       },
       {
-        "player_id": 301,
-        "name": "Palmer",
+        "player_id": 300,
+        "name": "Walton",
         "team": "IPS",
         "position": "GK",
-        "price": 4.0,
+        "price": 4.5,
         "projected_points": 4.71,
         "opponent": "CRY",
         "venue": "A"
       },
       {
-        "player_id": 350,
-        "name": "A.Becker",
-        "team": "LIV",
-        "position": "GK",
-        "price": 5.5,
-        "projected_points": 4.6,
-        "opponent": "FUL",
-        "venue": "H"
-      },
-      {
-        "player_id": 198,
-        "name": "Henderson",
-        "team": "CRY",
-        "position": "GK",
-        "price": 5.0,
-        "projected_points": 4.5,
-        "opponent": "IPS",
-        "venue": "H"
-      },
-      {
-        "player_id": 58,
-        "name": "Forster",
+        "player_id": 615,
+        "name": "Di Gregorio",
         "team": "BOU",
         "position": "GK",
-        "price": 4.0,
-        "projected_points": 4.44,
+        "price": 4.5,
+        "projected_points": 4.66,
         "opponent": "BRE",
+        "venue": "H"
+      },
+      {
+        "player_id": 199,
+        "name": "Benitez",
+        "team": "CRY",
+        "position": "GK",
+        "price": 4.5,
+        "projected_points": 4.48,
+        "opponent": "IPS",
         "venue": "H"
       },
       {
@@ -113,50 +103,110 @@
         "team": "BHA",
         "position": "GK",
         "price": 4.0,
-        "projected_points": 4.44,
+        "projected_points": 4.23,
         "opponent": "COV",
         "venue": "A"
       },
       {
-        "player_id": 495,
-        "name": "Austin",
-        "team": "TOT",
+        "player_id": 560,
+        "name": "Penders",
+        "team": "CHE",
         "position": "GK",
-        "price": 4.0,
-        "projected_points": 4.39,
-        "opponent": "EVE",
+        "price": 4.5,
+        "projected_points": 4.23,
+        "opponent": "HUL",
         "venue": "H"
       },
       {
-        "player_id": 28,
-        "name": "Martinez",
-        "team": "CHE",
+        "player_id": 350,
+        "name": "A.Becker",
+        "team": "LIV",
         "position": "GK",
-        "price": 5.0,
-        "projected_points": 4.34,
-        "opponent": "HUL",
+        "price": 5.5,
+        "projected_points": 4.22,
+        "opponent": "FUL",
+        "venue": "H"
+      },
+      {
+        "player_id": 172,
+        "name": "Wilson",
+        "team": "COV",
+        "position": "GK",
+        "price": 4.5,
+        "projected_points": 4.21,
+        "opponent": "BHA",
         "venue": "H"
       }
     ],
     "DEF": [
       {
-        "player_id": 4,
-        "name": "Gabriel",
-        "team": "ARS",
+        "player_id": 204,
+        "name": "Mitchell",
+        "team": "CRY",
         "position": "DEF",
-        "price": 8.0,
-        "projected_points": 5.74,
-        "opponent": "SUN",
+        "price": 4.5,
+        "projected_points": 5.97,
+        "opponent": "IPS",
+        "venue": "H"
+      },
+      {
+        "player_id": 330,
+        "name": "Bogle",
+        "team": "LEE",
+        "position": "DEF",
+        "price": 4.5,
+        "projected_points": 5.88,
+        "opponent": "NEW",
+        "venue": "H"
+      },
+      {
+        "player_id": 115,
+        "name": "De Cuyper",
+        "team": "BHA",
+        "position": "DEF",
+        "price": 4.8,
+        "projected_points": 5.87,
+        "opponent": "COV",
         "venue": "A"
       },
       {
-        "player_id": 202,
-        "name": "Richards",
-        "team": "CRY",
+        "player_id": 305,
+        "name": "Davis",
+        "team": "IPS",
+        "position": "DEF",
+        "price": 4.0,
+        "projected_points": 5.62,
+        "opponent": "CRY",
+        "venue": "A"
+      },
+      {
+        "player_id": 388,
+        "name": "Gu\u00e9hi",
+        "team": "MCI",
+        "position": "DEF",
+        "price": 6.0,
+        "projected_points": 5.52,
+        "opponent": "MUN",
+        "venue": "A"
+      },
+      {
+        "player_id": 60,
+        "name": "Hill",
+        "team": "BOU",
+        "position": "DEF",
+        "price": 5.5,
+        "projected_points": 5.29,
+        "opponent": "BRE",
+        "venue": "H"
+      },
+      {
+        "player_id": 566,
+        "name": "Silva",
+        "team": "BOU",
         "position": "DEF",
         "price": 5.0,
-        "projected_points": 5.53,
-        "opponent": "IPS",
+        "projected_points": 5.0,
+        "opponent": "BRE",
         "venue": "H"
       },
       {
@@ -165,58 +215,8 @@
         "team": "BOU",
         "position": "DEF",
         "price": 5.5,
-        "projected_points": 5.43,
+        "projected_points": 4.95,
         "opponent": "BRE",
-        "venue": "H"
-      },
-      {
-        "player_id": 204,
-        "name": "Mitchell",
-        "team": "CRY",
-        "position": "DEF",
-        "price": 4.5,
-        "projected_points": 5.28,
-        "opponent": "IPS",
-        "venue": "H"
-      },
-      {
-        "player_id": 153,
-        "name": "Disasi",
-        "team": "CRY",
-        "position": "DEF",
-        "price": 4.5,
-        "projected_points": 5.17,
-        "opponent": "IPS",
-        "venue": "H"
-      },
-      {
-        "player_id": 498,
-        "name": "Senesi",
-        "team": "TOT",
-        "position": "DEF",
-        "price": 5.9,
-        "projected_points": 5.1,
-        "opponent": "EVE",
-        "venue": "H"
-      },
-      {
-        "player_id": 203,
-        "name": "Canvot",
-        "team": "CRY",
-        "position": "DEF",
-        "price": 4.9,
-        "projected_points": 5.06,
-        "opponent": "IPS",
-        "venue": "H"
-      },
-      {
-        "player_id": 112,
-        "name": "Van Hecke",
-        "team": "TOT",
-        "position": "DEF",
-        "price": 4.9,
-        "projected_points": 5.02,
-        "opponent": "EVE",
         "venue": "H"
       }
     ],
@@ -227,17 +227,7 @@
         "team": "BOU",
         "position": "MID",
         "price": 6.0,
-        "projected_points": 6.65,
-        "opponent": "BRE",
-        "venue": "H"
-      },
-      {
-        "player_id": 67,
-        "name": "Rayan",
-        "team": "BOU",
-        "position": "MID",
-        "price": 6.5,
-        "projected_points": 5.5,
+        "projected_points": 8.91,
         "opponent": "BRE",
         "venue": "H"
       },
@@ -247,18 +237,18 @@
         "team": "NFO",
         "position": "MID",
         "price": 7.9,
-        "projected_points": 5.28,
+        "projected_points": 8.71,
         "opponent": "AVL",
         "venue": "A"
       },
       {
-        "player_id": 210,
-        "name": "Wharton",
-        "team": "CRY",
+        "player_id": 367,
+        "name": "Gakpo",
+        "team": "LIV",
         "position": "MID",
-        "price": 5.5,
-        "projected_points": 4.73,
-        "opponent": "IPS",
+        "price": 7.2,
+        "projected_points": 5.62,
+        "opponent": "FUL",
         "venue": "H"
       },
       {
@@ -267,18 +257,8 @@
         "team": "MUN",
         "position": "MID",
         "price": 12.0,
-        "projected_points": 4.56,
+        "projected_points": 5.48,
         "opponent": "MCI",
-        "venue": "H"
-      },
-      {
-        "player_id": 211,
-        "name": "Yeremy",
-        "team": "CRY",
-        "position": "MID",
-        "price": 5.5,
-        "projected_points": 4.41,
-        "opponent": "IPS",
         "venue": "H"
       },
       {
@@ -287,80 +267,100 @@
         "team": "BOU",
         "position": "MID",
         "price": 6.0,
-        "projected_points": 4.3,
+        "projected_points": 5.39,
         "opponent": "BRE",
         "venue": "H"
       },
       {
-        "player_id": 260,
-        "name": "Wilson",
-        "team": "LEE",
+        "player_id": 427,
+        "name": "Mbeumo",
+        "team": "MUN",
         "position": "MID",
-        "price": 6.4,
-        "projected_points": 4.19,
-        "opponent": "NEW",
+        "price": 7.9,
+        "projected_points": 5.36,
+        "opponent": "MCI",
         "venue": "H"
+      },
+      {
+        "player_id": 12,
+        "name": "Saka",
+        "team": "ARS",
+        "position": "MID",
+        "price": 9.5,
+        "projected_points": 5.22,
+        "opponent": "SUN",
+        "venue": "A"
+      },
+      {
+        "player_id": 15,
+        "name": "\u00d8degaard",
+        "team": "ARS",
+        "position": "MID",
+        "price": 6.6,
+        "projected_points": 5.18,
+        "opponent": "SUN",
+        "venue": "A"
       }
     ],
     "FWD": [
-      {
-        "player_id": 346,
-        "name": "Calvert-Lewin",
-        "team": "LEE",
-        "position": "FWD",
-        "price": 6.0,
-        "projected_points": 5.8,
-        "opponent": "NEW",
-        "venue": "H"
-      },
       {
         "player_id": 411,
         "name": "Haaland",
         "team": "MCI",
         "position": "FWD",
         "price": 15.5,
-        "projected_points": 5.05,
+        "projected_points": 6.73,
         "opponent": "MUN",
         "venue": "A"
       },
       {
-        "player_id": 79,
-        "name": "Evanilson",
-        "team": "BOU",
+        "player_id": 379,
+        "name": "Isak",
+        "team": "LIV",
         "position": "FWD",
-        "price": 6.0,
-        "projected_points": 4.94,
-        "opponent": "BRE",
+        "price": 9.1,
+        "projected_points": 6.48,
+        "opponent": "FUL",
         "venue": "H"
       },
       {
-        "player_id": 106,
-        "name": "Thiago",
-        "team": "BRE",
+        "player_id": 346,
+        "name": "Calvert-Lewin",
+        "team": "LEE",
         "position": "FWD",
-        "price": 8.0,
-        "projected_points": 3.49,
-        "opponent": "BOU",
+        "price": 6.0,
+        "projected_points": 6.4,
+        "opponent": "NEW",
+        "venue": "H"
+      },
+      {
+        "player_id": 493,
+        "name": "Kalimuendo",
+        "team": "NFO",
+        "position": "FWD",
+        "price": 5.4,
+        "projected_points": 5.31,
+        "opponent": "AVL",
         "venue": "A"
       },
       {
-        "player_id": 165,
-        "name": "Jo\u00e3o Pedro",
-        "team": "CHE",
+        "player_id": 249,
+        "name": "Barry",
+        "team": "EVE",
         "position": "FWD",
-        "price": 7.7,
-        "projected_points": 3.37,
-        "opponent": "HUL",
-        "venue": "H"
+        "price": 5.6,
+        "projected_points": 5.02,
+        "opponent": "TOT",
+        "venue": "A"
       },
       {
-        "player_id": 222,
-        "name": "Strand Larsen",
-        "team": "CRY",
+        "player_id": 81,
+        "name": "Rodr\u00edguez",
+        "team": "BOU",
         "position": "FWD",
         "price": 6.0,
-        "projected_points": 3.11,
-        "opponent": "IPS",
+        "projected_points": 4.67,
+        "opponent": "BRE",
         "venue": "H"
       },
       {
@@ -369,18 +369,18 @@
         "team": "NFO",
         "position": "FWD",
         "price": 5.9,
-        "projected_points": 2.95,
+        "projected_points": 4.5,
         "opponent": "AVL",
         "venue": "A"
       },
       {
-        "player_id": 526,
-        "name": "Solanke",
-        "team": "TOT",
+        "player_id": 347,
+        "name": "Nmecha",
+        "team": "LEE",
         "position": "FWD",
-        "price": 5.9,
-        "projected_points": 2.85,
-        "opponent": "EVE",
+        "price": 5.4,
+        "projected_points": 4.45,
+        "opponent": "NEW",
         "venue": "H"
       }
     ]
@@ -572,6 +572,11 @@
       "team": "BHA"
     },
     {
+      "player_id": 135,
+      "name": "Yohanna",
+      "team": "BHA"
+    },
+    {
       "player_id": 137,
       "name": "Tzimas",
       "team": "BHA"
@@ -689,6 +694,11 @@
     {
       "player_id": 216,
       "name": "Esse",
+      "team": "CRY"
+    },
+    {
+      "player_id": 219,
+      "name": "J.Rak-Sakyi",
       "team": "CRY"
     },
     {
@@ -1167,9 +1177,19 @@
       "team": "SUN"
     },
     {
+      "player_id": 547,
+      "name": "Mundle",
+      "team": "SUN"
+    },
+    {
       "player_id": 554,
       "name": "Van Oevelen",
       "team": "IPS"
+    },
+    {
+      "player_id": 563,
+      "name": "Morita",
+      "team": "HUL"
     },
     {
       "player_id": 582,
@@ -1192,9 +1212,19 @@
       "team": "AVL"
     },
     {
+      "player_id": 618,
+      "name": "Goretzka",
+      "team": "AVL"
+    },
+    {
       "player_id": 624,
       "name": "Cozier-Duberry",
       "team": "BHA"
+    },
+    {
+      "player_id": 632,
+      "name": "Ansah",
+      "team": "HUL"
     },
     {
       "player_id": 652,

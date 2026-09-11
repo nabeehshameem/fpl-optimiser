@@ -1,44 +1,17 @@
 {
   "gameweek": 4,
-  "generated_at_utc": "2026-09-06T19:03:41Z",
+  "generated_at_utc": "2026-09-11T07:32:12Z",
   "model": "dc_projection_v1",
   "optimal_xi": {
-    "formation": "5-3-2",
+    "formation": "4-3-3",
     "players": [
       {
-        "player_id": 1,
-        "name": "Raya",
-        "team": "ARS",
+        "player_id": 572,
+        "name": "Tzolakis",
+        "team": "HUL",
         "position": "GK",
-        "price": 6.0,
-        "projected_points": 4.88,
-        "is_captain": false
-      },
-      {
-        "player_id": 4,
-        "name": "Gabriel",
-        "team": "ARS",
-        "position": "DEF",
-        "price": 8.0,
-        "projected_points": 5.74,
-        "is_captain": false
-      },
-      {
-        "player_id": 202,
-        "name": "Richards",
-        "team": "CRY",
-        "position": "DEF",
-        "price": 5.0,
-        "projected_points": 5.53,
-        "is_captain": false
-      },
-      {
-        "player_id": 61,
-        "name": "Truffert",
-        "team": "BOU",
-        "position": "DEF",
-        "price": 5.5,
-        "projected_points": 5.43,
+        "price": 4.6,
+        "projected_points": 5.37,
         "is_captain": false
       },
       {
@@ -47,16 +20,34 @@
         "team": "CRY",
         "position": "DEF",
         "price": 4.5,
-        "projected_points": 5.28,
+        "projected_points": 5.97,
         "is_captain": false
       },
       {
-        "player_id": 153,
-        "name": "Disasi",
-        "team": "CRY",
+        "player_id": 330,
+        "name": "Bogle",
+        "team": "LEE",
         "position": "DEF",
         "price": 4.5,
-        "projected_points": 5.17,
+        "projected_points": 5.88,
+        "is_captain": false
+      },
+      {
+        "player_id": 115,
+        "name": "De Cuyper",
+        "team": "BHA",
+        "position": "DEF",
+        "price": 4.8,
+        "projected_points": 5.87,
+        "is_captain": false
+      },
+      {
+        "player_id": 305,
+        "name": "Davis",
+        "team": "IPS",
+        "position": "DEF",
+        "price": 4.0,
+        "projected_points": 5.62,
         "is_captain": false
       },
       {
@@ -65,17 +56,8 @@
         "team": "BOU",
         "position": "MID",
         "price": 6.0,
-        "projected_points": 6.65,
+        "projected_points": 8.91,
         "is_captain": true
-      },
-      {
-        "player_id": 67,
-        "name": "Rayan",
-        "team": "BOU",
-        "position": "MID",
-        "price": 6.5,
-        "projected_points": 5.5,
-        "is_captain": false
       },
       {
         "player_id": 480,
@@ -83,16 +65,16 @@
         "team": "NFO",
         "position": "MID",
         "price": 7.9,
-        "projected_points": 5.28,
+        "projected_points": 8.71,
         "is_captain": false
       },
       {
-        "player_id": 346,
-        "name": "Calvert-Lewin",
-        "team": "LEE",
-        "position": "FWD",
-        "price": 6.0,
-        "projected_points": 5.8,
+        "player_id": 367,
+        "name": "Gakpo",
+        "team": "LIV",
+        "position": "MID",
+        "price": 7.2,
+        "projected_points": 5.62,
         "is_captain": false
       },
       {
@@ -101,11 +83,29 @@
         "team": "MCI",
         "position": "FWD",
         "price": 15.5,
-        "projected_points": 5.05,
+        "projected_points": 6.73,
+        "is_captain": false
+      },
+      {
+        "player_id": 379,
+        "name": "Isak",
+        "team": "LIV",
+        "position": "FWD",
+        "price": 9.1,
+        "projected_points": 6.48,
+        "is_captain": false
+      },
+      {
+        "player_id": 346,
+        "name": "Calvert-Lewin",
+        "team": "LEE",
+        "position": "FWD",
+        "price": 6.0,
+        "projected_points": 6.4,
         "is_captain": false
       }
     ],
-    "total_projected": 66.96,
+    "total_projected": 80.47,
     "note": "Highest-projected legal XI from a fresh \u00a3100.0m squad, ignoring the model's own transfer state. This is a TOOL, not the model's team \u2014 the model's actual squad is at /model/gw/4."
   },
   "captain": [
@@ -115,76 +115,10 @@
       "team": "BOU",
       "position": "MID",
       "price": 6.0,
-      "projected_points": 6.65,
+      "projected_points": 8.91,
       "opponent": "BRE",
       "venue": "H",
-      "captain_delta": 6.65
-    },
-    {
-      "player_id": 346,
-      "name": "Calvert-Lewin",
-      "team": "LEE",
-      "position": "FWD",
-      "price": 6.0,
-      "projected_points": 5.8,
-      "opponent": "NEW",
-      "venue": "H",
-      "captain_delta": 5.8
-    },
-    {
-      "player_id": 4,
-      "name": "Gabriel",
-      "team": "ARS",
-      "position": "DEF",
-      "price": 8.0,
-      "projected_points": 5.74,
-      "opponent": "SUN",
-      "venue": "A",
-      "captain_delta": 5.74
-    },
-    {
-      "player_id": 202,
-      "name": "Richards",
-      "team": "CRY",
-      "position": "DEF",
-      "price": 5.0,
-      "projected_points": 5.53,
-      "opponent": "IPS",
-      "venue": "H",
-      "captain_delta": 5.53
-    },
-    {
-      "player_id": 67,
-      "name": "Rayan",
-      "team": "BOU",
-      "position": "MID",
-      "price": 6.5,
-      "projected_points": 5.5,
-      "opponent": "BRE",
-      "venue": "H",
-      "captain_delta": 5.5
-    },
-    {
-      "player_id": 61,
-      "name": "Truffert",
-      "team": "BOU",
-      "position": "DEF",
-      "price": 5.5,
-      "projected_points": 5.43,
-      "opponent": "BRE",
-      "venue": "H",
-      "captain_delta": 5.43
-    },
-    {
-      "player_id": 204,
-      "name": "Mitchell",
-      "team": "CRY",
-      "position": "DEF",
-      "price": 4.5,
-      "projected_points": 5.28,
-      "opponent": "IPS",
-      "venue": "H",
-      "captain_delta": 5.28
+      "captain_delta": 8.91
     },
     {
       "player_id": 480,
@@ -192,10 +126,76 @@
       "team": "NFO",
       "position": "MID",
       "price": 7.9,
-      "projected_points": 5.28,
+      "projected_points": 8.71,
       "opponent": "AVL",
       "venue": "A",
-      "captain_delta": 5.28
+      "captain_delta": 8.71
+    },
+    {
+      "player_id": 411,
+      "name": "Haaland",
+      "team": "MCI",
+      "position": "FWD",
+      "price": 15.5,
+      "projected_points": 6.73,
+      "opponent": "MUN",
+      "venue": "A",
+      "captain_delta": 6.73
+    },
+    {
+      "player_id": 379,
+      "name": "Isak",
+      "team": "LIV",
+      "position": "FWD",
+      "price": 9.1,
+      "projected_points": 6.48,
+      "opponent": "FUL",
+      "venue": "H",
+      "captain_delta": 6.48
+    },
+    {
+      "player_id": 346,
+      "name": "Calvert-Lewin",
+      "team": "LEE",
+      "position": "FWD",
+      "price": 6.0,
+      "projected_points": 6.4,
+      "opponent": "NEW",
+      "venue": "H",
+      "captain_delta": 6.4
+    },
+    {
+      "player_id": 204,
+      "name": "Mitchell",
+      "team": "CRY",
+      "position": "DEF",
+      "price": 4.5,
+      "projected_points": 5.97,
+      "opponent": "IPS",
+      "venue": "H",
+      "captain_delta": 5.97
+    },
+    {
+      "player_id": 330,
+      "name": "Bogle",
+      "team": "LEE",
+      "position": "DEF",
+      "price": 4.5,
+      "projected_points": 5.88,
+      "opponent": "NEW",
+      "venue": "H",
+      "captain_delta": 5.88
+    },
+    {
+      "player_id": 115,
+      "name": "De Cuyper",
+      "team": "BHA",
+      "position": "DEF",
+      "price": 4.8,
+      "projected_points": 5.87,
+      "opponent": "COV",
+      "venue": "A",
+      "captain_delta": 5.87
     }
   ],
   "gw_predictions": [
