@@ -49,14 +49,39 @@ class SquadOptimiser:
         df = pd.read_sql_query(
             """
             SELECT p.player_id, p.web_name, p.position, p.team_id, p.current_cost,
-                   t.short_name AS team
+                   t.short_name AS team,
+                   COALESCE(m.season_minutes, 0) AS season_minutes
             FROM players p
             JOIN teams t ON p.team_id = t.team_id
+            LEFT JOIN (
+                SELECT player_id, SUM(minutes) AS season_minutes
+                FROM player_gameweek_history
+                GROUP BY player_id
+            ) m ON m.player_id = p.player_id
             """,
             conn,
         )
         conn.close()
         return df
+
+    @staticmethod
+    def _bar_unplayed(prob, df, start) -> None:
+        """Forbid starting anyone who has not played a minute this season.
+
+        Players already in the squad are exempt from the eligibility gates so
+        the optimiser is never forced to sell one. That exemption also left
+        them startable, which is how a backup keeper on zero minutes reached
+        the XI ahead of a first choice carrying a lower projection. Holding
+        such a player is fine; starting one never is.
+
+        Does nothing before any minutes exist (GW1 cold start), where it would
+        bar the whole pool and make the problem infeasible.
+        """
+        if df["season_minutes"].max() <= 0:
+            return
+        for row in df.itertuples():
+            if row.season_minutes <= 0:
+                prob += start[row.player_id] == 0, f"no_start_unplayed_{row.player_id}"
 
     def optimise(self, predictions_df: pd.DataFrame) -> dict:
         """
@@ -132,6 +157,8 @@ class SquadOptimiser:
             + BENCH_WEIGHT * row.predicted_points * (select[row.player_id] - start[row.player_id])
             for row in df.itertuples()
         )
+
+        self._bar_unplayed(prob, df, start)
 
         prob += pulp.lpSum(select.values()) == SQUAD_SIZE, "squad_size"
         prob += pulp.lpSum(start.values()) == STARTING_XI, "xi_size"
@@ -278,6 +305,8 @@ class SquadOptimiser:
             )
             - transfer_hit_cost * hit
         )
+
+        self._bar_unplayed(prob, df, start)
 
         prob += pulp.lpSum(select.values()) == SQUAD_SIZE
         prob += pulp.lpSum(start.values()) == STARTING_XI
