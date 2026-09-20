@@ -37,6 +37,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -128,6 +129,36 @@ def alert(phase: str, severity: str, message: str) -> None:
 def die(phase: str, message: str, severity: str = "CRITICAL") -> None:
     alert(phase, severity, message)
     sys.exit(1)
+
+
+# These tasks set WakeToRun, so they start at the instant the machine resumes.
+# RunOnlyIfNetworkAvailable does not protect against that: it is satisfied by
+# an adapter reporting "connected", which happens before DHCP, DNS and Wi-Fi
+# association finish. GW5 2026 was lost exactly this way — refresh launched at
+# 03:30:01, the box resumed at 03:30:03, and the first step died on its FPL API
+# fetch at 03:30:05, leaving no predictions for the lock 14 hours later. Task
+# Scheduler's RestartCount never fired either, so waiting here is the only
+# safety net that actually runs.
+NETWORK_PROBE_URL = "https://fantasy.premierleague.com/api/bootstrap-static/"
+
+
+def wait_for_network(phase: str, timeout: int = 600, interval: int = 15) -> None:
+    """Block until the FPL API answers. Dying here beats dying mid-pipeline."""
+    deadline = time.monotonic() + timeout
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            urllib.request.urlopen(NETWORK_PROBE_URL, timeout=10).read(1)
+            if attempt > 1:
+                print(f"network ready after {attempt} attempts")
+            return
+        except Exception as exc:
+            if time.monotonic() >= deadline:
+                die(phase, f"FPL API unreachable after {timeout}s: {exc}")
+            print(f"[WARN] network not ready, retrying in {interval}s "
+                  f"(attempt {attempt}): {exc}", file=sys.stderr)
+            time.sleep(interval)
 
 
 # ── shell helpers ────────────────────────────────────────────────────────────
@@ -331,6 +362,7 @@ def main() -> None:
     args = ap.parse_args()
     started = datetime.now(timezone.utc)
     print(f"=== weekly_ops {args.phase} @ {started:%Y-%m-%d %H:%M UTC} ===")
+    wait_for_network(args.phase)
     PHASES[args.phase]()
 
 
