@@ -1,0 +1,384 @@
+{
+  "gameweek": 5,
+  "squad": [
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 1,
+      "purchase_price": 60
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 113,
+      "purchase_price": 45
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 391,
+      "purchase_price": 55
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 8,
+      "purchase_price": 55
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 4,
+      "purchase_price": 80
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 427,
+      "purchase_price": 80
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 124,
+      "purchase_price": 55
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 1,
+      "is_xi": 1,
+      "player_id": 68,
+      "purchase_price": 60
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 106,
+      "purchase_price": 80
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 346,
+      "purchase_price": 60
+    },
+    {
+      "bench_order": 0,
+      "is_captain": 1,
+      "is_vice": 0,
+      "is_xi": 1,
+      "player_id": 411,
+      "purchase_price": 155
+    },
+    {
+      "bench_order": 1,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 0,
+      "player_id": 251,
+      "purchase_price": 40
+    },
+    {
+      "bench_order": 2,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 0,
+      "player_id": 127,
+      "purchase_price": 50
+    },
+    {
+      "bench_order": 3,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 0,
+      "player_id": 387,
+      "purchase_price": 65
+    },
+    {
+      "bench_order": 4,
+      "is_captain": 0,
+      "is_vice": 0,
+      "is_xi": 0,
+      "player_id": 237,
+      "purchase_price": 60
+    }
+  ],
+  "squad_display": [
+    {
+      "player_id": 1,
+      "name": "Raya",
+      "position": "GK",
+      "team": "ARS"
+    },
+    {
+      "player_id": 113,
+      "name": "F.Kadıoğlu",
+      "position": "DEF",
+      "team": "BHA"
+    },
+    {
+      "player_id": 391,
+      "name": "Gvardiol",
+      "position": "DEF",
+      "team": "MCI"
+    },
+    {
+      "player_id": 8,
+      "name": "Calafiori",
+      "position": "DEF",
+      "team": "ARS"
+    },
+    {
+      "player_id": 4,
+      "name": "Gabriel",
+      "position": "DEF",
+      "team": "ARS"
+    },
+    {
+      "player_id": 427,
+      "name": "Mbeumo",
+      "position": "MID",
+      "team": "MUN"
+    },
+    {
+      "player_id": 124,
+      "name": "Groß",
+      "position": "MID",
+      "team": "BHA"
+    },
+    {
+      "player_id": 68,
+      "name": "Tavernier",
+      "position": "MID",
+      "team": "BOU"
+    },
+    {
+      "player_id": 106,
+      "name": "Thiago",
+      "position": "FWD",
+      "team": "BRE"
+    },
+    {
+      "player_id": 346,
+      "name": "Calvert-Lewin",
+      "position": "FWD",
+      "team": "LEE"
+    },
+    {
+      "player_id": 411,
+      "name": "Haaland",
+      "position": "FWD",
+      "team": "MCI"
+    },
+    {
+      "player_id": 251,
+      "name": "Lecomte",
+      "position": "GK",
+      "team": "FUL"
+    },
+    {
+      "player_id": 127,
+      "name": "Gomez",
+      "position": "MID",
+      "team": "BHA"
+    },
+    {
+      "player_id": 387,
+      "name": "O'Reilly",
+      "position": "DEF",
+      "team": "MCI"
+    },
+    {
+      "player_id": 237,
+      "name": "Ndiaye",
+      "position": "MID",
+      "team": "MCI"
+    }
+  ],
+  "squad_hash": "1f3e3476c297cad933c2d1f1fb95c5aea9859deec0d208eeafacec9f57a856ef",
+  "graded_at_utc": "2026-09-25T00:10:59Z",
+  "gross_points": 49,
+  "hit_points": 0,
+  "net_points": 49,
+  "effective_captain": 411,
+  "effective_captain_display": {
+    "player_id": 411,
+    "name": "Haaland",
+    "position": "FWD",
+    "team": "MCI"
+  },
+  "autosubs": [],
+  "autosubs_display": [],
+  "transfers_display": {
+    "in": [
+      {
+        "player_id": 237,
+        "name": "Ndiaye",
+        "position": "MID",
+        "team": "MCI"
+      },
+      {
+        "player_id": 387,
+        "name": "O'Reilly",
+        "position": "DEF",
+        "team": "MCI"
+      },
+      {
+        "player_id": 391,
+        "name": "Gvardiol",
+        "position": "DEF",
+        "team": "MCI"
+      }
+    ],
+    "out": [
+      {
+        "player_id": 201,
+        "name": "Muñoz",
+        "position": "DEF",
+        "team": "NFO"
+      },
+      {
+        "player_id": 204,
+        "name": "Mitchell",
+        "position": "DEF",
+        "team": "CRY"
+      },
+      {
+        "player_id": 480,
+        "name": "Gibbs-White",
+        "position": "MID",
+        "team": "NFO"
+      }
+    ]
+  },
+  "average_score": 48,
+  "expected_points": null,
+  "detail": [
+    {
+      "player_id": 1,
+      "points": 1,
+      "minutes": 90,
+      "role": "xi",
+      "projected_points": null
+    },
+    {
+      "player_id": 113,
+      "points": 5,
+      "minutes": 75,
+      "role": "xi",
+      "projected_points": null
+    },
+    {
+      "player_id": 391,
+      "points": 4,
+      "minutes": 90,
+      "role": "xi",
+      "projected_points": null
+    },
+    {
+      "player_id": 8,
+      "points": 1,
+      "minutes": 90,
+      "role": "xi",
+      "projected_points": null
+    },
+    {
+      "player_id": 4,
+      "points": 1,
+      "minutes": 90,
+      "role": "xi",
+      "projected_points": null
+    },
+    {
+      "player_id": 427,
+      "points": 2,
+      "minutes": 90,
+      "role": "xi",
+      "projected_points": null
+    },
+    {
+      "player_id": 124,
+      "points": 14,
+      "minutes": 90,
+      "role": "xi",
+      "projected_points": null
+    },
+    {
+      "player_id": 68,
+      "points": 2,
+      "minutes": 74,
+      "role": "xi",
+      "projected_points": null
+    },
+    {
+      "player_id": 106,
+      "points": 5,
+      "minutes": 90,
+      "role": "xi",
+      "projected_points": null
+    },
+    {
+      "player_id": 346,
+      "points": 2,
+      "minutes": 90,
+      "role": "xi",
+      "projected_points": null
+    },
+    {
+      "player_id": 411,
+      "points": 6,
+      "minutes": 90,
+      "role": "captain",
+      "projected_points": null
+    },
+    {
+      "player_id": 251,
+      "points": 0,
+      "minutes": 0,
+      "role": "bench",
+      "projected_points": null
+    },
+    {
+      "player_id": 127,
+      "points": 8,
+      "minutes": 85,
+      "role": "bench",
+      "projected_points": null
+    },
+    {
+      "player_id": 387,
+      "points": 1,
+      "minutes": 5,
+      "role": "bench",
+      "projected_points": null
+    },
+    {
+      "player_id": 237,
+      "points": 5,
+      "minutes": 74,
+      "role": "bench",
+      "projected_points": null
+    }
+  ],
+  "excluded_from_pool": null,
+  "corrections": []
+}
